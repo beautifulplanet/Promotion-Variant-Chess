@@ -840,26 +840,23 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw'): void {
   currentSaveData.highestElo = Math.max(currentSaveData.highestElo, state.elo);
 
   // Remind player to save
-  message += '\n(Save to keep progress)';
+  message += '\n(Click Save button to keep progress!)';
 
-  // Play win animation if player won
+  // ALWAYS show game over message immediately so player knows the result
+  if (onGameOver) {
+    onGameOver(message);
+  }
+
+  // Play win animation if player won (animation plays AFTER message is shown)
   if (result === 'win' && onWinAnimation) {
     // Trigger player win callback (for refreshing articles, etc.)
     if (onPlayerWin) {
       onPlayerWin();
     }
     onWinAnimation().then(() => {
-      // Show game over message after animation
-      if (onGameOver) {
-        onGameOver(message);
-      }
       notifyStateChange();
     });
   } else {
-    // No animation for loss/draw - show message immediately
-    if (onGameOver) {
-      onGameOver(message);
-    }
     notifyStateChange();
   }
 }
