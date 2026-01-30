@@ -275,15 +275,12 @@ export function newGame(): void {
   state.legalMovesForSelected = [];
   currentGamePromotions = [];
 
-  // CRITICAL: Ensure savedPromotedPieces and currentSaveData.promotedPieces stay synced
-  // Use whichever has more pieces (they should match, but sync if not)
-  if (currentSaveData.promotedPieces.length > savedPromotedPieces.length) {
-    savedPromotedPieces = currentSaveData.promotedPieces;
-  } else if (savedPromotedPieces.length > currentSaveData.promotedPieces.length) {
-    currentSaveData = { ...currentSaveData, promotedPieces: savedPromotedPieces };
-  }
+  // CRITICAL: savedPromotedPieces is the source of truth after a game ends
+  // It gets updated in handleGameEnd to reflect surviving pieces
+  // Sync currentSaveData to match (not the other way around!)
+  currentSaveData = { ...currentSaveData, promotedPieces: savedPromotedPieces };
 
-  console.log('[Game] newGame - savedPromotedPieces:', savedPromotedPieces.length, 'currentSaveData:', currentSaveData.promotedPieces.length);
+  console.log('[Game] newGame - bonus pieces:', savedPromotedPieces.length);
 
   // Setup board with any saved promoted pieces
   setupBoardWithPromotions();
