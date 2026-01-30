@@ -1351,7 +1351,6 @@ function create2DPieceSprite(piece: Piece, row: number, col: number): void {
             } else {
                 // FALLBACK: Canvas generation for Font-based styles (Newspaper, etc.)
                 const spriteCanvas = document.createElement('canvas');
-                // ... (Existing canvas logic)
                 const size = 256;
                 spriteCanvas.width = size;
                 spriteCanvas.height = size;
@@ -1378,19 +1377,25 @@ function create2DPieceSprite(piece: Piece, row: number, col: number): void {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
-                // For BLACK pieces: Draw a contrasting outline/stroke for better visibility
-                if (!isWhite) {
-                    ctx.strokeStyle = '#ffffff'; // White outline
-                    ctx.lineWidth = 6;
+                // REVERSED COLORS FOR VISIBILITY:
+                // White pieces: Dark fill (traditional)
+                // Black pieces: Light fill with dark outline (reversed for contrast)
+                if (isWhite) {
+                    // White pieces: dark fill color (standard)
+                    ctx.fillStyle = styleConfig.whiteTextColor || '#1a1a1a';
+                    ctx.fillText(symbol, size / 2, size / 2 + 12);
+                } else {
+                    // Black pieces: Draw dark outline FIRST, then light fill
+                    // This gives them a "reverse" look - light piece with dark edge
+                    ctx.strokeStyle = '#1a1a1a'; // Dark outline
+                    ctx.lineWidth = 8;
                     ctx.lineJoin = 'round';
                     ctx.strokeText(symbol, size / 2, size / 2 + 12);
+                    
+                    // Light fill (reversed from white pieces)
+                    ctx.fillStyle = '#e8e8e8'; // Light gray/white fill
+                    ctx.fillText(symbol, size / 2, size / 2 + 12);
                 }
-
-                ctx.fillStyle = isWhite ?
-                    (styleConfig.whiteTextColor || '#1a1a1a') :
-                    (styleConfig.blackTextColor || '#1a1a1a');
-
-                ctx.fillText(symbol, size / 2, size / 2 + 12);
 
                 const texture = new THREE.CanvasTexture(spriteCanvas);
                 texture.needsUpdate = true;
@@ -1453,10 +1458,13 @@ function getPieceMaterials(piece: Piece): {
     }
 
     // Create new materials
+    // REVERSED COLOR SCHEME for visibility:
+    // White pieces: Light base with dark accents
+    // Black pieces: Dark base with LIGHT accents/trim for contrast
     const baseColor = isWhite ? (styleConfig.whiteColor || 0xf8f8f8) : (styleConfig.blackColor || 0x0a0a0a);
     const trimColor = isWhite ? (styleConfig.whiteTrimColor || 0x1a1a1a) : (styleConfig.blackTrimColor || 0xe8e8e8);
-    const emissiveColor = isWhite ? (styleConfig.whiteEmissive || 0x000000) : (styleConfig.blackEmissive || 0x000000);
-    const emissiveIntensity = styleConfig.emissiveIntensity || 0.05;
+    const emissiveColor = isWhite ? (styleConfig.whiteEmissive || 0x000000) : (styleConfig.blackEmissive || 0x222222);
+    const emissiveIntensity = isWhite ? (styleConfig.emissiveIntensity || 0.05) : (styleConfig.emissiveIntensity || 0.1);
     const roughness = styleConfig.roughness || 0.2;
     const metalness = styleConfig.metalness || 0.0;
     const hasGlow = styleConfig.glowEffect || false;
@@ -1470,18 +1478,20 @@ function getPieceMaterials(piece: Piece): {
             emissiveIntensity: emissiveIntensity,
         }),
         accent: new THREE.MeshStandardMaterial({
-            color: hasGlow ? trimColor : (isWhite ? 0xc0a060 : 0xd0d0d0),
+            // Black pieces get brighter silver accents for visibility
+            color: hasGlow ? trimColor : (isWhite ? 0xc0a060 : 0xe0e0e0),
             roughness: hasGlow ? 0.2 : 0.15,
             metalness: hasGlow ? 0.3 : 0.9,
-            emissive: hasGlow ? trimColor : (isWhite ? 0x604020 : 0x404040),
-            emissiveIntensity: hasGlow ? 0.5 : 0.1,
+            emissive: hasGlow ? trimColor : (isWhite ? 0x604020 : 0x505050),
+            emissiveIntensity: hasGlow ? 0.5 : (isWhite ? 0.1 : 0.2),
         }),
         rim: new THREE.MeshStandardMaterial({
-            color: trimColor,
+            // Black pieces: bright rim for edge visibility
+            color: isWhite ? trimColor : 0xc0c0c0,
             roughness: 0.2,
             metalness: hasGlow ? 0.3 : 0.6,
-            emissive: hasGlow ? trimColor : (isWhite ? 0x202040 : 0x404020),
-            emissiveIntensity: hasGlow ? 0.3 : 0.15,
+            emissive: hasGlow ? trimColor : (isWhite ? 0x202040 : 0x606060),
+            emissiveIntensity: hasGlow ? 0.3 : (isWhite ? 0.15 : 0.25),
         }),
         team: new THREE.MeshBasicMaterial({
             color: isWhite ? 0x0088ff : 0xff0044,
