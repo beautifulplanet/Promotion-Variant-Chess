@@ -1,6 +1,9 @@
 // src/newspaperArticles.ts
 // Onion-style satirical chess articles for the newspaper sidebar
 
+// Import additional articles from separate module for easier maintenance
+import { EXTRA_ARTICLES } from './newspaperArticlesExtra';
+
 export interface Article {
   headline: string;
   snippet: string;
@@ -128,18 +131,21 @@ export const ARTICLES: Article[] = [
   { headline: "You Won't Believe This One Weird Trick To Win At Chess", snippet: "It's playing better than your opponent. Shocking, we know. Grandmasters hate this simple strategy. Click for more tips that are equally obvious and useless." },
 ];
 
+// Combine base articles with extra articles from separate module
+const ALL_ARTICLES: Article[] = [...ARTICLES, ...EXTRA_ARTICLES];
+
 // Get random articles for display (non-repeating pair)
 export function getRandomArticlePair(): [Article, Article] {
-  const shuffled = [...ARTICLES].sort(() => Math.random() - 0.5);
+  const shuffled = [...ALL_ARTICLES].sort(() => Math.random() - 0.5);
   return [shuffled[0], shuffled[1]];
 }
 
 // Get a specific article by index
 export function getArticle(index: number): Article {
-  return ARTICLES[index % ARTICLES.length];
+  return ALL_ARTICLES[index % ALL_ARTICLES.length];
 }
 
 // Get article count
 export function getArticleCount(): number {
-  return ARTICLES.length;
+  return ALL_ARTICLES.length;
 }
