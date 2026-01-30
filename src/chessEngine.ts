@@ -299,6 +299,11 @@ export class ChessEngine {
     return this.chess.fen();
   }
 
+  // Alias for fen() - more explicit naming
+  getFEN(): string {
+    return this.chess.fen();
+  }
+
   // Reset to starting position
   reset(): void {
     this.chess.reset();
