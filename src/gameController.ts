@@ -3,6 +3,7 @@
 // This can be used with Canvas2D, WebGL, Three.js, or any renderer
 
 import { engine, type Move } from './chessEngine';
+import { aiService } from './aiService';
 import { getLevelForElo, getLevelProgress, checkLevelChange, type LevelInfo } from './levelSystem';
 import { createDefaultSave, downloadSave, loadSaveFromFile, updateStatsAfterGame, recordPromotion, type SaveData, type PromotedPiece } from './saveSystem';
 import { calculateEloChange } from './gameState';
@@ -661,13 +662,15 @@ function scheduleAIMove(): void {
   if (onAIThinking) onAIThinking(true);
 
   setTimeout(() => {
-    makeAIMove();
-    if (onAIThinking) onAIThinking(false);
+    makeAIMoveAsync();
   }, TIMING.aiMoveDelay);
 }
 
-function makeAIMove(): void {
-  if (state.gameOver) return;
+async function makeAIMoveAsync(): Promise<void> {
+  if (state.gameOver) {
+    if (onAIThinking) onAIThinking(false);
+    return;
+  }
 
   const level = getLevelForElo(state.elo);
 
@@ -687,8 +690,28 @@ function makeAIMove(): void {
       console.log('[AI] Blundered! Random move');
     }
   } else {
-    // AI plays black (minimizing)
-    move = engine.getBestMove(depth, false);
+    // Use Web Worker for AI computation (non-blocking)
+    try {
+      const fen = engine.getFEN();
+      const workerMove = await aiService.getBestMove(fen, depth, false);
+      
+      if (workerMove) {
+        // Get actual piece info from the board
+        const board = engine.getBoard();
+        const piece = board[workerMove.from.row][workerMove.from.col];
+        if (piece) {
+          move = {
+            from: workerMove.from,
+            to: workerMove.to,
+            piece,
+            promotion: workerMove.promotion
+          };
+        }
+      }
+    } catch (e) {
+      console.error('[AI] Worker error, using fallback:', e);
+      move = engine.getBestMove(depth, false);
+    }
   }
 
   if (move) {
@@ -698,6 +721,8 @@ function makeAIMove(): void {
   } else {
     console.error('[AI] No move found!');
   }
+
+  if (onAIThinking) onAIThinking(false);
 }
 
 function checkGameEnd(): void {
