@@ -1,10 +1,3 @@
-// Get number of moves made in current game
-import { engine } from './chessEngine';
-
-export function getMoveCount(): number {
-    // chess.js history() returns all moves made
-    return engine["chess"].history().length;
-}
 // src/renderer3d.ts
 // 3D Ribbon World Renderer - ELO-Based Procedural Era System
 // 2026 Studio Quality with procedural skybox, dynamic lighting, and wormhole transitions
@@ -1261,24 +1254,38 @@ function create2DPieceSprite(piece: Piece, row: number, col: number): void {
 
             // Check for Sprite Sheet style
             if (styleConfig.spriteSheet) {
-                // Load or get cached texture
-                let texture = spriteTextureCache.get(styleConfig.spriteSheet);
-                if (!texture) {
+                // Load or get cached texture (with loading flag to prevent duplicate loads)
+                const cacheKeyTexture = styleConfig.spriteSheet;
+                let texture = spriteTextureCache.get(cacheKeyTexture);
+                const loadingKey = `_loading_${cacheKeyTexture}`;
+                
+                if (!texture && !spriteTextureCache.has(loadingKey)) {
+                    // Mark as loading to prevent duplicate requests
+                    spriteTextureCache.set(loadingKey, null as any);
+                    
                     const loader = new THREE.TextureLoader();
-                    // Load relative to public root
                     console.log('[Renderer3D] Loading sprite sheet:', styleConfig.spriteSheet);
                     texture = loader.load(
                         styleConfig.spriteSheet,
                         (tex) => {
                             console.log('[Renderer3D] Texture loaded successfully', tex.image.width, 'x', tex.image.height);
+                            // Remove loading flag
+                            spriteTextureCache.delete(loadingKey);
                             // Force update of all pieces using this texture
                             updatePieces(true);
                         },
                         undefined,
-                        (err) => console.error('[Renderer3D] Error loading sprite sheet:', err)
+                        (err) => {
+                            console.error('[Renderer3D] Error loading sprite sheet:', err);
+                            spriteTextureCache.delete(loadingKey);
+                        }
                     );
                     texture.colorSpace = THREE.SRGBColorSpace;
-                    spriteTextureCache.set(styleConfig.spriteSheet, texture);
+                    spriteTextureCache.set(cacheKeyTexture, texture);
+                } else if (!texture) {
+                    // Still loading, use placeholder or skip
+                    texture = spriteTextureCache.get(cacheKeyTexture);
+                    if (!texture) return undefined; // Still loading, skip creating sprite
                 }
 
                 // Clone texture to set specific UVs for this piece type
@@ -1460,14 +1467,15 @@ function getPieceMaterials(piece: Piece): {
 let _prevBoardHash: string = '';
 
 function getBoardHash(board: (Piece | null)[][]): string {
-    let hash = '';
+    // OPTIMIZED: Use array + join instead of string concatenation
+    const parts: string[] = [];
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const p = board[row]?.[col];
-            hash += p ? `${p.color[0]}${p.type}` : '..';
+            parts.push(p ? `${p.color[0]}${p.type}` : '..');
         }
     }
-    return hash;
+    return parts.join('');
 }
 
 function updatePieces(force: boolean = false): void {
@@ -2034,17 +2042,13 @@ function startRenderLoop(): void {
             }
         }
 
-        // PERFORMANCE: In overhead/2D mode, hide environment and skip heavy updates
+        // PERFORMANCE: In overhead/2D mode, hide environment but ALWAYS render
+        // (skipping frames causes stuttering/visual artifacts)
         if (is2DMode) {
             // Hide environment completely when looking overhead
             environmentGroup.visible = false;
 
-            // Only update every 4th frame in 2D mode (static view needs less updates)
-            if (frameCount % 4 !== 0) {
-                return; // Skip render entirely for non-update frames
-            }
-
-            // Skip all environment animations
+            // Always render in 2D mode - no frame skipping to avoid stuttering
             renderer.render(scene, camera);
             return;
         }
@@ -2090,9 +2094,36 @@ export function dispose(): void {
         cancelAnimationFrame(animationId);
     }
 
+    // Dispose procedural systems
     proceduralSkybox.dispose();
     wormholeTransition.dispose();
     dynamicLighting.dispose();
 
+    // Dispose cached textures to prevent memory leaks
+    spriteTextureCache.forEach((texture) => {
+        if (texture && texture.dispose) {
+            texture.dispose();
+        }
+    });
+    spriteTextureCache.clear();
+
+    // Dispose cached sprite materials
+    pieceSpritesCache.forEach((material) => {
+        if (material && material.dispose) {
+            material.dispose();
+        }
+    });
+    pieceSpritesCache.clear();
+
+    // Dispose piece material cache
+    pieceMaterialCache.forEach((materials) => {
+        if (materials.base?.dispose) materials.base.dispose();
+        if (materials.accent?.dispose) materials.accent.dispose();
+        if (materials.rim?.dispose) materials.rim.dispose();
+        if (materials.team?.dispose) materials.team.dispose();
+    });
+    pieceMaterialCache.clear();
+
+    // Dispose renderer
     renderer.dispose();
 }

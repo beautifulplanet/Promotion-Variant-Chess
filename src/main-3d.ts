@@ -551,7 +551,7 @@ function updateSetupButton() {
   if (!setupBtn) return;
   const state = Game.getState();
   // Only enable if game has not started (no moves made) OR game is over (for next game setup)
-  const movesMade = Renderer.getMoveCount ? Renderer.getMoveCount() : 0;
+  const movesMade = Game.getMoveCount ? Game.getMoveCount() : 0;
   if (!state.gameOver && movesMade > 0) {
     // Game in progress with moves made - disable setup
     setupBtn.disabled = true;
