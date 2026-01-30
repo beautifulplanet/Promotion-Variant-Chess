@@ -23,6 +23,88 @@ export interface PromotedPiece {
 }
 
 const SAVE_VERSION = 1;
+const MIN_ELO = 100;
+const MAX_ELO = 10000;
+
+// =============================================================================
+// VALIDATION HELPERS
+// =============================================================================
+
+function isValidNumber(value: unknown, min = -Infinity, max = Infinity): value is number {
+  return typeof value === 'number' && !isNaN(value) && value >= min && value <= max;
+}
+
+function isPositiveInt(value: unknown): value is number {
+  return typeof value === 'number' && !isNaN(value) && Number.isInteger(value) && value >= 0;
+}
+
+function isValidPromotedPiece(piece: unknown): piece is PromotedPiece {
+  if (!piece || typeof piece !== 'object') return false;
+  const p = piece as Record<string, unknown>;
+  return (
+    ['Q', 'R', 'B', 'N'].includes(p.type as string) &&
+    isValidNumber(p.earnedAtElo, MIN_ELO, MAX_ELO) &&
+    isPositiveInt(p.gameNumber)
+  );
+}
+
+/**
+ * Validate and sanitize save data from file
+ * Returns null if data is unrecoverable, otherwise returns sanitized data
+ */
+function validateAndSanitizeSaveData(data: unknown): SaveData | null {
+  if (!data || typeof data !== 'object') return null;
+  
+  const d = data as Record<string, unknown>;
+  const defaults = createDefaultSave();
+  
+  // ELO must be a valid number - reject completely invalid saves
+  if (!isValidNumber(d.elo)) {
+    console.warn('[Save] Invalid or missing ELO value');
+    return null;
+  }
+  
+  // Clamp ELO to valid range
+  const elo = Math.min(MAX_ELO, Math.max(MIN_ELO, d.elo));
+  
+  // Validate and sanitize all fields with fallbacks
+  const sanitized: SaveData = {
+    elo,
+    gamesWon: isPositiveInt(d.gamesWon) ? d.gamesWon : defaults.gamesWon,
+    gamesLost: isPositiveInt(d.gamesLost) ? d.gamesLost : defaults.gamesLost,
+    gamesPlayed: isPositiveInt(d.gamesPlayed) ? d.gamesPlayed : defaults.gamesPlayed,
+    highestElo: isValidNumber(d.highestElo, MIN_ELO, MAX_ELO) 
+      ? Math.max(d.highestElo, elo) 
+      : Math.max(defaults.highestElo, elo),
+    currentWinStreak: isPositiveInt(d.currentWinStreak) ? d.currentWinStreak : 0,
+    bestWinStreak: isPositiveInt(d.bestWinStreak) ? d.bestWinStreak : 0,
+    promotedPieces: Array.isArray(d.promotedPieces) 
+      ? d.promotedPieces.filter(isValidPromotedPiece) 
+      : [],
+    totalPromotions: (d.totalPromotions && typeof d.totalPromotions === 'object')
+      ? {
+          Q: isPositiveInt((d.totalPromotions as Record<string, unknown>).Q) ? (d.totalPromotions as Record<string, number>).Q : 0,
+          R: isPositiveInt((d.totalPromotions as Record<string, unknown>).R) ? (d.totalPromotions as Record<string, number>).R : 0,
+          B: isPositiveInt((d.totalPromotions as Record<string, unknown>).B) ? (d.totalPromotions as Record<string, number>).B : 0,
+          N: isPositiveInt((d.totalPromotions as Record<string, unknown>).N) ? (d.totalPromotions as Record<string, number>).N : 0,
+        }
+      : defaults.totalPromotions,
+    saveVersion: isPositiveInt(d.saveVersion) ? d.saveVersion : SAVE_VERSION,
+    savedAt: typeof d.savedAt === 'string' ? d.savedAt : new Date().toISOString(),
+  };
+  
+  // Ensure consistency: gamesPlayed >= gamesWon + gamesLost
+  if (sanitized.gamesPlayed < sanitized.gamesWon + sanitized.gamesLost) {
+    sanitized.gamesPlayed = sanitized.gamesWon + sanitized.gamesLost;
+  }
+  
+  // Ensure bestWinStreak >= currentWinStreak
+  if (sanitized.bestWinStreak < sanitized.currentWinStreak) {
+    sanitized.bestWinStreak = sanitized.currentWinStreak;
+  }
+  
+  return sanitized;
+}
 
 /**
  * Create default save data for new players
@@ -95,17 +177,13 @@ export function loadSaveFromFile(): Promise<SaveData | null> {
           return;
         }
         
-        if (typeof data.elo !== 'number' || isNaN(data.elo)) {
-          console.warn('[Save] Invalid ELO in save file');
+        // Comprehensive save validation
+        const validatedData = validateAndSanitizeSaveData(data);
+        if (!validatedData) {
+          console.warn('[Save] Save file failed validation');
           resolve(null);
           return;
         }
-        
-        // Ensure all fields exist (for backwards compatibility)
-        const validatedData: SaveData = {
-          ...createDefaultSave(),
-          ...data
-        };
         
         console.log('[Save] Loaded save file - ELO:', validatedData.elo, 'Games:', validatedData.gamesPlayed);
         resolve(validatedData);
@@ -159,8 +237,9 @@ export function updateStatsAfterGame(
 ): SaveData {
   const updated = { ...data };
   
-  updated.elo = Math.max(100, newElo); // Ensure ELO doesn't go below 100
-  updated.highestElo = Math.max(updated.highestElo, newElo);
+  // Enforce ELO bounds (100-10000)
+  updated.elo = Math.min(10000, Math.max(100, newElo));
+  updated.highestElo = Math.min(10000, Math.max(updated.highestElo, newElo));
   updated.gamesPlayed++;
   
   if (playerWon) {
