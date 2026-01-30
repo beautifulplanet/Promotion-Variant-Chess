@@ -356,8 +356,9 @@ function setupBoardWithPromotions(): void {
 
   // === AI BONUS PIECES ===
   // Calculate AI bonus pieces based on ELO and player advantage (by value)
+  // ALWAYS use savedPromotedPieces for AI calculation (not piecesToPlace which may be empty for custom arrangements)
   console.log(`[Game] Current ELO: ${state.elo}, calculating AI bonus pieces...`);
-  const aiBonusPieces = getAIBonusPieces(state.elo, piecesToPlace);
+  const aiBonusPieces = getAIBonusPieces(state.elo, savedPromotedPieces);
   console.log(`[Game] AI will get ${aiBonusPieces.length} bonus pieces:`, aiBonusPieces);
 
   // Apply AI bonus pieces to black side
