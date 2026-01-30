@@ -304,6 +304,11 @@ export class ChessEngine {
     return this.chess.fen();
   }
 
+  // Get move history (all moves made in current game)
+  getMoveHistory(): string[] {
+    return this.chess.history();
+  }
+
   // Reset to starting position
   reset(): void {
     this.chess.reset();

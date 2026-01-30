@@ -189,6 +189,13 @@ export function getBoard(): (Piece | null)[][] {
 }
 
 /**
+ * Get number of moves made in current game
+ */
+export function getMoveCount(): number {
+  return engine.getMoveHistory().length;
+}
+
+/**
  * Check if in check
  */
 export function isInCheck(): boolean {
