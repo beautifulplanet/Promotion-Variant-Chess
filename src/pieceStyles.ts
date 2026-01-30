@@ -7,8 +7,8 @@ export interface PieceStyleConfig {
     description: string;
     type: '2d' | '3d';
     // 3D style properties
-    whiteColor?: number;
-    blackColor?: number;
+    whiteColor?: number | string;
+    blackColor?: number | string;
     whiteTrimColor?: number;
     blackTrimColor?: number;
     whiteEmissive?: number;
@@ -18,10 +18,16 @@ export interface PieceStyleConfig {
     metalness?: number;
     // 2D style properties
     useSymbols?: boolean;      // Use unicode symbols (♔ ♚)
+    useLetters?: boolean;      // Use letter abbreviations (K, Q, R, B, N, P)
+    useCustomDraw?: string;    // Custom canvas drawing function name
     fontFamily?: string;
     whiteTextColor?: string;
     blackTextColor?: string;
     backgroundColor?: string;
+    whiteBackgroundColor?: string;
+    blackBackgroundColor?: string;
+    whiteOutline?: string;
+    blackOutline?: string;
     spriteSheet?: string;      // Path to sprite sheet image (relative to public)
     spriteMap?: Record<string, number>; // Map piece type to index (0-5)
     // Special effects
@@ -321,6 +327,141 @@ export const PIECE_STYLES: Record<string, PieceStyleConfig> = {
         blackTextColor: '#000000', // Crisp Black
         backgroundColor: '#ffffff', // Pure White
     },
+
+    // =========================================================================
+    // NEW HIGH-VARIETY 2D STYLES
+    // =========================================================================
+
+    alpha2d: {
+        id: 'alpha2d',
+        name: 'Alpha Letters',
+        description: 'Pieces shown as K, Q, R, B, N, P letters',
+        type: '2d',
+        useSymbols: false,
+        useLetters: true,
+        fontFamily: '"Arial Black", Impact, sans-serif',
+        whiteTextColor: '#ffffff',
+        blackTextColor: '#1a1a1a',
+        whiteBackgroundColor: '#2255aa',
+        blackBackgroundColor: '#cc3333',
+    },
+
+    cburnett2d: {
+        id: 'cburnett2d',
+        name: 'CBurnett Standard',
+        description: 'Clean flat design like chess.com/lichess',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'cburnett',
+        whiteColor: '#ffffff',
+        blackColor: '#000000',
+        whiteOutline: '#000000',
+        blackOutline: '#ffffff',
+    },
+
+    merida2d: {
+        id: 'merida2d',
+        name: 'Merida Classic',
+        description: 'Elegant traditional outlined style',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'merida',
+        whiteColor: '#f0f0f0',
+        blackColor: '#2a2a2a',
+        whiteOutline: '#333333',
+        blackOutline: '#f0f0f0',
+    },
+
+    pixel2d: {
+        id: 'pixel2d',
+        name: 'Pixel Art',
+        description: '16-bit retro game style',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'pixel',
+        whiteColor: '#e8e8e8',
+        blackColor: '#404040',
+        whiteOutline: '#606060',
+        blackOutline: '#a0a0a0',
+    },
+
+    flat2d: {
+        id: 'flat2d',
+        name: 'Flat Modern',
+        description: 'iOS/Material design flat icons',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'flat',
+        whiteColor: '#fafafa',
+        blackColor: '#37474f',
+        whiteOutline: '#90a4ae',
+        blackOutline: '#78909c',
+    },
+
+    tatiana2d: {
+        id: 'tatiana2d',
+        name: 'Tatiana Ornate',
+        description: 'Detailed decorative figurines',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'tatiana',
+        whiteColor: '#fff8e7',
+        blackColor: '#2c1810',
+        whiteOutline: '#8b7355',
+        blackOutline: '#d4c4a8',
+    },
+
+    magnetic2d: {
+        id: 'magnetic2d',
+        name: 'Magnetic Travel',
+        description: 'Simplified travel chess shapes',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'magnetic',
+        whiteColor: '#f5f5dc',
+        blackColor: '#228b22',
+        whiteOutline: '#8b4513',
+        blackOutline: '#006400',
+    },
+
+    glass2d: {
+        id: 'glass2d',
+        name: 'Frosted Glass',
+        description: 'Translucent modern glass pieces',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'glass',
+        whiteColor: 'rgba(255,255,255,0.85)',
+        blackColor: 'rgba(40,40,60,0.85)',
+        whiteOutline: 'rgba(200,200,220,0.9)',
+        blackOutline: 'rgba(100,100,140,0.9)',
+    },
+
+    metal2d: {
+        id: 'metal2d',
+        name: 'Brushed Metal',
+        description: 'Chrome and gunmetal industrial',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'metal',
+        whiteColor: '#c0c0c0',
+        blackColor: '#404040',
+        whiteOutline: '#808080',
+        blackOutline: '#606060',
+    },
+
+    classic2d: {
+        id: 'classic2d',
+        name: 'Classic Diagram',
+        description: 'Traditional black outline, filled shapes',
+        type: '2d',
+        useSymbols: false,
+        useCustomDraw: 'classic',
+        whiteColor: '#ffffff',
+        blackColor: '#000000',
+        whiteOutline: '#000000',
+        blackOutline: '#000000',
+    },
 };
 
 // Ordered list for UI display
@@ -346,6 +487,17 @@ export const PIECE_STYLE_ORDER: string[] = [
     'graffiti2d',
     'sketch2d',
     'bold2d',
+    // New variety styles
+    'classic2d',
+    'cburnett2d',
+    'merida2d',
+    'alpha2d',
+    'flat2d',
+    'pixel2d',
+    'tatiana2d',
+    'magnetic2d',
+    'glass2d',
+    'metal2d',
 ];
 
 export function getPieceStyleConfig(styleId: string): PieceStyleConfig {
