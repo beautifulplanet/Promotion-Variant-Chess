@@ -1326,6 +1326,9 @@ function drawClassicPiece(
     ctx.strokeStyle = outline;
     ctx.lineWidth = lw;
 
+    // For black pieces, we'll add white inner details
+    const detailColor = isWhite ? '#888888' : '#ffffff';
+
     switch (type) {
         case 'K': // King - tall with cross
             ctx.beginPath();
@@ -1358,6 +1361,30 @@ function drawClassicPiece(
             ctx.lineTo(cx + 35*s, cy + 70*s);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // WHITE DETAILS for black pieces - cross highlight and collar
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                // Cross inner detail
+                ctx.beginPath();
+                ctx.moveTo(cx - 4*s, cy - 90*s);
+                ctx.lineTo(cx + 4*s, cy - 90*s);
+                ctx.moveTo(cx, cy - 94*s);
+                ctx.lineTo(cx, cy - 78*s);
+                ctx.stroke();
+                // Collar line
+                ctx.beginPath();
+                ctx.moveTo(cx - 28*s, cy + 60*s);
+                ctx.lineTo(cx + 28*s, cy + 60*s);
+                ctx.stroke();
+                // Body detail lines
+                ctx.beginPath();
+                ctx.moveTo(cx - 20*s, cy + 40*s);
+                ctx.lineTo(cx + 20*s, cy + 40*s);
+                ctx.stroke();
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
 
         case 'Q': // Queen - with crown points
@@ -1391,6 +1418,29 @@ function drawClassicPiece(
             ctx.lineTo(cx + 35*s, cy + 70*s);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // WHITE DETAILS for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                // Crown ball highlights
+                ctx.beginPath();
+                ctx.arc(cx - 45*s, cy - 90*s, 2*s, 0, Math.PI * 2);
+                ctx.arc(cx - 15*s, cy - 95*s, 2*s, 0, Math.PI * 2);
+                ctx.arc(cx + 15*s, cy - 95*s, 2*s, 0, Math.PI * 2);
+                ctx.arc(cx + 45*s, cy - 90*s, 2*s, 0, Math.PI * 2);
+                ctx.fillStyle = detailColor;
+                ctx.fill();
+                ctx.fillStyle = fill;
+                // Collar lines
+                ctx.beginPath();
+                ctx.moveTo(cx - 28*s, cy + 60*s);
+                ctx.lineTo(cx + 28*s, cy + 60*s);
+                ctx.moveTo(cx - 22*s, cy + 40*s);
+                ctx.lineTo(cx + 22*s, cy + 40*s);
+                ctx.stroke();
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
 
         case 'R': // Rook - castle tower
@@ -1422,6 +1472,22 @@ function drawClassicPiece(
             ctx.lineTo(cx + 35*s, cy + 70*s);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // WHITE DETAILS for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                // Horizontal lines on tower
+                ctx.beginPath();
+                ctx.moveTo(cx - 28*s, cy + 60*s);
+                ctx.lineTo(cx + 28*s, cy + 60*s);
+                ctx.moveTo(cx - 25*s, cy + 20*s);
+                ctx.lineTo(cx + 25*s, cy + 20*s);
+                ctx.moveTo(cx - 25*s, cy - 20*s);
+                ctx.lineTo(cx + 25*s, cy - 20*s);
+                ctx.stroke();
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
 
         case 'B': // Bishop - with mitre
@@ -1455,6 +1521,29 @@ function drawClassicPiece(
             ctx.beginPath();
             ctx.arc(cx, cy - 90*s, 8*s, 0, Math.PI * 2);
             ctx.fill(); ctx.stroke();
+            // WHITE DETAILS for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                // Ball highlight
+                ctx.beginPath();
+                ctx.arc(cx - 2*s, cy - 92*s, 3*s, 0, Math.PI * 2);
+                ctx.fillStyle = detailColor;
+                ctx.fill();
+                ctx.fillStyle = fill;
+                // Collar line
+                ctx.beginPath();
+                ctx.moveTo(cx - 22*s, cy + 60*s);
+                ctx.lineTo(cx + 22*s, cy + 60*s);
+                ctx.stroke();
+                // Curved detail on body
+                ctx.beginPath();
+                ctx.moveTo(cx - 18*s, cy + 20*s);
+                ctx.quadraticCurveTo(cx, cy + 10*s, cx + 18*s, cy + 20*s);
+                ctx.stroke();
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
 
         case 'N': // Knight - horse head
@@ -1486,6 +1575,29 @@ function drawClassicPiece(
             ctx.fillStyle = outline;
             ctx.fill();
             ctx.fillStyle = fill;
+            // WHITE DETAILS for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.fillStyle = detailColor;
+                // Eye highlight
+                ctx.beginPath();
+                ctx.arc(cx - 16*s, cy - 46*s, 2*s, 0, Math.PI * 2);
+                ctx.fill();
+                // Mane detail
+                ctx.lineWidth = lw * 0.8;
+                ctx.beginPath();
+                ctx.moveTo(cx - 5*s, cy - 75*s);
+                ctx.quadraticCurveTo(cx + 10*s, cy - 70*s, cx + 20*s, cy - 55*s);
+                ctx.stroke();
+                // Collar line
+                ctx.beginPath();
+                ctx.moveTo(cx - 22*s, cy + 60*s);
+                ctx.lineTo(cx + 22*s, cy + 60*s);
+                ctx.stroke();
+                ctx.fillStyle = fill;
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
 
         case 'P': // Pawn - simple
@@ -1512,6 +1624,24 @@ function drawClassicPiece(
             ctx.beginPath();
             ctx.arc(cx, cy - 60*s, 22*s, 0, Math.PI * 2);
             ctx.fill(); ctx.stroke();
+            // WHITE DETAILS for black pieces
+            if (!isWhite) {
+                ctx.fillStyle = detailColor;
+                // Head highlight
+                ctx.beginPath();
+                ctx.arc(cx - 6*s, cy - 66*s, 6*s, 0, Math.PI * 2);
+                ctx.fill();
+                // Collar line
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                ctx.beginPath();
+                ctx.moveTo(cx - 18*s, cy + 60*s);
+                ctx.lineTo(cx + 18*s, cy + 60*s);
+                ctx.stroke();
+                ctx.fillStyle = fill;
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = lw;
+            }
             break;
     }
 }
@@ -1582,7 +1712,66 @@ function drawPixelPiece(
         ],
     };
 
+    // White highlight patterns for black pieces (inner details)
+    const highlightPatterns: Record<string, number[][]> = {
+        K: [
+            [0,0,0,0,2,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,0,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+        Q: [
+            [2,0,0,0,2,0,0,0,2],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,0,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+        R: [
+            [0,2,0,0,0,0,0,2,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,2,2,2,2,2,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,2,2,2,2,2,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+        B: [
+            [0,0,0,0,2,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,2,0,0,0,0],
+            [0,0,0,2,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+        N: [
+            [0,0,0,2,0,0,0,0,0],
+            [0,0,2,0,0,0,0,0,0],
+            [0,0,0,0,0,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+        P: [
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,2,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,0,0,2,2,2,0,0,0],
+            [0,0,0,0,0,0,0,0,0],
+        ],
+    };
+
     const pattern = patterns[type] || patterns.P;
+    const highlightPattern = highlightPatterns[type] || highlightPatterns.P;
     const startX = cx - (pattern[0].length * px) / 2;
     const startY = cy - (pattern.length * px) / 2 + 20 * s;
 
@@ -1599,6 +1788,18 @@ function drawPixelPiece(
             }
         });
     });
+
+    // Draw white highlight pixels for black pieces
+    if (!isWhite) {
+        highlightPattern.forEach((row, y) => {
+            row.forEach((pixel, x) => {
+                if (pixel === 2) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(startX + x * px + 2, startY + y * px + 2, px - 5, px - 5);
+                }
+            });
+        });
+    }
 }
 
 // Flat modern style - clean with subtle shadows
@@ -1649,6 +1850,9 @@ function drawMagneticPiece(
     ctx.fillStyle = fill;
     ctx.strokeStyle = outline;
     ctx.lineWidth = lw;
+    
+    // White detail color for black pieces
+    const detailColor = '#ffffff';
 
     // Simplified geometric shapes
     switch (type) {
@@ -1662,6 +1866,14 @@ function drawMagneticPiece(
             ctx.moveTo(cx - 15*s, cy - 45*s); ctx.lineTo(cx + 15*s, cy - 45*s);
             ctx.lineWidth = lw * 2;
             ctx.stroke();
+            // White details for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 30*s, 0, Math.PI * 2);
+                ctx.stroke();
+            }
             break;
         case 'Q':
             // Star shape
@@ -1674,6 +1886,13 @@ function drawMagneticPiece(
             }
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // White details for black pieces
+            if (!isWhite) {
+                ctx.fillStyle = detailColor;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 10*s, 0, Math.PI * 2);
+                ctx.fill();
+            }
             break;
         case 'R':
             // Rectangle with notches
@@ -1682,6 +1901,15 @@ function drawMagneticPiece(
             ctx.fillStyle = isWhite ? outline : fill;
             ctx.fillRect(cx - 25*s, cy - 50*s, 15*s, 20*s);
             ctx.fillRect(cx + 10*s, cy - 50*s, 15*s, 20*s);
+            // White details for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw * 0.8;
+                ctx.beginPath();
+                ctx.moveTo(cx - 25*s, cy); ctx.lineTo(cx + 25*s, cy);
+                ctx.moveTo(cx - 25*s, cy + 30*s); ctx.lineTo(cx + 25*s, cy + 30*s);
+                ctx.stroke();
+            }
             break;
         case 'B':
             // Diamond
@@ -1692,6 +1920,18 @@ function drawMagneticPiece(
             ctx.lineTo(cx - 40*s, cy);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // White details for black pieces
+            if (!isWhite) {
+                ctx.strokeStyle = detailColor;
+                ctx.lineWidth = lw;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 35*s);
+                ctx.lineTo(cx + 22*s, cy);
+                ctx.lineTo(cx, cy + 35*s);
+                ctx.lineTo(cx - 22*s, cy);
+                ctx.closePath();
+                ctx.stroke();
+            }
             break;
         case 'N':
             // L-shape for knight
@@ -1706,12 +1946,26 @@ function drawMagneticPiece(
             ctx.lineTo(cx + 30*s, cy + 50*s);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // White details for black pieces - eye dot
+            if (!isWhite) {
+                ctx.fillStyle = detailColor;
+                ctx.beginPath();
+                ctx.arc(cx - 18*s, cy - 38*s, 5*s, 0, Math.PI * 2);
+                ctx.fill();
+            }
             break;
         case 'P':
             // Simple circle
             ctx.beginPath();
             ctx.arc(cx, cy, 40*s, 0, Math.PI * 2);
             ctx.fill(); ctx.stroke();
+            // White details for black pieces
+            if (!isWhite) {
+                ctx.fillStyle = detailColor;
+                ctx.beginPath();
+                ctx.arc(cx - 10*s, cy - 10*s, 10*s, 0, Math.PI * 2);
+                ctx.fill();
+            }
             break;
     }
 }
@@ -1730,12 +1984,21 @@ function drawGlassPiece(
     drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw);
     ctx.globalAlpha = 1.0;
     
-    // Add highlight
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2 * s;
+    // Add highlight - stronger for black pieces
+    ctx.strokeStyle = isWhite ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = isWhite ? 2 * s : 3 * s;
     ctx.beginPath();
     ctx.arc(cx - 15*s, cy - 30*s, 20*s, Math.PI, Math.PI * 1.5);
     ctx.stroke();
+    
+    // Extra white shine for black pieces
+    if (!isWhite) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2 * s;
+        ctx.beginPath();
+        ctx.arc(cx + 10*s, cy + 10*s, 15*s, 0, Math.PI * 0.5);
+        ctx.stroke();
+    }
     
     ctx.shadowColor = 'transparent';
 }
@@ -1754,11 +2017,12 @@ function drawMetalPiece(
         gradient.addColorStop(0.7, '#f0f0f0');
         gradient.addColorStop(1, '#a0a0a0');
     } else {
-        gradient.addColorStop(0, '#505050');
-        gradient.addColorStop(0.3, '#707070');
-        gradient.addColorStop(0.5, '#404040');
-        gradient.addColorStop(0.7, '#606060');
-        gradient.addColorStop(1, '#303030');
+        // Brighter gradient stops for black pieces for better visibility
+        gradient.addColorStop(0, '#606060');
+        gradient.addColorStop(0.3, '#909090');
+        gradient.addColorStop(0.5, '#505050');
+        gradient.addColorStop(0.7, '#808080');
+        gradient.addColorStop(1, '#404040');
     }
     
     drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw);
@@ -1772,6 +2036,22 @@ function drawMetalPiece(
     // Re-stroke outline
     ctx.strokeStyle = outline;
     ctx.lineWidth = lw;
+    
+    // Add white highlights for black pieces
+    if (!isWhite) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2 * s;
+        // Top-left highlight
+        ctx.beginPath();
+        ctx.moveTo(cx - 25*s, cy - 50*s);
+        ctx.lineTo(cx - 15*s, cy - 60*s);
+        ctx.stroke();
+        // Small white specular highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.arc(cx - 18*s, cy - 40*s, 5*s, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 function create2DPieceSprite(piece: Piece, row: number, col: number): void {
@@ -2014,7 +2294,7 @@ function getPieceMaterials(piece: Piece): {
 
     // Create new materials
     const baseColor = isWhite ? (styleConfig.whiteColor || 0xf8f8f8) : (styleConfig.blackColor || 0x0a0a0a);
-    const trimColor = isWhite ? (styleConfig.whiteTrimColor || 0x1a1a1a) : (styleConfig.blackTrimColor || 0xe8e8e8);
+    const trimColor = isWhite ? (styleConfig.whiteTrimColor || 0x1a1a1a) : (styleConfig.blackTrimColor || 0xffffff);
     const emissiveColor = isWhite ? (styleConfig.whiteEmissive || 0x000000) : (styleConfig.blackEmissive || 0x000000);
     const emissiveIntensity = styleConfig.emissiveIntensity || 0.05;
     const roughness = styleConfig.roughness || 0.2;
@@ -2030,18 +2310,20 @@ function getPieceMaterials(piece: Piece): {
             emissiveIntensity: emissiveIntensity,
         }),
         accent: new THREE.MeshStandardMaterial({
-            color: hasGlow ? trimColor : (isWhite ? 0xc0a060 : 0xd0d0d0),
+            // For black pieces: bright white/silver accents; for white pieces: gold accents
+            color: hasGlow ? trimColor : (isWhite ? 0xc0a060 : 0xf0f0f0),
             roughness: hasGlow ? 0.2 : 0.15,
             metalness: hasGlow ? 0.3 : 0.9,
-            emissive: hasGlow ? trimColor : (isWhite ? 0x604020 : 0x404040),
-            emissiveIntensity: hasGlow ? 0.5 : 0.1,
+            emissive: hasGlow ? trimColor : (isWhite ? 0x604020 : 0x808080),
+            emissiveIntensity: hasGlow ? 0.5 : (isWhite ? 0.1 : 0.3),
         }),
         rim: new THREE.MeshStandardMaterial({
-            color: trimColor,
+            // For black pieces: bright white rims
+            color: isWhite ? trimColor : 0xffffff,
             roughness: 0.2,
             metalness: hasGlow ? 0.3 : 0.6,
-            emissive: hasGlow ? trimColor : (isWhite ? 0x202040 : 0x404020),
-            emissiveIntensity: hasGlow ? 0.3 : 0.15,
+            emissive: hasGlow ? trimColor : (isWhite ? 0x202040 : 0x606060),
+            emissiveIntensity: hasGlow ? 0.3 : (isWhite ? 0.15 : 0.4),
         }),
         team: new THREE.MeshBasicMaterial({
             color: isWhite ? 0x0088ff : 0xff0044,
