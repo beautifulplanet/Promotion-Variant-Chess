@@ -364,10 +364,10 @@ function setupBoardWithPromotions(): void {
   applyAIBonusPieces(board, aiBonusPieces);
 
   // Load the modified position
-  // Use Manual Load if we have Custom Arrangement OR AI Bonus Pieces (to ensure they stick)
-  const useManualLoad = currentArrangement.length > 0 || aiBonusPieces.length > 0;
+  // Use Manual Load if we have Custom Arrangement OR Player Bonus Pieces OR AI Bonus Pieces
+  const useManualLoad = currentArrangement.length > 0 || savedPromotedPieces.length > 0 || aiBonusPieces.length > 0;
   
-  console.log(`[Game] useManualLoad: ${useManualLoad} (customArrangement: ${currentArrangement.length}, aiBonusPieces: ${aiBonusPieces.length})`);
+  console.log(`[Game] useManualLoad: ${useManualLoad} (customArrangement: ${currentArrangement.length}, playerBonus: ${savedPromotedPieces.length}, aiBonusPieces: ${aiBonusPieces.length})`);
 
   if (useManualLoad) {
     console.log('[Game] Using manual load mode to force AI bonus pieces');
