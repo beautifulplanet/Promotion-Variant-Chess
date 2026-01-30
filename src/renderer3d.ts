@@ -1378,6 +1378,14 @@ function create2DPieceSprite(piece: Piece, row: number, col: number): void {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
+                // For BLACK pieces: Draw a contrasting outline/stroke for better visibility
+                if (!isWhite) {
+                    ctx.strokeStyle = '#ffffff'; // White outline
+                    ctx.lineWidth = 6;
+                    ctx.lineJoin = 'round';
+                    ctx.strokeText(symbol, size / 2, size / 2 + 12);
+                }
+
                 ctx.fillStyle = isWhite ?
                     (styleConfig.whiteTextColor || '#1a1a1a') :
                     (styleConfig.blackTextColor || '#1a1a1a');
