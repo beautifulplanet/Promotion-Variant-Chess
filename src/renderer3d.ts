@@ -1067,21 +1067,45 @@ export function showGameOverOverlay(message: string): void {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.92);
             color: white;
             padding: 40px 60px;
             border-radius: 15px;
             text-align: center;
             font-family: Arial, sans-serif;
             z-index: 1000;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            box-shadow: 0 0 40px rgba(255,215,0,0.5);
+            border: 3px solid #ffd700;
+            animation: pulse 0.5s ease-in-out;
         `;
+        // Add animation keyframes
+        if (!document.getElementById('game-over-styles')) {
+            const style = document.createElement('style');
+            style.id = 'game-over-styles';
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+                    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
         canvas.parentElement?.appendChild(overlay);
     }
 
+    // Check if it's a win (contains "Win")
+    const isWin = message.toLowerCase().includes('win');
+    const borderColor = isWin ? '#ffd700' : (message.toLowerCase().includes('lose') ? '#ff4444' : '#4488ff');
+    overlay.style.borderColor = borderColor;
+    overlay.style.boxShadow = `0 0 40px ${borderColor}80`;
+
+    // Format message - replace newlines with <br>
+    const formattedMessage = message.replace(/\n/g, '<br>');
+
     overlay.innerHTML = `
-        <h2 style="margin: 0 0 15px 0; font-size: 28px;">${message}</h2>
-        <p style="margin: 0; font-size: 16px; opacity: 0.8;">Click to play again</p>
+        <h2 style="margin: 0 0 15px 0; font-size: 32px; color: ${isWin ? '#ffd700' : '#ffffff'};">${isWin ? '🎉 ' : ''}${formattedMessage.split('<br>')[0]}${isWin ? ' 🎉' : ''}</h2>
+        <p style="margin: 0 0 20px 0; font-size: 18px; opacity: 0.9;">${formattedMessage.split('<br>').slice(1).join('<br>')}</p>
+        <p style="margin: 0; font-size: 14px; opacity: 0.6;">Click anywhere to continue</p>
     `;
     overlay.style.display = 'block';
 
