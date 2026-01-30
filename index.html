@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Chess Chronicle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: #faf6ed;
+      background-image: 
+        repeating-linear-gradient(
+          to right,
+          transparent,
+          transparent 1px,
+          rgba(0,0,0,0.02) 1px,
+          rgba(0,0,0,0.02) 2px
+        ),
+        repeating-linear-gradient(
+          to bottom,
+          transparent,
+          transparent 1px,
+          rgba(0,0,0,0.015) 1px,
+          rgba(0,0,0,0.015) 2px
+        );
+      font-family: 'Old Standard TT', 'Times New Roman', serif;
+      color: #2a2a2a;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* HEADER */
+    #newspaper-header {
+      text-align: center;
+      border-bottom: 3px double #2a2a2a;
+      padding: 20px 30px 16px;
+      background: #faf6ed;
+      flex-shrink: 0;
+    }
+    #newspaper-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    #newspaper-header .tagline {
+      font-style: italic;
+      font-size: 18px;
+      color: #444;
+    }
+    #newspaper-header .date {
+      font-size: 14px;
+      margin-top: 6px;
+      color: #555;
+    }
+    
+    /* MAIN CONTENT */
+    #main-content {
+      flex: 1;
+      display: flex;
+      padding: 12px 15px;
+      gap: 12px;
+      overflow: hidden;
+    }
+    
+    /* ARTICLE COLUMNS */
+    .article-column {
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .article-column.left {
+      border-right: 2px solid #c0b090;
+      padding-right: 16px;
+    }
+    .article-column.right {
+      border-left: 2px solid #c0b090;
+      padding-left: 16px;
+    }
+    .article {
+      border-bottom: 1px solid #d0c0a0;
+      padding-bottom: 12px;
+    }
+    .article-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 8px;
+      color: #1a1a1a;
+      letter-spacing: 0.5px;
+    }
+    .article-snippet {
+      font-family: 'Old Standard TT', serif;
+      font-size: 15px;
+      line-height: 1.5;
+      color: #222;
+      font-style: normal;
+      letter-spacing: 0.2px;
+    }
+    
+    /* CENTER SECTION - GAME + BOTTOM MENU */
+    #center-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+      gap: 10px;
+    }
+    #canvas-wrapper {
+      border: 3px solid #2a2a2a;
+      background: #000;
+      flex-shrink: 0;
+    }
+    #game-canvas {
+      display: block;
+    }
+    
+    /* BOTTOM MENU BAR */
+    #sidebar {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 25px;
+      font-size: 14px;
+      padding: 18px 30px;
+      background: #f0ebe0;
+      border: 2px solid #c0b090;
+      border-radius: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px;
+      border-right: 1px solid #c0b090;
+    }
+    .stat-group:last-of-type {
+      border-right: none;
+    }
+    .stat-group h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin: 0;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1a1a1a;
+    }
+    .stat-row {
+      display: flex;
+      gap: 10px;
+    }
+    .stat-label {
+      color: #444;
+      font-size: 13px;
+    }
+    #world-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      padding: 8px 16px;
+      background: #2a2a2a;
+      color: #faf6ed;
+      letter-spacing: 1px;
+      border-radius: 4px;
+    }
+    .controls {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+    }
+    .controls button {
+      background: #2a2a2a;
+      border: none;
+      color: #faf6ed;
+      padding: 8px 12px;
+      font-family: 'Old Standard TT', serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 4px;
+    }
+    .controls button:hover {
+      background: #4a4a4a;
+    }
+    #elo-bar {
+      height: 5px;
+      background: #d0c0a0;
+      margin-top: 3px;
+    }
+    #elo-progress {
+      height: 100%;
+      background: #2a2a2a;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    #fps {
+      font-size: 11px;
+      color: #888;
+      text-align: right;
+      font-style: italic;
+    }
+    #debug-menu {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: 520px;
+      z-index: 2500;
+      flex-wrap: wrap;
+      background: #fffdf6;
+      border: 2px solid #2a2a2a;
+      padding: 12px 14px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    #debug-menu label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #333;
+      white-space: nowrap;
+    }
+    #debug-menu input[type="checkbox"] {
+      accent-color: #2a2a2a;
+    }
+    
+    /* NOTIFICATION */
+    #level-notification {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      color: white;
+      font-size: 16px;
+      text-align: center;
+      z-index: 1000;
+      font-family: 'Playfair Display', serif;
+      animation: slideDown 0.3s ease;
+    }
+    @keyframes slideDown {
+      from { transform: translateX(-50%) translateY(-100px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+    
+    /* SETUP MODE OVERLAY */
+    #setup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    #setup-panel {
+      background: #faf6ed;
+      border: 3px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 25px 35px;
+      text-align: center;
+      max-width: 600px;
+    }
+    #setup-panel h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      margin-bottom: 10px;
+      color: #2a2a2a;
+    }
+    #setup-info {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    #bonus-count {
+      font-weight: bold;
+      color: #2a6a2a;
+    }
+    #setup-board {
+      display: grid;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(2, 50px);
+      gap: 2px;
+      margin: 20px auto;
+      background: #2a2a2a;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .setup-square {
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .setup-square.light {
+      background: #f0d9b5;
+    }
+    .setup-square.dark {
+      background: #b58863;
+    }
+    .setup-square.selected {
+      outline: 3px solid #4a90d9;
+      outline-offset: -3px;
+    }
+    .setup-square.drop-target {
+      background: #90d990 !important;
+    }
+    #setup-controls {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    #setup-controls button {
+      background: #2a2a2a;
+      border: none;
+      color: #faf6ed;
+      padding: 12px 20px;
+      font-family: 'Old Standard TT', serif;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    #setup-controls button:hover {
+      background: #4a4a4a;
+    }
+    #setup-confirm {
+      background: #2a6a2a !important;
+    }
+    #setup-confirm:hover {
+      background: #3a8a3a !important;
+    }
+    
+    /* RESPONSIVE - Hide articles on smaller screens */
+    @media (max-width: 1400px) {
+      .article-column {
+        display: none;
+      }
+      #main-content {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="newspaper-header">
+    <h1>The Chess Chronicle</h1>
+    <div class="tagline">"All the Moves That's Fit to Print"</div>
+    <div class="date" id="newspaper-date"></div>
+  </div>
+  
+  <div id="main-content">
+    <!-- LEFT ARTICLES -->
+    <div class="article-column left">
+      <div class="article">
+        <div class="article-headline" id="article-1-headline">Loading...</div>
+        <div class="article-snippet" id="article-1-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-2-headline"></div>
+        <div class="article-snippet" id="article-2-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-3-headline"></div>
+        <div class="article-snippet" id="article-3-snippet"></div>
+      </div>
+    </div>
+    
+    <!-- CENTER: GAME + BOTTOM MENU -->
+    <div id="center-section">
+      <div id="canvas-wrapper">
+        <canvas id="game-canvas" width="1150" height="650"></canvas>
+      </div>
+      
+      <div id="sidebar">
+        <div id="world-name">Loading...</div>
+        
+        <div class="stat-group">
+          <h3>Turn</h3>
+          <div id="sidebar-turn" style="font-size: 16px; font-weight: bold;">White</div>
+        </div>
+        
+        <div class="stat-group">
+          <h3>Rating</h3>
+          <div class="stat-value" id="elo">400</div>
+        </div>
+        
+        <div class="stat-group">
+          <h3>Level</h3>
+          <div class="stat-value"><span id="player-level">1</span></div>
+        </div>
+        
+        <div class="stat-group">
+          <h3>Record</h3>
+          <div class="stat-row">
+            <span class="stat-label">W:</span>
+            <span id="games-won">0</span>
+            <span class="stat-label">L:</span>
+            <span id="games-lost">0</span>
+          </div>
+        </div>
+        
+        <div class="controls">
+          <button id="setup-btn">⚙️ Setup</button>
+          <button id="view-mode-btn">🎥 Pan</button>
+          <button id="piece-style-btn">♟️ Style</button>
+          <button id="board-style-btn">🏁 Board</button>
+          <button id="save-btn">💾 Save</button>
+          <button id="load-btn">📂 Load</button>
+        </div>
+
+        <!-- Hidden Debug Menu -->
+        <div id="debug-menu" style="display:none; flex-direction:row; gap:12px; align-items:center; margin-top:10px;">
+          <button id="debug-win-btn" style="background:#2a6a2a; color:#faf6ed;">🏆 Win</button>
+          <input id="debug-elo-input" type="number" min="0" max="5000" placeholder="Jump to ELO" style="width:90px; font-size:13px; padding:4px; border-radius:4px; border:1px solid #c0b090;">
+          <button id="debug-elo-btn" style="background:#2a2a2a; color:#faf6ed;">Jump ELO</button>
+
+          <label><input type="checkbox" id="debug-env-toggle" checked> Environment</label>
+          <label><input type="checkbox" id="debug-particles-toggle" checked> Particles</label>
+          <label><input type="checkbox" id="debug-skybox-toggle" checked> Skybox</label>
+          <label><input type="checkbox" id="debug-lighting-toggle" checked> Lighting</label>
+          <label><input type="checkbox" id="debug-shadows-toggle" checked> Shadows</label>
+          <label><input type="checkbox" id="debug-anim-toggle" checked> Env Anim</label>
+          <label><input type="checkbox" id="debug-wormhole-toggle" checked> Wormhole</label>
+          <label><input type="checkbox" id="debug-motion-toggle"> Reduced Motion</label>
+          <label><input type="checkbox" id="debug-auto-fps" checked> Auto FPS</label>
+          <label>Target FPS
+            <input type="number" id="debug-target-fps" min="30" max="120" step="5" value="60" style="width:60px; font-size:12px; padding:2px 4px;">
+          </label>
+          <label><input type="checkbox" id="debug-fixed-step"> Fixed Step</label>
+          <label>Fixed FPS
+            <input type="number" id="debug-fixed-fps" min="30" max="120" step="5" value="60" style="width:60px; font-size:12px; padding:2px 4px;">
+          </label>
+          <label>Anim Quality
+            <input type="range" id="debug-anim-quality" min="1" max="6" step="1" value="1" style="width:110px;">
+          </label>
+          <label>Travel Speed
+            <input type="range" id="debug-travel-speed" min="0.5" max="2.5" step="0.1" value="1.6" style="width:120px;">
+          </label>
+          <label>Asset Density
+            <input type="range" id="debug-asset-density" min="0.2" max="1.2" step="0.1" value="1" style="width:110px;">
+          </label>
+          <label>Particle Density
+            <input type="range" id="debug-particle-density" min="0" max="1.5" step="0.1" value="1" style="width:110px;">
+          </label>
+          <label>Render Scale
+            <input type="range" id="debug-render-scale" min="0.5" max="1.5" step="0.1" value="1" style="width:120px;">
+          </label>
+        </div>
+        
+        <div id="fps">FPS: 60</div>
+      </div>
+      
+      <!-- Hidden elements for compatibility -->
+      <div id="elo-bar" style="display:none;"><div id="elo-progress"></div></div>
+      <span id="elo-min" style="display:none;">0</span>
+      <span id="elo-max" style="display:none;">500</span>
+      <div id="level-name" style="display:none;">Beginner</div>
+    </div>
+    
+    <!-- RIGHT ARTICLES -->
+    <div class="article-column right">
+      <div class="article">
+        <div class="article-headline" id="article-4-headline"></div>
+        <div class="article-snippet" id="article-4-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-5-headline"></div>
+        <div class="article-snippet" id="article-5-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-6-headline"></div>
+        <div class="article-snippet" id="article-6-snippet"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- SETUP MODE OVERLAY -->
+  <div id="setup-overlay" style="display: none;">
+    <div id="setup-panel">
+      <h2>⚙️ Game Setup</h2>
+      <p id="setup-info">Drag pieces to rearrange your starting position.<br>You have <span id="bonus-count">0</span> bonus pieces from wins.</p>
+      <div id="setup-board"></div>
+      <div id="setup-controls">
+        <button id="setup-reset">↩️ Reset Default</button>
+        <button id="setup-confirm">✅ Start Game</button>
+        <button id="setup-cancel">❌ Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="level-notification"></div>
+  
+  <script>
+    const dateElem = document.getElementById('newspaper-date');
+    if (dateElem) {
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      dateElem.textContent = new Date().toLocaleDateString('en-US', options);
+    }
+  </script>
+  <script type="module" src="/src/main-3d.ts"></script>
+</body>
+</html>
