@@ -303,9 +303,6 @@ function setupBoardWithPromotions(): void {
   // Get current board to modify
   const board = engine.getBoard();
 
-  // Track player pieces for castling rights
-  let piecesToPlace: typeof savedPromotedPieces = [];
-
   // If we have a custom arrangement from setup mode, use it
   if (currentArrangement.length > 0) {
     console.log('[Game] Applying custom arrangement with', currentArrangement.length, 'pieces');
@@ -316,14 +313,72 @@ function setupBoardWithPromotions(): void {
       board[7][col] = null;
     }
 
-    // Apply custom arrangement - this is the FULL white setup from the UI
+    // Apply custom arrangement - this is the base white setup from the UI
     for (const item of currentArrangement) {
       board[item.row][item.col] = { type: item.type as PieceType, color: 'white' };
+    }
+
+    // ALSO add any bonus pieces that aren't already in the arrangement
+    // Find empty slots for bonus pieces
+    if (savedPromotedPieces.length > 0) {
+      // Count pieces by type already in arrangement
+      const arrangementCounts: Record<string, number> = { Q: 0, R: 0, B: 0, N: 0 };
+      for (const item of currentArrangement) {
+        if (arrangementCounts[item.type] !== undefined) {
+          arrangementCounts[item.type]++;
+        }
+      }
+      
+      // Base counts (standard chess starting position)
+      const baseCounts: Record<string, number> = { Q: 1, R: 2, B: 2, N: 2 };
+      
+      // Calculate how many bonus pieces of each type are ALREADY in the arrangement
+      const bonusAlreadyInArrangement: Record<string, number> = {
+        Q: Math.max(0, arrangementCounts.Q - baseCounts.Q),
+        R: Math.max(0, arrangementCounts.R - baseCounts.R),
+        B: Math.max(0, arrangementCounts.B - baseCounts.B),
+        N: Math.max(0, arrangementCounts.N - baseCounts.N)
+      };
+      
+      // Count bonus pieces by type
+      const bonusCounts: Record<string, number> = { Q: 0, R: 0, B: 0, N: 0 };
+      for (const bp of savedPromotedPieces) {
+        bonusCounts[bp.type]++;
+      }
+      
+      // Figure out which bonus pieces still need to be placed
+      const bonusPiecesToAdd: PieceType[] = [];
+      for (const type of ['Q', 'R', 'B', 'N'] as PieceType[]) {
+        const needed = bonusCounts[type] - bonusAlreadyInArrangement[type];
+        for (let i = 0; i < needed; i++) {
+          bonusPiecesToAdd.push(type);
+        }
+      }
+      
+      if (bonusPiecesToAdd.length > 0) {
+        console.log('[Game] Adding', bonusPiecesToAdd.length, 'bonus pieces to custom arrangement:', bonusPiecesToAdd);
+        
+        // Find empty slots in rows 6-7 (prioritize pawns row, then back rank except king pos)
+        const emptySlots: Array<{row: number, col: number}> = [];
+        for (let col = 0; col < 8; col++) {
+          if (!board[6][col]) emptySlots.push({ row: 6, col });
+        }
+        for (let col = 0; col < 8; col++) {
+          if (col !== 4 && !board[7][col]) emptySlots.push({ row: 7, col }); // Skip e1 (king default)
+        }
+        
+        // Place bonus pieces in empty slots
+        for (let i = 0; i < bonusPiecesToAdd.length && i < emptySlots.length; i++) {
+          const slot = emptySlots[i];
+          board[slot.row][slot.col] = { type: bonusPiecesToAdd[i], color: 'white' };
+          console.log(`[Game] Placed bonus ${bonusPiecesToAdd[i]} at row ${slot.row} col ${slot.col}`);
+        }
+      }
     }
   } else {
     // No custom arrangement - use default with any promoted pieces
     if (savedPromotedPieces.length > 0) {
-      piecesToPlace = savedPromotedPieces.slice(0, 14);
+      const piecesToPlace = savedPromotedPieces.slice(0, 14);
 
       // Default slots to place extra pieces
       const defaultSlots = [
@@ -387,8 +442,8 @@ function setupBoardWithPromotions(): void {
   } else {
     console.log('[Game] Using standard FEN load mode');
     // Standard loading with FEN validation logic
-    const whiteKingSide = piecesToPlace.length < 14;
-    const whiteQueenSide = piecesToPlace.length < 13;
+    const whiteKingSide = savedPromotedPieces.length < 14;
+    const whiteQueenSide = savedPromotedPieces.length < 13;
     const blackKingSide = aiBonusPieces.length < 14;
     const blackQueenSide = aiBonusPieces.length < 13;
 
@@ -400,7 +455,7 @@ function setupBoardWithPromotions(): void {
     });
   }
 
-  console.log('[Game] Board setup - Player pieces:', piecesToPlace.length, ', AI bonus pieces:', aiBonusPieces.length);
+  console.log('[Game] Board setup - Player bonus pieces:', savedPromotedPieces.length, ', AI bonus pieces:', aiBonusPieces.length);
 }
 
 /**
