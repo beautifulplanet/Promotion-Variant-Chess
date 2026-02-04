@@ -97,21 +97,34 @@ function disposeObject(obj: THREE.Object3D): void {
         if (obj.material) {
             if (Array.isArray(obj.material)) {
                 obj.material.forEach((m) => {
-                    // Dispose textures if present
+                    // Dispose ALL texture types
                     if ('map' in m && m.map) m.map.dispose();
                     if ('normalMap' in m && m.normalMap) m.normalMap.dispose();
                     if ('roughnessMap' in m && m.roughnessMap) m.roughnessMap.dispose();
                     if ('metalnessMap' in m && m.metalnessMap) m.metalnessMap.dispose();
                     if ('emissiveMap' in m && m.emissiveMap) m.emissiveMap.dispose();
+                    if ('envMap' in m && m.envMap) m.envMap.dispose();
+                    if ('lightMap' in m && m.lightMap) m.lightMap.dispose();
+                    if ('aoMap' in m && m.aoMap) m.aoMap.dispose();
+                    if ('alphaMap' in m && m.alphaMap) m.alphaMap.dispose();
+                    if ('bumpMap' in m && m.bumpMap) m.bumpMap.dispose();
+                    if ('displacementMap' in m && m.displacementMap) m.displacementMap.dispose();
                     m.dispose();
                 });
             } else {
-                // Dispose textures if present
-                if ('map' in obj.material && obj.material.map) obj.material.map.dispose();
-                if ('normalMap' in obj.material && obj.material.normalMap) obj.material.normalMap.dispose();
-                if ('roughnessMap' in obj.material && obj.material.roughnessMap) obj.material.roughnessMap.dispose();
-                if ('metalnessMap' in obj.material && obj.material.metalnessMap) obj.material.metalnessMap.dispose();
-                if ('emissiveMap' in obj.material && obj.material.emissiveMap) obj.material.emissiveMap.dispose();
+                // Dispose ALL texture types
+                const mat = obj.material as THREE.Material & Record<string, any>;
+                if (mat.map) mat.map.dispose();
+                if (mat.normalMap) mat.normalMap.dispose();
+                if (mat.roughnessMap) mat.roughnessMap.dispose();
+                if (mat.metalnessMap) mat.metalnessMap.dispose();
+                if (mat.emissiveMap) mat.emissiveMap.dispose();
+                if (mat.envMap) mat.envMap.dispose();
+                if (mat.lightMap) mat.lightMap.dispose();
+                if (mat.aoMap) mat.aoMap.dispose();
+                if (mat.alphaMap) mat.alphaMap.dispose();
+                if (mat.bumpMap) mat.bumpMap.dispose();
+                if (mat.displacementMap) mat.displacementMap.dispose();
                 obj.material.dispose();
             }
         }
