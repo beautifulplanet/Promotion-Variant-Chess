@@ -3,6 +3,7 @@
 
 import { Chess, Square, Move as ChessMove, PieceSymbol } from 'chess.js';
 import type { Piece, PieceColor, PieceType } from './types';
+import { getBookMove } from './openingBook';
 import {
   PIECE_VALUES, PST_PAWN, PST_KNIGHT, PST_BISHOP, PST_ROOK, PST_QUEEN, PST_KING_MID, PST_KING_END, BONUSES
 } from './evaluationConstants';
@@ -440,6 +441,31 @@ export class ChessEngine {
   // AI: Minimax with alpha-beta pruning + Quiescence Search + Killer Heuristic
   getBestMove(depth: number, maximizing: boolean): Move | null {
     try {
+      // 1. Check Opening Book
+      const currentFen = this.fen();
+      const bookMove = getBookMove(currentFen);
+      if (bookMove) {
+        console.log(`[Engine] Opening Book hit: ${bookMove.name || bookMove.san}`);
+        const legalMoves = this.getLegalMoves();
+
+        // Find the matching move in our legal moves list
+        // We temporarily make the move in chess.js to get from/to squares
+        const testMove = this.chess.move(bookMove.san);
+        if (testMove) {
+          this.chess.undo(); // Undo immediately
+
+          // Find equivalent move in our list
+          const match = legalMoves.find(m =>
+            m.from.row === squareToRowCol(testMove.from).row &&
+            m.from.col === squareToRowCol(testMove.from).col &&
+            m.to.row === squareToRowCol(testMove.to).row &&
+            m.to.col === squareToRowCol(testMove.to).col
+          );
+
+          if (match) return match;
+        }
+      }
+
       // Clear heuristics for new search
       this.killerMoves = Array(depth + 1).fill(null).map(() => []);
       this.historyMoves.clear();
