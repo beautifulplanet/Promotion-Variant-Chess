@@ -3915,6 +3915,24 @@ function startRenderLoop(): void {
             }
         }
 
+        // PERFORMANCE: Frustum/Distance Culling for environment assets
+        // Only run every 10 frames to avoid CPU overhead
+        if (frameCount % 10 === 0 && environmentGroup && environmentGroup.visible && !is2DMode) {
+            const cameraPos = camera.position;
+            const maxDistSq = 150 * 150; // Cull objects > 150 units away
+
+            environmentGroup.traverse((obj) => {
+                // Only cull meshes that aren't the ground or sky
+                if (obj instanceof THREE.Mesh) {
+                    // Skip skybox/ground (usually very large scale or specific names)
+                    if (obj.name.includes('sky') || obj.name.includes('ground') || obj.scale.x > 50) return;
+
+                    const distSq = obj.position.distanceToSquared(cameraPos);
+                    obj.visible = distSq < maxDistSq;
+                }
+            });
+        }
+
         // PERFORMANCE: In overhead/2D mode, hide environment but ALWAYS render
         // (skipping frames causes stuttering/visual artifacts)
         if (is2DMode) {
