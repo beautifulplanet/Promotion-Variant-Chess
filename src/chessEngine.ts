@@ -3,25 +3,13 @@
 
 import { Chess, Square, Move as ChessMove, PieceSymbol } from 'chess.js';
 import type { Piece, PieceColor, PieceType } from './types';
+import {
+  PIECE_VALUES, PST_PAWN, PST_KNIGHT, PST_BISHOP, PST_ROOK, PST_QUEEN, PST_KING_MID, PST_KING_END, BONUSES
+} from './evaluationConstants';
 
 // =============================================================================
-// EVALUATION CONSTANTS (Hoisted to avoid per-call allocations)
+// EVALUATION HELPERS
 // =============================================================================
-
-const PIECE_VALUES_LOWER: Record<string, number> = {
-  'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
-};
-
-const PAWN_TABLE: number[][] = [
-  [0, 0, 0, 0, 0, 0, 0, 0],
-  [50, 50, 50, 50, 50, 50, 50, 50],
-  [10, 10, 20, 30, 30, 20, 10, 10],
-  [5, 5, 10, 25, 25, 10, 5, 5],
-  [0, 0, 0, 20, 20, 0, 0, 0],
-  [5, -5, -10, 0, 0, -10, -5, 5],
-  [5, 10, 10, -20, -20, 10, 10, 5],
-  [0, 0, 0, 0, 0, 0, 0, 0]
-];
 
 // Our internal move format
 export interface Move {
@@ -131,16 +119,20 @@ export class ChessEngine {
     currentTurn: PieceColor,
     castlingRights?: { whiteKingSide: boolean; whiteQueenSide: boolean; blackKingSide: boolean; blackQueenSide: boolean },
     enPassantTarget?: { row: number; col: number } | null
-  ): void {
+  ): boolean {
     const fen = boardToFEN(board, currentTurn, castlingRights, enPassantTarget);
     console.log('[ChessEngine] Loading FEN:', fen);
     try {
       this.chess.load(fen);
       this.boardDirty = true; // Invalidate cache
+      return true;
     } catch (e) {
       console.error('[ChessEngine] FAILED to load FEN (Invalid State):', fen, e);
-      // Fallback: Reset to standard position to avoid broken state
-      // this.chess.reset(); // Already reset by calling code usually, but safer to leave as is (likely standard)
+      // Reset to standard position to avoid broken state
+      console.warn('[ChessEngine] Resetting to standard position as fallback');
+      this.chess.reset();
+      this.boardDirty = true;
+      return false;
     }
   }
 
@@ -164,7 +156,7 @@ export class ChessEngine {
         console.error(`[ChessEngine] Failed to put piece at ${square}:`, e);
       }
     }
-    
+
     console.log(`[ChessEngine] Successfully placed ${placedCount}/${arrangement.length} pieces`);
     console.log('[ChessEngine] Board after custom load:', this.chess.ascii());
 
@@ -285,6 +277,19 @@ export class ChessEngine {
     return this.chess.isDraw();
   }
 
+  /**
+   * Get the specific type of draw (for better user feedback)
+   */
+  getDrawType(): 'stalemate' | 'insufficient' | 'fifty-move' | 'repetition' | 'agreement' | 'unknown' {
+    if (this.chess.isStalemate()) return 'stalemate';
+    if (this.chess.isInsufficientMaterial()) return 'insufficient';
+    if (this.chess.isThreefoldRepetition()) return 'repetition';
+    // chess.js doesn't expose 50-move directly, but isDraw covers it
+    // We check the other conditions first, so if none match and it's a draw, assume 50-move
+    if (this.chess.isDraw()) return 'fifty-move';
+    return 'unknown';
+  }
+
   isGameOver(): boolean {
     return this.chess.isGameOver();
   }
@@ -341,7 +346,7 @@ export class ChessEngine {
     return board;
   }
 
-  // Evaluate position (material + position bonuses)
+  // Evaluate position (material + position bonuses + PST)
   evaluate(): number {
     let score = 0;
     const board = this.chess.board();
@@ -354,47 +359,104 @@ export class ChessEngine {
       return 0;
     }
 
+    // Naive endgame detection: if history length > 60, assume endgame for King PST
+    // A better check would be material count, but this is a cheap proxy.
+    const isEndgame = this.chess.history().length > 60;
+
+    const wPawns = [0, 0, 0, 0, 0, 0, 0, 0];
+    const bPawns = [0, 0, 0, 0, 0, 0, 0, 0];
+    let wBishops = 0;
+    let bBishops = 0;
+
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         const piece = board[row][col];
         if (piece) {
-          let value = PIECE_VALUES_LOWER[piece.type];
+          // 1. Material
+          let value = PIECE_VALUES[piece.type] || 0;
 
-          // Add position bonus for pawns
-          if (piece.type === 'p') {
-            const tableRow = piece.color === 'w' ? row : 7 - row;
-            value += PAWN_TABLE[tableRow][col];
+          // 2. Piece-Square Tables
+          let pstValue = 0;
+          const tableRow = piece.color === 'w' ? row : 7 - row;
+          const tableCol = col;
+
+          switch (piece.type) {
+            case 'p':
+              pstValue = PST_PAWN[tableRow][tableCol];
+              if (piece.color === 'w') wPawns[col]++; else bPawns[col]++;
+              break;
+            case 'n': pstValue = PST_KNIGHT[tableRow][tableCol]; break;
+            case 'b':
+              pstValue = PST_BISHOP[tableRow][tableCol];
+              if (piece.color === 'w') wBishops++; else bBishops++;
+              break;
+            case 'r': pstValue = PST_ROOK[tableRow][tableCol]; break;
+            case 'q': pstValue = PST_QUEEN[tableRow][tableCol]; break;
+            case 'k': pstValue = isEndgame ? PST_KING_END[tableRow][tableCol] : PST_KING_MID[tableRow][tableCol]; break;
           }
 
-          // Add small bonus for controlling center
-          if ((row === 3 || row === 4) && (col === 3 || col === 4)) {
-            value += 10;
-          }
+          value += pstValue;
 
           score += piece.color === 'w' ? value : -value;
         }
       }
     }
 
-    // Small bonus for having the move
-    if (this.chess.turn() === 'w') {
-      score += 10;
-    } else {
-      score -= 10;
+    // 3. Positional Bonuses
+    // Bishop Pair
+    if (wBishops >= 2) score += BONUSES.BISHOP_PAIR;
+    if (bBishops >= 2) score -= BONUSES.BISHOP_PAIR;
+
+    // Pawn Structure
+    for (let i = 0; i < 8; i++) {
+      // Doubled Pawns
+      if (wPawns[i] > 1) score += BONUSES.DOUBLED_PAWN;
+      if (bPawns[i] > 1) score -= BONUSES.DOUBLED_PAWN;
+
+      // Isolated Pawns
+      if (wPawns[i] > 0) {
+        const left = i > 0 ? wPawns[i - 1] : 0;
+        const right = i < 7 ? wPawns[i + 1] : 0;
+        if (left === 0 && right === 0) score += BONUSES.ISOLATED_PAWN;
+      }
+      if (bPawns[i] > 0) {
+        const left = i > 0 ? bPawns[i - 1] : 0;
+        const right = i < 7 ? bPawns[i + 1] : 0;
+        if (left === 0 && right === 0) score -= BONUSES.ISOLATED_PAWN;
+      }
     }
+
+    // Small tempo bonus
+    score += this.chess.turn() === 'w' ? 10 : -10;
 
     return score;
   }
 
-  // AI: Minimax with alpha-beta pruning
+  // Killer Heuristic: Store moves that caused a beta cutoff
+  // killerMoves[depth][0] = primary killer, [1] = secondary
+  private killerMoves: Move[][] = [];
+  private historyMoves: Map<string, number> = new Map(); // history[move_string] = score
+
+  // AI: Minimax with alpha-beta pruning + Quiescence Search + Killer Heuristic
   getBestMove(depth: number, maximizing: boolean): Move | null {
     try {
+      // Clear heuristics for new search
+      this.killerMoves = Array(depth + 1).fill(null).map(() => []);
+      this.historyMoves.clear();
+
       const moves = this.getLegalMoves();
       console.log('[Engine] getBestMove called, moves count:', moves.length);
       if (moves.length === 0) return null;
 
       let bestMove: Move | null = null;
       let bestScore = maximizing ? -Infinity : Infinity;
+
+      // Initial sorting for root moves
+      moves.sort((a, b) => {
+        const captureA = a.capture ? this.getPieceValue(a.capture.type) : 0;
+        const captureB = b.capture ? this.getPieceValue(b.capture.type) : 0;
+        return captureB - captureA;
+      });
 
       for (const move of moves) {
         const fromSquare = rowColToSquare(move.from.row, move.from.col);
@@ -433,50 +495,164 @@ export class ChessEngine {
     }
   }
 
+  // Quiescence Search: Continues searching capture moves at leaf nodes to prevent horizon effect
+  private quiescence(alpha: number, beta: number, maximizing: boolean): number {
+    const standPat = this.evaluate();
+
+    // Pruning: If the static evaluation is already good enough, we don't need to search captures
+    if (maximizing) {
+      if (standPat >= beta) return beta;
+      if (alpha < standPat) alpha = standPat;
+    } else {
+      if (standPat <= alpha) return alpha;
+      if (beta > standPat) beta = standPat;
+    }
+
+    // Generate only capture moves
+    const moves = this.chess.moves({ verbose: true }).filter(m => m.captured);
+
+    // Convert to our format and Sort by MVV-LVA
+    const captures = moves.map(m => this.convertMove(m));
+    captures.sort((a, b) => {
+      const valA = a.capture ? this.getPieceValue(a.capture.type) : 0;
+      const valB = b.capture ? this.getPieceValue(b.capture.type) : 0;
+      return valB - valA;
+    });
+
+    for (const move of captures) {
+      const fromSquare = rowColToSquare(move.from.row, move.from.col);
+      const toSquare = rowColToSquare(move.to.row, move.to.col);
+
+      this.chess.move({
+        from: fromSquare,
+        to: toSquare,
+        promotion: move.promotion?.toLowerCase()
+      });
+
+      const score = this.quiescence(alpha, beta, !maximizing);
+
+      this.chess.undo();
+
+      if (maximizing) {
+        if (score >= beta) return beta;
+        if (score > alpha) alpha = score;
+      } else {
+        if (score <= alpha) return alpha;
+        if (score < beta) beta = score;
+      }
+    }
+
+    return maximizing ? alpha : beta;
+  }
+
   private minimax(depth: number, alpha: number, beta: number, maximizing: boolean): number {
-    if (depth === 0 || this.chess.isGameOver()) {
+    if (this.chess.isGameOver()) {
       return this.evaluate();
     }
 
-    // Get and order moves for better pruning (captures first, then checks)
-    const moves = this.chess.moves({ verbose: true });
+    // At leaf nodes, run Quiescence Search instead of static evaluate
+    // Limit Q-Search depth implicitly by not passing depth param (it runs until quiet)
+    if (depth === 0) {
+      return this.quiescence(alpha, beta, maximizing);
+    }
+
+    const verboseMoves = this.chess.moves({ verbose: true });
+    // Convert to our standard format immediately for easier sorting/checking
+    const moves = verboseMoves.map(m => this.convertMove(m));
+
+    // MOVE ORDERING
     moves.sort((a, b) => {
-      // Prioritize captures (MVV-LVA: Most Valuable Victim - Least Valuable Attacker)
-      const captureA = a.captured ? this.getPieceValue(a.captured) : 0;
-      const captureB = b.captured ? this.getPieceValue(b.captured) : 0;
-      return captureB - captureA;
+      // 1. MVV-LVA (Captures)
+      const captureA = a.capture ? this.getPieceValue(a.capture.type) : 0;
+      const captureB = b.capture ? this.getPieceValue(b.capture.type) : 0;
+      if (captureA !== captureB) return captureB - captureA;
+
+      // 2. Killer Heuristic
+      if (this.isKillerMove(a, depth)) return 10000;
+      if (this.isKillerMove(b, depth)) return -10000;
+
+      return 0;
     });
 
     if (maximizing) {
       let maxScore = -Infinity;
       for (const m of moves) {
-        this.chess.move(m);
+        const fromSquare = rowColToSquare(m.from.row, m.from.col);
+        const toSquare = rowColToSquare(m.to.row, m.to.col);
+
+        this.chess.move({
+          from: fromSquare,
+          to: toSquare,
+          promotion: m.promotion?.toLowerCase()
+        });
+
         const score = this.minimax(depth - 1, alpha, beta, false);
         this.chess.undo();
-        maxScore = Math.max(maxScore, score);
-        alpha = Math.max(alpha, score);
-        if (beta <= alpha) break; // Beta cutoff
+
+        if (score > maxScore) {
+          maxScore = score;
+        }
+        if (score > alpha) {
+          alpha = score;
+        }
+        if (beta <= alpha) {
+          this.storeKillerMove(m, depth);
+          break; // Beta cutoff
+        }
       }
       return maxScore;
     } else {
       let minScore = Infinity;
       for (const m of moves) {
-        this.chess.move(m);
+        const fromSquare = rowColToSquare(m.from.row, m.from.col);
+        const toSquare = rowColToSquare(m.to.row, m.to.col);
+
+        this.chess.move({
+          from: fromSquare,
+          to: toSquare,
+          promotion: m.promotion?.toLowerCase()
+        });
+
         const score = this.minimax(depth - 1, alpha, beta, true);
         this.chess.undo();
-        minScore = Math.min(minScore, score);
-        beta = Math.min(beta, score);
-        if (beta <= alpha) break; // Alpha cutoff
+
+        if (score < minScore) {
+          minScore = score;
+        }
+        if (score < beta) {
+          beta = score;
+        }
+        if (beta <= alpha) {
+          this.storeKillerMove(m, depth);
+          break; // Alpha cutoff
+        }
       }
       return minScore;
     }
   }
 
+  private storeKillerMove(move: Move, depth: number) {
+    if (!this.killerMoves[depth]) this.killerMoves[depth] = [];
+    // Store up to 2 killer moves
+    if (!this.killerMoves[depth].some(m => this.isSameMove(m, move))) {
+      this.killerMoves[depth].unshift(move);
+      if (this.killerMoves[depth].length > 2) this.killerMoves[depth].pop();
+    }
+  }
+
+  private isKillerMove(move: Move, depth: number): boolean {
+    if (!this.killerMoves[depth]) return false;
+    return this.killerMoves[depth].some(m => this.isSameMove(m, move));
+  }
+
+  private isSameMove(a: Move, b: Move): boolean {
+    return a.from.row === b.from.row && a.from.col === b.from.col &&
+      a.to.row === b.to.row && a.to.col === b.to.col;
+  }
+
   private getPieceValue(piece: string): number {
-    const values: Record<string, number> = {
-      'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
-    };
-    return values[piece.toLowerCase()] || 0;
+    // Cast to keyof typeof PIECE_VALUES to satisfy TS
+    return PIECE_VALUES[piece.toLowerCase() as keyof typeof PIECE_VALUES] || 0;
   }
 }
 

@@ -23,6 +23,7 @@
   "dependencies": {
     "@types/three": "^0.182.0",
     "chess.js": "^1.4.0",
+    "stockfish.js": "^10.0.2",
     "three": "^0.182.0"
   }
 }

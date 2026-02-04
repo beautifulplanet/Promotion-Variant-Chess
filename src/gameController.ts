@@ -4,11 +4,31 @@
 
 import { engine, type Move } from './chessEngine';
 import { aiService } from './aiService';
+import { stockfishEngine } from './stockfishEngine'; // Hybrid AI system
+import { learningAI, runTrainingSession } from './learningAI';
 import { getLevelForElo, getLevelProgress, checkLevelChange, type LevelInfo } from './levelSystem';
-import { createDefaultSave, downloadSave, loadSaveFromFile, updateStatsAfterGame, recordPromotion, type SaveData, type PromotedPiece } from './saveSystem';
 import { calculateEloChange } from './gameState';
-import { BALANCE, TIMING } from './constants';
+import { TIMING, BALANCE, PIECE_POINTS } from './constants';
+import type { SaveData, PromotedPiece, BoardProfile, PieceInventory } from './saveSystem';
+import { createDefaultSave, downloadSave, loadSaveFromFile, updateStatsAfterGame, recordPromotion, saveBoardProfile, getBoardProfile, deleteBoardProfile, getBoardProfileNames } from './saveSystem';
 import type { PieceColor, Piece, PieceType } from './types';
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+// Piece values for capture priority (used in AI move selection)
+function getPieceValueForCapture(type: PieceType): number {
+  switch (type) {
+    case 'Q': return 9;
+    case 'R': return 5;
+    case 'B': return 3;
+    case 'N': return 3;
+    case 'P': return 1;
+    case 'K': return 100; // King captures should never happen legally but just in case
+    default: return 0;
+  }
+}
 
 // =============================================================================
 // GAME STATE
@@ -21,8 +41,10 @@ export interface GameState {
   gamesPlayed: number;
   playerColor: PieceColor;
   gameOver: boolean;
+  gameStarted: boolean;  // NEW: Has the game actually started (vs waiting for player to arrange pieces)
   selectedSquare: { row: number; col: number } | null;
   legalMovesForSelected: Move[];
+  pendingPromotion: { from: { row: number; col: number }; to: { row: number; col: number } } | null;  // NEW: Awaiting promotion choice
 }
 
 // Internal mutable state
@@ -33,15 +55,29 @@ let state: GameState = {
   gamesPlayed: 0,
   playerColor: 'white',
   gameOver: false,
+  gameStarted: false,
   selectedSquare: null,
   legalMovesForSelected: [],
+  pendingPromotion: null,
 };
 
 // Track promotions made during current game (only saved if player wins)
 let currentGamePromotions: Array<'Q' | 'R' | 'B' | 'N'> = [];
 
-// Saved promoted pieces from previous wins
+// Saved promoted pieces from previous wins (LEGACY - still used for migration)
 let savedPromotedPieces: PromotedPiece[] = [];
+
+// NEW: Simple piece inventory - how many of each piece type player has stored
+let pieceInventory: PieceInventory = { Q: 0, R: 0, B: 0, N: 0 };
+
+// Track how many pieces are currently deployed from inventory (reset each game)
+let deployedFromInventory: PieceInventory = { Q: 0, R: 0, B: 0, N: 0 };
+
+// AI vs AI spectator mode
+let aiVsAiMode = false;
+
+// AI move speed (multiplier, 1 = normal, 0.5 = fast, 2 = slow)
+let aiMoveSpeedMultiplier = 1;
 
 // Callbacks for UI updates (renderer will register these)
 type StateChangeCallback = (state: GameState) => void;
@@ -77,19 +113,22 @@ export function initGame(): GameState {
   state.gamesLost = currentSaveData.gamesLost;
   state.gamesPlayed = currentSaveData.gamesPlayed;
   state.gameOver = false;
+  state.gameStarted = false;  // Wait for player to click Start
   state.selectedSquare = null;
   state.legalMovesForSelected = [];
 
-  // Load saved promoted pieces
+  // Load saved promoted pieces (LEGACY) and inventory
   savedPromotedPieces = currentSaveData.promotedPieces || [];
+  pieceInventory = currentSaveData.pieceInventory || { Q: 0, R: 0, B: 0, N: 0 };
+  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
   currentGamePromotions = [];
 
-  // Start with custom position if we have promoted pieces
+  // Start with standard position
   setupBoardWithPromotions();
 
   notifyStateChange();
 
-  console.log('[Game] Initialized fresh game - ELO:', state.elo);
+  console.log('[Game] Initialized fresh game - ELO:', state.elo, 'Inventory:', pieceInventory);
   return { ...state };
 }
 
@@ -103,7 +142,9 @@ export function saveProgress(): void {
     gamesWon: state.gamesWon,
     gamesLost: state.gamesLost,
     gamesPlayed: state.gamesPlayed,
+    playerColor: state.playerColor,  // Save player's preferred color
     promotedPieces: savedPromotedPieces,
+    pieceInventory: pieceInventory,
     highestElo: Math.max(currentSaveData.highestElo, state.elo)
   };
   downloadSave(currentSaveData);
@@ -120,7 +161,10 @@ export async function loadProgress(): Promise<boolean> {
     state.gamesWon = data.gamesWon;
     state.gamesLost = data.gamesLost;
     state.gamesPlayed = data.gamesPlayed;
+    state.playerColor = data.playerColor || 'white';  // Restore player color from save
     savedPromotedPieces = data.promotedPieces || [];
+    pieceInventory = data.pieceInventory || { Q: 0, R: 0, B: 0, N: 0 };
+    deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
 
     // Reset current game state
     state.gameOver = false;
@@ -128,11 +172,11 @@ export async function loadProgress(): Promise<boolean> {
     state.legalMovesForSelected = [];
     currentGamePromotions = [];
 
-    // Setup board with loaded promoted pieces
+    // Setup board (no auto-deploy - player uses setup mode)
     setupBoardWithPromotions();
 
     notifyStateChange();
-    console.log('[Game] Loaded save - ELO:', state.elo, 'Promoted pieces:', savedPromotedPieces.length);
+    console.log('[Game] Loaded save - ELO:', state.elo, 'Inventory:', pieceInventory);
     return true;
   }
   return false;
@@ -143,6 +187,21 @@ export async function loadProgress(): Promise<boolean> {
  */
 export function getCurrentSaveData(): SaveData {
   return { ...currentSaveData };
+}
+
+/**
+ * Update style preferences in the save data (called when user changes styles)
+ */
+export function updateStylePreferences(pieceStyle3D?: string, pieceStyle2D?: string, boardStyle?: string): void {
+  if (pieceStyle3D !== undefined) {
+    currentSaveData = { ...currentSaveData, pieceStyle3D };
+  }
+  if (pieceStyle2D !== undefined) {
+    currentSaveData = { ...currentSaveData, pieceStyle2D };
+  }
+  if (boardStyle !== undefined) {
+    currentSaveData = { ...currentSaveData, boardStyle };
+  }
 }
 
 /**
@@ -203,11 +262,88 @@ export function isInCheck(): boolean {
 }
 
 /**
+ * Undo the last move
+ * @returns true if undo was successful
+ */
+export function undoMove(): boolean {
+  if (!state.gameStarted || state.gameOver) {
+    console.log('[Game] Cannot undo - game not active');
+    return false;
+  }
+
+  if (aiVsAiMode) {
+    console.log('[Game] Cannot undo during AI vs AI mode');
+    return false;
+  }
+
+  const moveHistory = engine.getMoveHistory();
+  if (moveHistory.length === 0) {
+    console.log('[Game] No moves to undo');
+    return false;
+  }
+
+  // Undo the player's last move
+  engine.undo();
+
+  // If AI had also moved, undo that too (so player is back to their turn)
+  const newHistory = engine.getMoveHistory();
+  const turnAfterUndo = engine.turn();
+  if (turnAfterUndo !== state.playerColor && newHistory.length > 0) {
+    engine.undo(); // Undo AI's move too
+    console.log('[Game] Also undid AI move');
+  }
+
+  // Clear selection
+  state.selectedSquare = null;
+  state.legalMovesForSelected = [];
+  state.pendingPromotion = null;
+
+  notifyStateChange();
+  console.log('[Game] Move undone');
+  return true;
+}
+
+/**
+ * Parse algebraic notation (e.g., "e2e4") to row/col coordinates
+ */
+function parseAlgebraic(move: string): { from: { row: number; col: number }; to: { row: number; col: number } } | null {
+  // Handle both "e2e4" and "e2-e4" formats
+  const cleaned = move.replace(/[^a-h1-8]/gi, '');
+  if (cleaned.length < 4) return null;
+
+  const fromFile = cleaned.charCodeAt(0) - 97; // 'a' = 0
+  const fromRank = 8 - parseInt(cleaned[1]);   // '8' = 0, '1' = 7
+  const toFile = cleaned.charCodeAt(2) - 97;
+  const toRank = 8 - parseInt(cleaned[3]);
+
+  if (fromFile < 0 || fromFile > 7 || fromRank < 0 || fromRank > 7) return null;
+  if (toFile < 0 || toFile > 7 || toRank < 0 || toRank > 7) return null;
+
+  return {
+    from: { row: fromRank, col: fromFile },
+    to: { row: toRank, col: toFile }
+  };
+}
+
+/**
+ * Get the last move made (for highlighting)
+ * @returns {from, to} squares or null if no moves
+ */
+export function getLastMove(): { from: { row: number; col: number }; to: { row: number; col: number } } | null {
+  const history = engine.getMoveHistory();
+  if (history.length === 0) return null;
+
+  const lastMoveStr = history[history.length - 1];
+  return parseAlgebraic(lastMoveStr);
+}
+
+/**
  * Handle a click on a board square
  * Returns true if a move was made
  */
 export function handleSquareClick(row: number, col: number): boolean {
   if (state.gameOver) return false;
+  if (!state.gameStarted) return false;  // Game not started yet
   if (row < 0 || row >= 8 || col < 0 || col >= 8) return false;
 
   const currentTurn = engine.turn();
@@ -222,17 +358,22 @@ export function handleSquareClick(row: number, col: number): boolean {
 
     if (isLegalMove) {
       const movingPiece = board[state.selectedSquare.row][state.selectedSquare.col];
-      let promotion: 'Q' | 'R' | 'B' | 'N' | undefined;
 
-      // Auto-queen for now (TODO: promotion UI)
+      // Check if this is a pawn promotion - show UI instead of auto-queen
       if (movingPiece?.type === 'P' && (row === 0 || row === 7)) {
-        promotion = 'Q';
-        // Track this promotion (will be saved if player wins)
-        currentGamePromotions.push(promotion);
-        console.log('[Game] Pawn promoted to', promotion, '- will be saved if you win!');
+        // Store pending promotion and wait for player choice
+        state.pendingPromotion = {
+          from: { row: state.selectedSquare.row, col: state.selectedSquare.col },
+          to: { row, col }
+        };
+        state.selectedSquare = null;
+        state.legalMovesForSelected = [];
+        notifyStateChange();
+        console.log('[Game] Promotion pending - waiting for player choice');
+        return false;  // Move not complete yet
       }
 
-      const result = engine.makeMove(state.selectedSquare, { row, col }, promotion);
+      const result = engine.makeMove(state.selectedSquare, { row, col }, undefined);
 
       if (result) {
         console.log('[Game] Move made:', result.san);
@@ -267,168 +408,349 @@ export function handleSquareClick(row: number, col: number): boolean {
 }
 
 /**
- * Start a new game
+ * Complete a pending pawn promotion with the chosen piece
+ * Called from UI after player selects Q/R/B/N
+ */
+export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
+  if (!state.pendingPromotion) {
+    console.warn('[Game] No pending promotion to complete');
+    return false;
+  }
+
+  const { from, to } = state.pendingPromotion;
+  state.pendingPromotion = null;
+
+  // Track this promotion (will be saved if player wins)
+  currentGamePromotions.push(pieceType);
+  console.log('[Game] Pawn promoted to', pieceType, '- will be saved if you win!');
+
+  const result = engine.makeMove(from, to, pieceType);
+
+  if (result) {
+    console.log('[Game] Promotion move made:', result.san);
+    notifyStateChange();
+
+    checkGameEnd();
+
+    // If game not over and it's AI's turn, trigger AI move
+    if (!state.gameOver && engine.turn() !== state.playerColor) {
+      scheduleAIMove();
+    }
+    return true;
+  } else {
+    console.error('[Game] Promotion move rejected by engine!');
+    return false;
+  }
+}
+
+/**
+ * Cancel a pending promotion (e.g., if user clicks elsewhere)
+ */
+export function cancelPromotion(): void {
+  if (state.pendingPromotion) {
+    console.log('[Game] Promotion cancelled');
+    state.pendingPromotion = null;
+    notifyStateChange();
+  }
+}
+
+/**
+ * Prepare a new game (player can arrange pieces before starting)
  */
 export function newGame(): void {
   state.gameOver = false;
+  state.gameStarted = false;  // Wait for player to click Start
   state.selectedSquare = null;
   state.legalMovesForSelected = [];
+  state.pendingPromotion = null;
   currentGamePromotions = [];
 
-  // CRITICAL: savedPromotedPieces is the source of truth after a game ends
-  // It gets updated in handleGameEnd to reflect surviving pieces
-  // Sync currentSaveData to match (not the other way around!)
-  currentSaveData = { ...currentSaveData, promotedPieces: savedPromotedPieces };
+  // Alternate colors each game
+  state.playerColor = state.playerColor === 'white' ? 'black' : 'white';
+  console.log('[Game] Player will play as:', state.playerColor);
 
-  console.log('[Game] newGame - bonus pieces:', savedPromotedPieces.length);
+  // Sync inventory to currentSaveData
+  currentSaveData = { ...currentSaveData, pieceInventory: pieceInventory };
 
-  // Setup board with any saved promoted pieces
+  console.log('[Game] newGame - inventory:', pieceInventory, 'deployed:', deployedFromInventory);
+
+  // Setup board with custom arrangement (includes any deployed pieces)
   setupBoardWithPromotions();
 
   notifyStateChange();
-  console.log('[Game] New game started with', savedPromotedPieces.length, 'bonus pieces');
+  console.log('[Game] New game prepared - waiting for Start');
 }
 
-// Current piece arrangement (can be customized by player after wins)
+/**
+ * Actually start the game (after player has arranged pieces)
+ */
+export function startGame(): void {
+  console.log('[Game] startGame called, current state:', {
+    gameStarted: state.gameStarted,
+    gameOver: state.gameOver,
+    playerColor: state.playerColor
+  });
+
+  if (state.gameStarted && !state.gameOver) {
+    console.log('[Game] Already started and in progress, returning');
+    return;  // Already started and game is active - don't restart mid-game
+  }
+
+  // Reset game state for new game (or restart after previous game ended)
+  state.gameOver = false;
+  state.gameStarted = true;
+  state.selectedSquare = null;
+  state.legalMovesForSelected = [];
+  currentGamePromotions = [];  // Reset promotions for new game
+  aiVsAiMode = false;  // Normal player game
+
+  // Re-setup board to apply any changes made in setup mode
+  setupBoardWithPromotions();
+
+  console.log('[Game] Game started! Player is', state.playerColor, 'Engine turn:', engine.turn());
+
+  // If player is black, AI moves first
+  if (state.playerColor === 'black') {
+    console.log('[Game] AI (white) moves first - scheduling AI move');
+    scheduleAIMove();
+  }
+
+  notifyStateChange();
+}
+
+/**
+ * Start AI vs AI spectator mode
+ */
+export function startAiVsAi(): void {
+  if (state.gameStarted) return;  // Already started
+
+  state.gameStarted = true;
+  aiVsAiMode = true;
+
+  // Reset to standard board for AI vs AI
+  currentArrangement = [];
+  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  setupBoardWithPromotions();
+
+  console.log('[Game] AI vs AI mode started!');
+
+  // White AI moves first
+  scheduleAIMove();
+
+  notifyStateChange();
+}
+
+/**
+ * Check if currently in AI vs AI mode
+ */
+export function isAiVsAiMode(): boolean {
+  return aiVsAiMode;
+}
+
+/**
+ * Set AI move speed (0.25 = very fast, 1 = normal, 2 = slow)
+ */
+export function setAiSpeed(speed: number): void {
+  aiMoveSpeedMultiplier = Math.max(0.1, Math.min(3, speed));
+  console.log('[Game] AI speed set to:', aiMoveSpeedMultiplier);
+}
+
+/**
+ * Get current AI speed multiplier
+ */
+export function getAiSpeed(): number {
+  return aiMoveSpeedMultiplier;
+}
+
+// =============================================================================
+// LEARNING AI TRAINING
+// =============================================================================
+
+let isTraining = false;
+
+/**
+ * Start AI self-play training session
+ */
+export async function startTraining(
+  games: number = 100,
+  onProgress?: (current: number, total: number) => void
+): Promise<{ wins: number; losses: number; draws: number }> {
+  if (isTraining) {
+    console.log('[Training] Already training!');
+    return { wins: 0, losses: 0, draws: 0 };
+  }
+
+  isTraining = true;
+  console.log(`[Training] Starting ${games} self-play games...`);
+
+  return new Promise((resolve, reject) => {
+    try {
+      runTrainingSession({
+        gamesPerSession: games,
+        depthWhite: BALANCE.trainingDepth,
+        depthBlack: BALANCE.trainingDepth,
+        onProgress: (current, total) => {
+          if (onProgress) onProgress(current, total);
+          if (current % 10 === 0) {
+            console.log(`[Training] Game ${current}/${total}`);
+          }
+        },
+        onComplete: (stats) => {
+          isTraining = false;
+          console.log(`[Training] Complete! W:${stats.wins} L:${stats.losses} D:${stats.draws}`);
+          resolve(stats);
+        },
+        onError: (error: Error) => {
+          isTraining = false;
+          console.error('[Training] Error:', error);
+          reject(error);
+        }
+      });
+    } catch (error) {
+      isTraining = false;
+      console.error('[Training] Failed to start:', error);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Get learning AI stats
+ */
+export function getLearningAIStats(): { generation: number; gamesPlayed: number; winRate: number } {
+  return learningAI.getStats();
+}
+
+/**
+ * Reset learning AI to fresh state
+ */
+export function resetLearningAI(): void {
+  learningAI.reset();
+}
+
+/**
+ * Check if currently training
+ */
+export function isCurrentlyTraining(): boolean {
+  return isTraining;
+}
+
+// Current piece arrangement (can be customized by player in setup mode)
 let currentArrangement: Array<{ row: number, col: number, type: PieceType }> = [];
 
 /**
- * Setup the board with custom arrangement or promoted pieces
- * Custom arrangement (from setup mode) takes priority and replaces ALL white pieces
- * Otherwise, promoted pieces replace pawns first, then back rank pieces
+ * Setup the board with custom arrangement from setup mode
+ * The setup UI handles deploying pieces from inventory
+ * AI gets bonus pieces based on total deployed count
  */
 function setupBoardWithPromotions(): void {
   engine.reset();
 
-  // Get current board to modify
+  // Get current board to modify - this should have all 32 pieces after reset
   const board = engine.getBoard();
 
+  // DEBUG: Count pieces after reset
+  let pieceCount = 0;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      if (board[r][c]) pieceCount++;
+    }
+  }
+  console.log('[Game] Board after reset has', pieceCount, 'pieces');
+
+  // Player's color and opponent's color
+  const playerColor = state.playerColor;
+  const opponentColor = playerColor === 'white' ? 'black' : 'white';
+
+  // Player's rows: white = 6-7, black = 0-1
+  const playerStartRow = playerColor === 'white' ? 6 : 0;
+  const playerEndRow = playerColor === 'white' ? 7 : 1;
+
+  // Calculate player's total deployed bonus pieces for AI matching
+  const totalDeployed = deployedFromInventory.Q + deployedFromInventory.R +
+    deployedFromInventory.B + deployedFromInventory.N;
+
   // If we have a custom arrangement from setup mode, use it
+  // AND infer the player's color from arrangement row positions (fixes save/load issue)
   if (currentArrangement.length > 0) {
-    console.log('[Game] Applying custom arrangement with', currentArrangement.length, 'pieces');
+    // Infer player color from where pieces are placed
+    // Rows 0-1 = Black's home, Rows 6-7 = White's home
+    const hasBlackHome = currentArrangement.some(item => item.row <= 1);
+    const hasWhiteHome = currentArrangement.some(item => item.row >= 6);
 
-    // Clear white's rows (6 and 7) first
+    let inferredPlayerColor: PieceColor = state.playerColor;
+    if (hasBlackHome && !hasWhiteHome) {
+      inferredPlayerColor = 'black';
+    } else if (hasWhiteHome && !hasBlackHome) {
+      inferredPlayerColor = 'white';
+    }
+
+    // Update state if we inferred a different color
+    if (inferredPlayerColor !== state.playerColor) {
+      console.log('[Game] Inferred player color from arrangement:', inferredPlayerColor);
+      state.playerColor = inferredPlayerColor;
+    }
+
+    console.log('[Game] Applying custom arrangement with', currentArrangement.length, 'pieces for', inferredPlayerColor);
+
+    // Recalculate rows with corrected player color
+    const correctedPlayerStartRow = inferredPlayerColor === 'white' ? 6 : 0;
+    const correctedPlayerEndRow = inferredPlayerColor === 'white' ? 7 : 1;
+
+    // Clear player's rows first
     for (let col = 0; col < 8; col++) {
-      board[6][col] = null;
-      board[7][col] = null;
+      board[correctedPlayerStartRow][col] = null;
+      board[correctedPlayerEndRow][col] = null;
     }
 
-    // Apply custom arrangement - this is the base white setup from the UI
+    // Apply custom arrangement from setup UI - use INFERRED player's color!
     for (const item of currentArrangement) {
-      board[item.row][item.col] = { type: item.type as PieceType, color: 'white' };
-    }
-
-    // ALSO add any bonus pieces that aren't already in the arrangement
-    // Find empty slots for bonus pieces
-    if (savedPromotedPieces.length > 0) {
-      // Count pieces by type already in arrangement
-      const arrangementCounts: Record<string, number> = { Q: 0, R: 0, B: 0, N: 0 };
-      for (const item of currentArrangement) {
-        if (arrangementCounts[item.type] !== undefined) {
-          arrangementCounts[item.type]++;
-        }
-      }
-      
-      // Base counts (standard chess starting position)
-      const baseCounts: Record<string, number> = { Q: 1, R: 2, B: 2, N: 2 };
-      
-      // Calculate how many bonus pieces of each type are ALREADY in the arrangement
-      const bonusAlreadyInArrangement: Record<string, number> = {
-        Q: Math.max(0, arrangementCounts.Q - baseCounts.Q),
-        R: Math.max(0, arrangementCounts.R - baseCounts.R),
-        B: Math.max(0, arrangementCounts.B - baseCounts.B),
-        N: Math.max(0, arrangementCounts.N - baseCounts.N)
-      };
-      
-      // Count bonus pieces by type
-      const bonusCounts: Record<string, number> = { Q: 0, R: 0, B: 0, N: 0 };
-      for (const bp of savedPromotedPieces) {
-        bonusCounts[bp.type]++;
-      }
-      
-      // Figure out which bonus pieces still need to be placed
-      const bonusPiecesToAdd: PieceType[] = [];
-      for (const type of ['Q', 'R', 'B', 'N'] as PieceType[]) {
-        const needed = bonusCounts[type] - bonusAlreadyInArrangement[type];
-        for (let i = 0; i < needed; i++) {
-          bonusPiecesToAdd.push(type);
-        }
-      }
-      
-      if (bonusPiecesToAdd.length > 0) {
-        console.log('[Game] Adding', bonusPiecesToAdd.length, 'bonus pieces to custom arrangement:', bonusPiecesToAdd);
-        
-        // Find empty slots in rows 6-7 (prioritize pawns row, then back rank except king pos)
-        const emptySlots: Array<{row: number, col: number}> = [];
-        for (let col = 0; col < 8; col++) {
-          if (!board[6][col]) emptySlots.push({ row: 6, col });
-        }
-        for (let col = 0; col < 8; col++) {
-          if (col !== 4 && !board[7][col]) emptySlots.push({ row: 7, col }); // Skip e1 (king default)
-        }
-        
-        // Place bonus pieces in empty slots
-        for (let i = 0; i < bonusPiecesToAdd.length && i < emptySlots.length; i++) {
-          const slot = emptySlots[i];
-          board[slot.row][slot.col] = { type: bonusPiecesToAdd[i], color: 'white' };
-          console.log(`[Game] Placed bonus ${bonusPiecesToAdd[i]} at row ${slot.row} col ${slot.col}`);
-        }
-      }
-    }
-  } else {
-    // No custom arrangement - use default with any promoted pieces
-    if (savedPromotedPieces.length > 0) {
-      const piecesToPlace = savedPromotedPieces.slice(0, 14);
-
-      // Default slots to place extra pieces
-      const defaultSlots = [
-        // Pawns first (row 6 = rank 2)
-        { row: 6, col: 3 }, // d2
-        { row: 6, col: 4 }, // e2
-        { row: 6, col: 2 }, // c2
-        { row: 6, col: 5 }, // f2
-        { row: 6, col: 1 }, // b2
-        { row: 6, col: 6 }, // g2
-        { row: 6, col: 0 }, // a2
-        { row: 6, col: 7 }, // h2
-        // Back rank pieces (row 7 = rank 1) - not King(e1) or Queen(d1)
-        { row: 7, col: 1 }, // b1 (knight)
-        { row: 7, col: 6 }, // g1 (knight)
-        { row: 7, col: 2 }, // c1 (bishop)
-        { row: 7, col: 5 }, // f1 (bishop)
-        { row: 7, col: 0 }, // a1 (rook)
-        { row: 7, col: 7 }, // h1 (rook)
-      ];
-
-      // Use default placement for promoted pieces
-      for (let i = 0; i < piecesToPlace.length; i++) {
-        const slot = defaultSlots[i];
-        const piece = piecesToPlace[i];
-        board[slot.row][slot.col] = { type: piece.type as PieceType, color: 'white' };
-      }
+      board[item.row][item.col] = { type: item.type as PieceType, color: inferredPlayerColor };
     }
   }
 
-  // === AI BONUS PIECES ===
-  // Calculate AI bonus pieces based on ELO and player advantage (by value)
-  // ALWAYS use savedPromotedPieces for AI calculation (not piecesToPlace which may be empty for custom arrangements)
-  console.log(`[Game] Current ELO: ${state.elo}, calculating AI bonus pieces...`);
-  const aiBonusPieces = getAIBonusPieces(state.elo, savedPromotedPieces);
-  console.log(`[Game] AI will get ${aiBonusPieces.length} bonus pieces:`, aiBonusPieces);
+  // Ensure opponent keeps their standard starting pieces if they were lost (e.g., cached board without them)
+  // Only fill empty squares on opponent home ranks
+  const fillOpponentHome = (color: PieceColor): void => {
+    const homeBackRank = color === 'white' ? 7 : 0;
+    const homePawnRank = color === 'white' ? 6 : 1;
+    const backRankPieces: PieceType[] = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
 
-  // Apply AI bonus pieces to black side
-  applyAIBonusPieces(board, aiBonusPieces);
+    // Pawns
+    for (let c = 0; c < 8; c++) {
+      if (!board[homePawnRank][c]) {
+        board[homePawnRank][c] = { type: 'P', color };
+      }
+    }
+
+    // Back rank pieces
+    for (let c = 0; c < 8; c++) {
+      if (!board[homeBackRank][c]) {
+        board[homeBackRank][c] = { type: backRankPieces[c], color };
+      }
+    }
+  };
+
+  // Fill opponent defaults if missing - use updated state.playerColor (may have been inferred)
+  const correctedOpponentColor = state.playerColor === 'white' ? 'black' : 'white';
+  fillOpponentHome(correctedOpponentColor);
+
+  // === AI BONUS PIECES ===
+  // AI gets bonus pieces based on player's deployed count
+  console.log(`[Game] Current ELO: ${state.elo}, Player (${playerColor}) deployed: ${totalDeployed}`);
+  const aiBonusPieces = getAIBonusPiecesFromDeployed(state.elo, deployedFromInventory);
+  console.log(`[Game] AI (${opponentColor}) will get ${aiBonusPieces.length} bonus pieces:`, aiBonusPieces);
+
+  // Apply AI bonus pieces to opponent's side
+  applyAIBonusPieces(board, aiBonusPieces, opponentColor);
 
   // Load the modified position
-  // Use Manual Load if we have Custom Arrangement OR Player Bonus Pieces OR AI Bonus Pieces
-  const useManualLoad = currentArrangement.length > 0 || savedPromotedPieces.length > 0 || aiBonusPieces.length > 0;
-  
-  console.log(`[Game] useManualLoad: ${useManualLoad} (customArrangement: ${currentArrangement.length}, playerBonus: ${savedPromotedPieces.length}, aiBonusPieces: ${aiBonusPieces.length})`);
+  const useManualLoad = currentArrangement.length > 0 || totalDeployed > 0 || aiBonusPieces.length > 0;
+
+  console.log(`[Game] useManualLoad: ${useManualLoad} (customArrangement: ${currentArrangement.length}, deployed: ${totalDeployed}, aiBonusPieces: ${aiBonusPieces.length})`);
 
   if (useManualLoad) {
-    console.log('[Game] Using manual load mode to force AI bonus pieces');
-    // For custom arrangements, use manual placement (put) to allow "illegal" pawns
-    // Convert board to list of pieces
+    console.log('[Game] Using manual load mode');
     const customPieces: Array<{ row: number, col: number, type: PieceType, color: PieceColor }> = [];
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
@@ -437,25 +759,60 @@ function setupBoardWithPromotions(): void {
       }
     }
     console.log(`[Game] Manual load with ${customPieces.length} pieces`);
-    // Default turn to white for setup (first move)
     engine.loadCustomBoard(customPieces, 'white');
   } else {
     console.log('[Game] Using standard FEN load mode');
-    // Standard loading with FEN validation logic
-    const whiteKingSide = savedPromotedPieces.length < 14;
-    const whiteQueenSide = savedPromotedPieces.length < 13;
-    const blackKingSide = aiBonusPieces.length < 14;
-    const blackQueenSide = aiBonusPieces.length < 13;
-
     engine.loadPosition(board, 'white', {
-      whiteKingSide,
-      whiteQueenSide,
-      blackKingSide,
-      blackQueenSide
+      whiteKingSide: true,
+      whiteQueenSide: true,
+      blackKingSide: true,
+      blackQueenSide: true
     });
   }
 
-  console.log('[Game] Board setup - Player bonus pieces:', savedPromotedPieces.length, ', AI bonus pieces:', aiBonusPieces.length);
+  console.log('[Game] Board setup complete - Deployed:', totalDeployed, ', AI bonus:', aiBonusPieces.length);
+}
+
+/**
+ * Get AI bonus pieces based on player's deployed pieces (new simpler system)
+ */
+function getAIBonusPiecesFromDeployed(elo: number, deployed: PieceInventory): PieceType[] {
+  // Calculate player's deployed piece value
+  const pieceValues: Record<string, number> = { Q: 9, R: 5, B: 3, N: 3 };
+  const playerBonusValue = deployed.Q * pieceValues.Q +
+    deployed.R * pieceValues.R +
+    deployed.B * pieceValues.B +
+    deployed.N * pieceValues.N;
+
+  if (playerBonusValue === 0) return [];
+
+  // ELO-based scaling: at low ELO AI gets less, at high ELO AI gets equal
+  const scaleFactor = Math.min(1, Math.max(0.3, (elo - 400) / 1600));
+  const aiTargetValue = Math.round(playerBonusValue * scaleFactor);
+
+  console.log(`[Game] AI bonus calc: player value=${playerBonusValue}, scale=${scaleFactor.toFixed(2)}, AI target=${aiTargetValue}`);
+
+  // Build AI bonus pieces to match target value
+  const aiBonusPieces: PieceType[] = [];
+  let remainingValue = aiTargetValue;
+
+  // Add Queens first (most value)
+  while (remainingValue >= 9) {
+    aiBonusPieces.push('Q');
+    remainingValue -= 9;
+  }
+  // Add Rooks
+  while (remainingValue >= 5) {
+    aiBonusPieces.push('R');
+    remainingValue -= 5;
+  }
+  // Add minor pieces
+  while (remainingValue >= 3) {
+    aiBonusPieces.push(Math.random() > 0.5 ? 'B' : 'N');
+    remainingValue -= 3;
+  }
+
+  return aiBonusPieces;
 }
 
 /**
@@ -474,10 +831,92 @@ export function setCustomArrangement(arrangement: Array<{ row: number, col: numb
 }
 
 /**
+ * Get current custom arrangement
+ */
+export function getCustomArrangement(): Array<{ row: number, col: number, type: PieceType }> {
+  return [...currentArrangement];
+}
+
+// =============================================================================
+// BOARD PROFILE MANAGEMENT
+// =============================================================================
+
+/**
+ * Save current board arrangement as a named profile
+ */
+export function saveCurrentBoardProfile(name: string): boolean {
+  if (currentArrangement.length === 0) {
+    console.warn('[Game] No arrangement to save');
+    return false;
+  }
+
+  const arrangementForSave = currentArrangement.map(p => ({
+    row: p.row,
+    col: p.col,
+    type: p.type as string
+  }));
+
+  currentSaveData = saveBoardProfile(currentSaveData, name, arrangementForSave);
+  console.log('[Game] Saved board profile:', name);
+  return true;
+}
+
+/**
+ * Load a board profile by name
+ */
+export function loadBoardProfile(name: string): boolean {
+  const profile = getBoardProfile(currentSaveData, name);
+  if (!profile) {
+    console.warn('[Game] Profile not found:', name);
+    return false;
+  }
+
+  // Convert to our format
+  currentArrangement = profile.arrangement.map(p => ({
+    row: p.row,
+    col: p.col,
+    type: p.type as PieceType
+  }));
+
+  console.log('[Game] Loaded board profile:', name, 'with', currentArrangement.length, 'pieces');
+  return true;
+}
+
+/**
+ * Delete a board profile
+ */
+export function deleteBoardProfileByName(name: string): boolean {
+  const beforeCount = currentSaveData.boardProfiles.length;
+  currentSaveData = deleteBoardProfile(currentSaveData, name);
+  return currentSaveData.boardProfiles.length < beforeCount;
+}
+
+/**
+ * Get list of all saved board profile names
+ */
+export function getSavedBoardProfileNames(): string[] {
+  return getBoardProfileNames(currentSaveData);
+}
+
+/**
+ * Get all board profiles
+ */
+export function getSavedBoardProfiles(): BoardProfile[] {
+  return [...currentSaveData.boardProfiles];
+}
+
+/**
+ * Get a specific board profile by name
+ */
+export function getBoardProfileByName(name: string): BoardProfile | null {
+  return getBoardProfile(currentSaveData, name);
+}
+
+/**
  * Check if player has promoted pieces (for showing rearrange button)
  */
 export function hasPromotedPieces(): boolean {
-  return savedPromotedPieces.length > 0;
+  return savedPromotedPieces.length > 0 || getTotalInventoryCount() > 0;
 }
 
 /**
@@ -485,6 +924,70 @@ export function hasPromotedPieces(): boolean {
  */
 export function getPromotedPieces(): PromotedPiece[] {
   return [...savedPromotedPieces];
+}
+
+/**
+ * Get the piece inventory (NEW simpler system)
+ */
+export function getPieceInventory(): PieceInventory {
+  return { ...pieceInventory };
+}
+
+/**
+ * Get total count of pieces in inventory
+ */
+export function getTotalInventoryCount(): number {
+  return pieceInventory.Q + pieceInventory.R + pieceInventory.B + pieceInventory.N;
+}
+
+/**
+ * Get deployed counts (how many pieces deployed from inventory this game)
+ */
+export function getDeployedFromInventory(): PieceInventory {
+  return { ...deployedFromInventory };
+}
+
+/**
+ * Deploy a piece from inventory to board (called from setup UI)
+ * Returns true if successful
+ */
+export function deployFromInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
+  if (pieceInventory[pieceType] <= 0) {
+    console.log('[Game] Cannot deploy', pieceType, '- none in inventory');
+    return false;
+  }
+
+  pieceInventory[pieceType]--;
+  deployedFromInventory[pieceType]++;
+  console.log('[Game] Deployed', pieceType, 'from inventory. Remaining:', pieceInventory[pieceType]);
+  return true;
+}
+
+/**
+ * Retract a piece back to inventory (called from setup UI)
+ */
+export function retractToInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
+  if (deployedFromInventory[pieceType] <= 0) {
+    console.log('[Game] Cannot retract', pieceType, '- none deployed');
+    return false;
+  }
+
+  deployedFromInventory[pieceType]--;
+  pieceInventory[pieceType]++;
+  console.log('[Game] Retracted', pieceType, 'to inventory. Now have:', pieceInventory[pieceType]);
+  return true;
+}
+
+/**
+ * Reset deployed pieces (return all to inventory)
+ */
+export function resetDeployedPieces(): void {
+  pieceInventory.Q += deployedFromInventory.Q;
+  pieceInventory.R += deployedFromInventory.R;
+  pieceInventory.B += deployedFromInventory.B;
+  pieceInventory.N += deployedFromInventory.N;
+  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  console.log('[Game] Reset deployed pieces. Inventory:', pieceInventory);
 }
 
 /**
@@ -529,23 +1032,14 @@ export function registerCallbacks(callbacks: {
 // =============================================================================
 
 /**
- * Get value of a piece type for balancing
+ * Get value of a piece type for balancing (uses unified PIECE_POINTS)
  */
-// Helper to value pieces
 function getPieceValue(type: string): number {
-  switch (type) {
-    case 'P': return 1;
-    case 'N': return 3;
-    case 'B': return 3;
-    case 'R': return 5;
-    case 'Q': return 9;
-    case 'K': return 100;
-    default: return 0;
-  }
+  return PIECE_POINTS[type as keyof typeof PIECE_POINTS] || 0;
 }
 
 /**
- * Calculate AI bonus pieces based on ELO (≥3000) OR player having advantage
+ * Calculate AI bonus pieces based on ELO (≥threshold) OR player having advantage
  * Returns array of piece types (Q/R/B/N) for AI to have as extras
  * Uses MATERIAL VALUE to ensure fairness
  */
@@ -553,7 +1047,7 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   console.log('=== [AI BONUS] Calculating AI bonus pieces ===');
   console.log('[AI BONUS] Input ELO:', elo);
   console.log('[AI BONUS] Player pieces count:', playerPieces.length);
-  
+
   const bonusPieces: PieceType[] = [];
 
   // Calculate player's bonus material value
@@ -568,33 +1062,27 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   // Calculate base AI material value based on ELO
   let aiMaterialValue = 0;
 
-  // ELO Scaling (Base difficulty) - Continuous ramping
-  // Formula: For every 50 ELO above 3000, add ~3 points of material (Knight/Bishop value)
-  if (elo >= 3000) {
-    const eloDiff = elo - 3000;
-    // Rate: 3 points per 50 ELO
-    // 3100 (+100) => +6 pts (2 Knights)
-    // 3500 (+500) => +30 pts (3 Queens + 3 Pawns)
-    // 4000 (+1000) => +60 pts (6 Queens + 6 Pawns)
-    const extraValue = Math.floor(eloDiff / 50) * 3;
+  // ELO Scaling (Base difficulty) - Continuous ramping using constants
+  if (elo >= BALANCE.aiBonusThresholdElo) {
+    const eloDiff = elo - BALANCE.aiBonusThresholdElo;
+    const extraValue = Math.floor(eloDiff / 50) * BALANCE.aiBonusPointsPer50Elo;
     aiMaterialValue += extraValue;
-    console.log(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above 3000`);
+    console.log(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above ${BALANCE.aiBonusThresholdElo}`);
   } else {
-    console.log(`[AI BONUS] ELO ${elo} is below 3000 - no ELO bonus`);
+    console.log(`[AI BONUS] ELO ${elo} is below ${BALANCE.aiBonusThresholdElo} - no ELO bonus`);
   }
 
   // Compensation: Match player's bonus value (if player has advantage)
-  // AI matches player's bonus pieces, allowing 2 free points
-  if (playerMaterialValue > 2) {
-    const valueNeededToMatch = playerMaterialValue - 2; // Allow 2 points free
+  if (playerMaterialValue > BALANCE.aiBonusPlayerFreePoints) {
+    const valueNeededToMatch = playerMaterialValue - BALANCE.aiBonusPlayerFreePoints;
     aiMaterialValue += valueNeededToMatch;
     console.log(`[AI BONUS] Compensation for player advantage: +${valueNeededToMatch} points`);
   }
 
   console.log('[AI BONUS] Total AI material value before cap:', aiMaterialValue);
 
-  // Cap max value to prevent crashes/insanity (max ~15 Queens = 135 pts)
-  aiMaterialValue = Math.min(130, aiMaterialValue);
+  // Cap max value using constant
+  aiMaterialValue = Math.min(BALANCE.aiBonusMaxMaterial, aiMaterialValue);
   console.log('[AI BONUS] Final AI material value after cap:', aiMaterialValue);
 
   // Convert aiMaterialValue into pieces
@@ -650,32 +1138,37 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
  * Apply AI bonus pieces to the board (black side)
  * Replaces pawns first, then back rank pieces (not King/Queen)
  */
-function applyAIBonusPieces(board: (Piece | null)[][], bonusPieces: PieceType[]): void {
+function applyAIBonusPieces(board: (Piece | null)[][], bonusPieces: PieceType[], aiColor: PieceColor = 'black'): void {
   if (bonusPieces.length === 0) {
     console.log('[AI] No bonus pieces to apply');
     return;
   }
 
-  console.log(`[AI] Applying ${bonusPieces.length} bonus pieces:`, bonusPieces);
+  console.log(`[AI] Applying ${bonusPieces.length} bonus pieces for ${aiColor}:`, bonusPieces);
 
-  // Slots to place AI bonus pieces (black side)
+  // Slots to place AI bonus pieces
+  // For black: rows 0-1, for white: rows 6-7
+  const isBlack = aiColor === 'black';
+  const pawnRow = isBlack ? 1 : 6;
+  const backRow = isBlack ? 0 : 7;
+
   const aiSlots = [
-    // Black pawns first (row 1 = rank 7)
-    { row: 1, col: 3 }, // d7
-    { row: 1, col: 4 }, // e7
-    { row: 1, col: 2 }, // c7
-    { row: 1, col: 5 }, // f7
-    { row: 1, col: 1 }, // b7
-    { row: 1, col: 6 }, // g7
-    { row: 1, col: 0 }, // a7
-    { row: 1, col: 7 }, // h7
-    // Black back rank (row 0 = rank 8) - not King(e8) or Queen(d8)
-    { row: 0, col: 1 }, // b8 (knight)
-    { row: 0, col: 6 }, // g8 (knight)
-    { row: 0, col: 2 }, // c8 (bishop)
-    { row: 0, col: 5 }, // f8 (bishop)
-    { row: 0, col: 0 }, // a8 (rook)
-    { row: 0, col: 7 }, // h8 (rook)
+    // Pawns first (center to edges)
+    { row: pawnRow, col: 3 }, // d file
+    { row: pawnRow, col: 4 }, // e file
+    { row: pawnRow, col: 2 }, // c file
+    { row: pawnRow, col: 5 }, // f file
+    { row: pawnRow, col: 1 }, // b file
+    { row: pawnRow, col: 6 }, // g file
+    { row: pawnRow, col: 0 }, // a file
+    { row: pawnRow, col: 7 }, // h file
+    // Back rank - not King(e) or Queen(d)
+    { row: backRow, col: 1 }, // b (knight)
+    { row: backRow, col: 6 }, // g (knight)
+    { row: backRow, col: 2 }, // c (bishop)
+    { row: backRow, col: 5 }, // f (bishop)
+    { row: backRow, col: 0 }, // a (rook)
+    { row: backRow, col: 7 }, // h (rook)
   ];
 
   // Place up to 14 bonus pieces
@@ -683,7 +1176,8 @@ function applyAIBonusPieces(board: (Piece | null)[][], bonusPieces: PieceType[])
   for (let i = 0; i < toPlace.length; i++) {
     const slot = aiSlots[i];
     const oldPiece = board[slot.row][slot.col];
-    board[slot.row][slot.col] = { type: toPlace[i], color: 'black' };
+    board[slot.row][slot.col] = { type: toPlace[i], color: aiColor };
+    const rank = isBlack ? (8 - slot.row) : (slot.row - 7 + 8); // Correct rank calculation
     console.log(`[AI] Placed ${toPlace[i]} at ${String.fromCharCode(97 + slot.col)}${8 - slot.row} (replaced ${oldPiece?.type || 'empty'})`);
   }
 
@@ -718,12 +1212,29 @@ function getAIElo(): number {
   return Math.floor((level.minElo + level.maxElo) / 2);
 }
 
+// PERFORMANCE: Track pending AI move timeout to prevent stacking
+let pendingAIMoveTimeout: number | null = null;
+
 function scheduleAIMove(): void {
+  console.log('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
   if (onAIThinking) onAIThinking(true);
 
-  setTimeout(() => {
+  // PERFORMANCE: Cancel any pending AI move to prevent stacking
+  if (pendingAIMoveTimeout !== null) {
+    clearTimeout(pendingAIMoveTimeout);
+    pendingAIMoveTimeout = null;
+  }
+
+  // In AI vs AI mode, use 100ms base delay (balanced: fast but UI-responsive)
+  // Speed button multiplies this: 0.1x = 10ms (blitz), 2x = 200ms (slow)
+  const baseDelay = aiVsAiMode ? 100 : TIMING.aiMoveDelay;
+  const delay = Math.round(baseDelay * aiMoveSpeedMultiplier);
+  console.log('[AI] Scheduling AI move in', delay, 'ms');
+
+  pendingAIMoveTimeout = window.setTimeout(() => {
+    pendingAIMoveTimeout = null;
     makeAIMoveAsync();
-  }, TIMING.aiMoveDelay);
+  }, delay);
 }
 
 async function makeAIMoveAsync(): Promise<void> {
@@ -732,54 +1243,224 @@ async function makeAIMoveAsync(): Promise<void> {
     return;
   }
 
-  const level = getLevelForElo(state.elo);
+  // In AI vs AI mode, use ELO 1800 settings (Candidate Master level)
+  // Otherwise use player's current level
+  let depth: number;
+  let blunderChance: number;
+  let effectiveElo: number; // ELO used for AI strength calculation
 
-  // Use level system's AI settings (capped for browser performance)
-  const depth = Math.min(level.aiDepth, BALANCE.maxAiDepth);
-  const blunderChance = level.aiRandomness;
+  if (aiVsAiMode) {
+    // AI vs AI mode: ASYMMETRIC STRENGTH
+    // White (player side) = 1800 ELO (Candidate Master - uses Stockfish)  
+    // Black (opponent side) = Game ELO (weak at start, scales with progression)
+    const currentTurn = engine.turn(); // Returns 'white' or 'black'
 
-  console.log(`[AI] Level ${level.level} (${level.name}), Depth ${depth}, Blunder: ${(blunderChance * 100).toFixed(0)}%`);
+    if (currentTurn === 'white') {
+      // WHITE = Player's AI (strong, 1800 ELO)
+      effectiveElo = 1800; // Fixed strong rating
+      const level = getLevelForElo(effectiveElo);
+      depth = level.aiDepth;
+      blunderChance = 0; // No blunders for strong player AI
+      console.log(`[AI vs AI] White: 1800 ELO (Candidate Master), Depth ${depth}, No blunders`);
+    } else {
+      // BLACK = Opponent AI (uses game's current ELO - starts weak)
+      effectiveElo = state.elo;
+      const level = getLevelForElo(effectiveElo);
+      depth = Math.min(level.aiDepth, BALANCE.maxAiDepth);
+      blunderChance = level.aiRandomness;
+      console.log(`[AI vs AI] Black: ${effectiveElo} ELO (${level.name}), Depth ${depth}, Blunder: ${(blunderChance * 100).toFixed(0)}%`);
+    }
+  } else {
+    const level = getLevelForElo(state.elo);
+    effectiveElo = state.elo;
+    depth = Math.min(level.aiDepth, BALANCE.maxAiDepth);
+    blunderChance = level.aiRandomness;
+    console.log(`[AI] Level ${level.level} (${level.name}), Depth ${depth}, Blunder: ${(blunderChance * 100).toFixed(0)}%`);
+  }
 
   let move: Move | null = null;
 
-  if (Math.random() < blunderChance) {
-    // Make a random move (blunder)
-    const legalMoves = engine.getLegalMoves();
-    if (legalMoves.length > 0) {
-      move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      console.log('[AI] Blundered! Random move');
+  // Get all legal moves first
+  const legalMoves = engine.getLegalMoves();
+
+  if (legalMoves.length === 0) {
+    console.log('[AI] No legal moves!');
+    if (onAIThinking) onAIThinking(false);
+    return;
+  }
+
+  // For VERY low ELO (high blunder chance), just play fast and random
+  // This makes beginners' games feel more natural and responsive
+  if (blunderChance >= BALANCE.beginnerBlunderChance) {
+    // Beginner AI - mostly random with occasional smart captures
+    const roll = Math.random();
+
+    if (roll < BALANCE.beginnerCaptureChance) {
+      // Chance to look for any capture (even bad ones) - beginners love captures
+      const captureMoves = legalMoves.filter(m => m.capture);
+      if (captureMoves.length > 0) {
+        move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+        console.log('[AI] Beginner capture!');
+      }
     }
-  } else {
-    // Use Web Worker for AI computation (non-blocking)
-    try {
-      const fen = engine.getFEN();
-      const workerMove = await aiService.getBestMove(fen, depth, false);
-      
-      if (workerMove) {
-        // Get actual piece info from the board
-        const board = engine.getBoard();
-        const piece = board[workerMove.from.row][workerMove.from.col];
-        if (piece) {
-          move = {
-            from: workerMove.from,
-            to: workerMove.to,
-            piece,
-            promotion: workerMove.promotion
-          };
+
+    if (!move) {
+      // Otherwise just random move
+      move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      console.log('[AI] Beginner random move');
+    }
+    // Beginner AI is done - skip the complex AI logic below
+  } else if (blunderChance >= BALANCE.midLevelBlunderChance) {
+    // Mid-level AI: Sometimes random, sometimes smart
+    if (Math.random() < blunderChance) {
+      // Blunder - random move
+      move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      console.log('[AI] Mid-level blunder');
+    } else {
+      // Try to take good captures, else use engine
+      const captureMoves = legalMoves.filter(m => m.capture);
+      const sortedCaptures = captureMoves.sort((a, b) => {
+        const valueA = getPieceValueForCapture(a.capture!.type);
+        const valueB = getPieceValueForCapture(b.capture!.type);
+        return valueB - valueA;
+      });
+
+      if (sortedCaptures.length > 0 && getPieceValueForCapture(sortedCaptures[0].capture!.type) >= BALANCE.valuableCaptureThreshold) {
+        move = sortedCaptures[0];
+        console.log('[AI] Mid-level taking capture');
+      } else {
+        // Use engine but with fallback
+        try {
+          move = engine.getBestMove(depth, false);
+          console.log('[AI] Mid-level engine move');
+        } catch (e) {
+          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+          console.log('[AI] Mid-level fallback random');
         }
       }
-    } catch (e) {
-      console.error('[AI] Worker error, using fallback:', e);
-      move = engine.getBestMove(depth, false);
+    }
+  } else {
+    // =========================================================================
+    // HYBRID AI SYSTEM: Stockfish for high ELO, custom engine for beginners
+    // =========================================================================
+
+    // Decision: Use Stockfish for effectiveElo >= 900, custom engine for beginners
+    // In AI vs AI mode: White (1800) uses Stockfish, Black (game ELO) may use custom engine
+    const useStockfish = effectiveElo >= BALANCE.stockfishEloThreshold;
+
+    if (useStockfish) {
+      // HIGH ELO: Use Stockfish for true chess strength
+      console.log(`[AI] Using Stockfish (ELO ${effectiveElo} >= ${BALANCE.stockfishEloThreshold})`);
+
+      try {
+        const fen = engine.getFEN();
+        const timeout = TIMING.stockfishTimeout;
+
+        // Get move from Stockfish (returns simplified Move object)
+        // Pass aiVsAiMode as fastMode to reduce thinking time and prevent freezes
+        const stockfishMove = await stockfishEngine.getBestMove(fen, effectiveElo, timeout, aiVsAiMode);
+
+        if (stockfishMove) {
+          // Fill in piece information from current board
+          const board = engine.getBoard();
+          const piece = board[stockfishMove.from.row][stockfishMove.from.col];
+
+          if (piece) {
+            move = {
+              from: stockfishMove.from,
+              to: stockfishMove.to,
+              piece,
+              promotion: stockfishMove.promotion
+            };
+            console.log('[AI] Stockfish move:', move);
+          } else {
+            console.error('[AI] Stockfish returned invalid move (no piece)');
+            move = null;
+          }
+        } else {
+          console.error('[AI] Stockfish returned null move');
+          move = null;
+        }
+      } catch (e) {
+        console.error('[AI] Stockfish error:', e);
+        move = null;
+      }
+
+      // Fallback to custom engine if Stockfish fails
+      if (!move) {
+        console.warn('[AI] Stockfish failed, falling back to custom engine');
+        try {
+          move = engine.getBestMove(depth, false);
+          console.log('[AI] Fallback custom engine move');
+        } catch (e2) {
+          console.error('[AI] Fallback engine also failed, picking random move');
+          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+        }
+      }
+
+    } else {
+      // LOW ELO: Use custom engine (fast, deliberately weak)
+      console.log(`[AI] Using custom engine (ELO ${effectiveElo} < ${BALANCE.stockfishEloThreshold})`);
+
+      // Keep existing blunder/capture priority logic for realistic beginner behavior
+      const captureMoves = legalMoves.filter(m => m.capture);
+      const sortedCaptures = captureMoves.sort((a, b) => {
+        const valueA = getPieceValueForCapture(a.capture!.type);
+        const valueB = getPieceValueForCapture(b.capture!.type);
+        return valueB - valueA;
+      });
+
+      // High-value capture priority (even beginners take free pieces sometimes)
+      const bestCapture = sortedCaptures.length > 0 ? sortedCaptures[0] : null;
+      const captureValue = bestCapture ? getPieceValueForCapture(bestCapture.capture!.type) : 0;
+
+      if (bestCapture && captureValue >= BALANCE.valuableCaptureThreshold && Math.random() > blunderChance / 2) {
+        // Sometimes take high-value captures (but beginners still miss them sometimes)
+        move = bestCapture;
+        console.log(`[AI] Custom engine taking capture: ${bestCapture.capture!.type}`);
+      } else if (Math.random() < blunderChance) {
+        // Blunder: pick a suboptimal move
+        const blunderPool = legalMoves.filter(m => !m.capture || getPieceValueForCapture(m.capture.type) < BALANCE.valuableCaptureThreshold);
+        if (blunderPool.length > 0) {
+          move = blunderPool[Math.floor(Math.random() * blunderPool.length)];
+          console.log('[AI] Custom engine blundered');
+        } else {
+          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+          console.log('[AI] Custom engine random (no blunder pool)');
+        }
+      } else {
+        // Use custom engine at low depth (fast)
+        try {
+          move = engine.getBestMove(depth, false);
+          console.log('[AI] Custom engine best move (depth', depth, ')');
+        } catch (e) {
+          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+          console.log('[AI] Custom engine failed, random move');
+        }
+      }
     }
   }
 
   if (move) {
-    engine.makeMove(move.from, move.to, move.promotion);
+    const result = engine.makeMove(move.from, move.to, move.promotion);
+    if (!result) {
+      console.error('[AI] Move was rejected by engine!', move);
+    }
     notifyStateChange();
     checkGameEnd();
+
+    // In AI vs AI mode, schedule next AI move if game not over
+    if (aiVsAiMode && !state.gameOver) {
+      scheduleAIMove();
+    }
   } else {
-    console.error('[AI] No move found!');
+    console.error('[AI] No move found! Checking if game should end...');
+    // Check if there are legal moves - if not, game should end
+    const legalMoves = engine.getLegalMoves();
+    if (legalMoves.length === 0) {
+      console.log('[AI] No legal moves - checking game state');
+      checkGameEnd();
+    }
   }
 
   if (onAIThinking) onAIThinking(false);
@@ -788,13 +1469,46 @@ async function makeAIMoveAsync(): Promise<void> {
 function checkGameEnd(): void {
   if (engine.isCheckmate()) {
     const winner = engine.turn() === 'white' ? 'black' : 'white';
+
+    // In AI vs AI mode, just show result without affecting player stats
+    if (aiVsAiMode) {
+      state.gameOver = true;
+      if (onGameOver) {
+        onGameOver(`${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by checkmate!`);
+      }
+      notifyStateChange();
+      return;
+    }
+
     handleGameEnd(winner === state.playerColor ? 'win' : 'loss');
   } else if (engine.isStalemate() || engine.isDraw()) {
-    handleGameEnd('draw');
+    // Get specific draw type for better feedback
+    const drawType = engine.getDrawType();
+    const drawMessages: Record<string, string> = {
+      'stalemate': 'Stalemate!',
+      'insufficient': 'Draw by insufficient material',
+      'fifty-move': 'Draw by 50-move rule',
+      'repetition': 'Draw by threefold repetition',
+      'agreement': 'Draw by agreement',
+      'unknown': 'Game drawn!'
+    };
+    const drawMessage = drawMessages[drawType] || 'Game drawn!';
+
+    // In AI vs AI mode, just show result without affecting player stats
+    if (aiVsAiMode) {
+      state.gameOver = true;
+      if (onGameOver) {
+        onGameOver(drawMessage);
+      }
+      notifyStateChange();
+      return;
+    }
+
+    handleGameEnd('draw', drawMessage);
   }
 }
 
-function handleGameEnd(result: 'win' | 'loss' | 'draw'): void {
+function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string): void {
   state.gameOver = true;
   const aiElo = getAIElo();
   const oldElo = state.elo;
@@ -815,7 +1529,9 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw'): void {
   } else {
     const eloChange = calculateEloChange(state.elo, aiElo, 'draw');
     state.elo += eloChange;
-    message = `Draw! ${eloChange >= 0 ? '+' : ''}${eloChange} ELO`;
+    // Use specific draw type message if provided
+    const drawLabel = drawTypeMessage || 'Draw!';
+    message = `${drawLabel} ${eloChange >= 0 ? '+' : ''}${eloChange} ELO`;
   }
 
   // Clamp ELO
@@ -830,63 +1546,53 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw'): void {
     }, TIMING.levelNotificationDelay);
   }
 
-  // Update in-memory save data (NOT auto-saved to file)
+  // === NEW SIMPLER INVENTORY SYSTEM ===
   if (result === 'win') {
-    // Count how many pieces SURVIVED on the board
-    const board = engine.getBoard();
-    let survivingQueens = 0;
-    let survivingRooks = 0;
-    let survivingBishops = 0;
-    let survivingKnights = 0;
+    // Return deployed pieces to inventory (they're safe!)
+    pieceInventory.Q += deployedFromInventory.Q;
+    pieceInventory.R += deployedFromInventory.R;
+    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.N += deployedFromInventory.N;
 
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        const piece = board[r][c];
-        if (piece && piece.color === state.playerColor) {
-          if (piece.type === 'Q') survivingQueens++;
-          else if (piece.type === 'R') survivingRooks++;
-          else if (piece.type === 'B') survivingBishops++;
-          else if (piece.type === 'N') survivingKnights++;
-        }
-      }
+    // Add any NEW promotions made this game to inventory
+    const newPiecesEarned = currentGamePromotions.length;
+    for (const type of currentGamePromotions) {
+      pieceInventory[type]++;
     }
 
-    // Starting amounts (base): 1 Queen, 2 Rooks, 2 Bishops, 2 Knights
-    // BONUS pieces = survived pieces minus base amounts
-    const bonusQueens = Math.max(0, survivingQueens - 1);
-    const bonusRooks = Math.max(0, survivingRooks - 2);
-    const bonusBishops = Math.max(0, survivingBishops - 2);
-    const bonusKnights = Math.max(0, survivingKnights - 2);
-
-    // Build new promoted pieces list based on what SURVIVED
-    // This handles BOTH: new promotions that survived AND old bonus pieces that survived
-    const newPromotedPieces: PromotedPiece[] = [];
-    for (let i = 0; i < bonusQueens; i++) newPromotedPieces.push({ type: 'Q', earnedAtElo: state.elo, gameNumber: state.gamesPlayed });
-    for (let i = 0; i < bonusRooks; i++) newPromotedPieces.push({ type: 'R', earnedAtElo: state.elo, gameNumber: state.gamesPlayed });
-    for (let i = 0; i < bonusBishops; i++) newPromotedPieces.push({ type: 'B', earnedAtElo: state.elo, gameNumber: state.gamesPlayed });
-    for (let i = 0; i < bonusKnights; i++) newPromotedPieces.push({ type: 'N', earnedAtElo: state.elo, gameNumber: state.gamesPlayed });
-
-    const prevBonusCount = savedPromotedPieces.length;
-    const newBonusCount = newPromotedPieces.length;
-
-    console.log('[Game] Previous bonus pieces:', prevBonusCount, '- Surviving bonus pieces:', newBonusCount);
-
-    // Update saved pieces to reflect only what survived
-    savedPromotedPieces = newPromotedPieces;
-    currentSaveData = { ...currentSaveData, promotedPieces: newPromotedPieces };
-
-    if (newBonusCount > prevBonusCount) {
-      const gained = newBonusCount - prevBonusCount;
-      console.log('[Game] Earned', gained, 'NEW bonus pieces!');
-      message += ` +${gained} piece${gained > 1 ? 's' : ''} earned!`;
-    } else if (newBonusCount < prevBonusCount) {
-      const lost = prevBonusCount - newBonusCount;
-      console.log('[Game] Lost', lost, 'bonus pieces (captured)');
-      message += ` -${lost} piece${lost > 1 ? 's' : ''} lost!`;
+    if (newPiecesEarned > 0) {
+      console.log('[Game] Earned', newPiecesEarned, 'NEW pieces to inventory:', currentGamePromotions);
+      message += ` +${newPiecesEarned} piece${newPiecesEarned > 1 ? 's' : ''} to bank!`;
     }
 
-    console.log('[Game] Total bonus pieces after win:', savedPromotedPieces.length);
+    console.log('[Game] Inventory after win:', pieceInventory);
+  } else {
+    // LOSS or DRAW: Return deployed pieces to inventory (no penalty for simplicity)
+    pieceInventory.Q += deployedFromInventory.Q;
+    pieceInventory.R += deployedFromInventory.R;
+    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.N += deployedFromInventory.N;
+
+    // Promotions made during a lost game are lost
+    if (currentGamePromotions.length > 0) {
+      console.log('[Game] Lost', currentGamePromotions.length, 'promotions (game lost)');
+    }
   }
+
+  // Reset deployed tracking
+  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+
+  // Update save data with new inventory
+  currentSaveData = { ...currentSaveData, pieceInventory: pieceInventory };
+
+  // === AI LEARNING FROM PLAYER GAMES ===
+  // AI learns from every game played against the player
+  // If player wins, AI lost - AI learns from loss
+  // If player loses, AI won - AI learns from win
+  const aiResult = result === 'win' ? 'loss' : result === 'loss' ? 'win' : 'draw';
+  const aiWasWhite = state.playerColor === 'black'; // AI is opposite of player
+  learningAI.learnFromGame(aiResult, aiWasWhite);
+  console.log(`[AI Learning] AI played as ${aiWasWhite ? 'white' : 'black'}, result: ${aiResult}`);
 
   // Update in-memory save data (player must manually save to keep progress)
   currentSaveData = updateStatsAfterGame(currentSaveData, state.elo, result === 'win', result === 'draw');

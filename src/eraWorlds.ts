@@ -23,9 +23,9 @@ let assetSeed: number = 12345;
 let assetDensityScale = 1;
 let particleDensityScale = 1;
 
-const MAX_PRIMARY_ASSETS = 12;
-const MAX_SECONDARY_ASSETS = 15;
-const MAX_PARTICLES = 1200;
+const MAX_PRIMARY_ASSETS = 6;  // PERFORMANCE: Reduced from 12
+const MAX_SECONDARY_ASSETS = 8;  // PERFORMANCE: Reduced from 15
+const MAX_PARTICLES = 300;  // PERFORMANCE: Reduced from 1200
 
 // =============================================================================
 // MAIN ENVIRONMENT BUILDER
@@ -394,10 +394,10 @@ function addStoneAgeBuildings(group: THREE.Group, offset: number, progress: numb
         const seed = 30500 + i * 5000;
         const random = seededRandom(seed);
         const side = i % 2 === 0 ? 1 : -1;
-        
+
         // Place far in the distance for dramatic effect
         const distFromCenter = 45 + random() * 25;
-        
+
         const stonehenge = EraBuildings.createStonehenge(seed);
         stonehenge.position.set(
             side * distFromCenter,
@@ -416,10 +416,10 @@ function addStoneAgeBuildings(group: THREE.Group, offset: number, progress: numb
         const seed = 30200 + i * 800;
         const random = seededRandom(seed);
         const side = random() > 0.5 ? 1 : -1;
-        
+
         // Medium distance
         const distFromCenter = 15 + random() * 20;
-        
+
         const dolmen = EraBuildings.createDolmen(seed);
         dolmen.position.set(
             side * distFromCenter,
@@ -438,10 +438,10 @@ function addStoneAgeBuildings(group: THREE.Group, offset: number, progress: numb
         const seed = 30300 + i * 600;
         const random = seededRandom(seed);
         const side = random() > 0.5 ? 1 : -1;
-        
+
         // Campfires closer to path for visibility
         const distFromCenter = 8 + random() * 18;
-        
+
         const campfire = EraBuildings.createCampfire(seed);
         campfire.position.set(
             side * distFromCenter,
@@ -4749,26 +4749,26 @@ export function updateEraEnvironment(
                     const flamePhase = part.userData.flamePhase || 0;
                     const baseY = part.userData.baseY || 0.5;
                     const baseScale = part.userData.baseScale || 1;
-                    
+
                     // Flickering scale and position
                     const flicker = Math.sin(time * flameSpeed + flamePhase) * 0.15 +
-                                   Math.sin(time * flameSpeed * 1.7 + flamePhase) * 0.1;
+                        Math.sin(time * flameSpeed * 1.7 + flamePhase) * 0.1;
                     part.scale.y = baseScale * (0.8 + flicker + Math.random() * 0.1);
                     part.scale.x = baseScale * (0.9 + flicker * 0.5);
                     part.scale.z = baseScale * (0.9 + flicker * 0.5);
                     part.position.y = baseY + Math.sin(time * flameSpeed * 0.8 + flamePhase) * 0.05;
-                    
+
                     // Slight sway
                     part.rotation.x = Math.sin(time * flameSpeed * 0.5 + flamePhase) * 0.1;
                     part.rotation.z = Math.cos(time * flameSpeed * 0.6 + flamePhase + 1) * 0.08;
                 }
-                
+
                 // Animate fire light
                 if (part.userData.isFireLight && part instanceof THREE.PointLight) {
                     const baseIntensity = part.userData.baseIntensity || 2.5;
                     // Flickering light intensity
                     part.intensity = baseIntensity * (0.8 + Math.sin(time * 12) * 0.15 +
-                                    Math.sin(time * 7.3) * 0.1 + Math.random() * 0.05);
+                        Math.sin(time * 7.3) * 0.1 + Math.random() * 0.05);
                 }
             });
         }

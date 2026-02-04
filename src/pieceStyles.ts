@@ -1,14 +1,18 @@
 // src/pieceStyles.ts
-// Configuration for 12 high-quality chess piece styles
+// Chess piece style configurations
+// 
+// 2D styles use canvas-drawn SVG-style pieces (no external files needed)
+// 3D styles use procedural geometry
+// Sprite styles use external sprite sheet images
 
 export interface PieceStyleConfig {
     id: string;
     name: string;
     description: string;
     type: '2d' | '3d';
-    // 3D style properties
-    whiteColor?: number | string;
-    blackColor?: number | string;
+    // 3D properties
+    whiteColor?: number;
+    blackColor?: number;
     whiteTrimColor?: number;
     blackTrimColor?: number;
     whiteEmissive?: number;
@@ -16,106 +20,88 @@ export interface PieceStyleConfig {
     emissiveIntensity?: number;
     roughness?: number;
     metalness?: number;
-    // 2D style properties
-    useSymbols?: boolean;      // Use unicode symbols (♔ ♚)
-    useLetters?: boolean;      // Use letter abbreviations (K, Q, R, B, N, P)
-    useCustomDraw?: string;    // Custom canvas drawing function name
-    fontFamily?: string;
-    whiteTextColor?: string;
-    blackTextColor?: string;
-    backgroundColor?: string;
-    whiteBackgroundColor?: string;
-    blackBackgroundColor?: string;
-    whiteOutline?: string;
-    blackOutline?: string;
-    spriteSheet?: string;      // Path to sprite sheet image (relative to public)
-    spriteMap?: Record<string, number>; // Map piece type to index (0-5)
-    // Special effects
     glowEffect?: boolean;
-    crystalEffect?: boolean;
-    wireframe?: boolean;
+    // 2D properties - canvas drawing style
+    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh';
+    // Sprite sheet properties (for image-based 2D styles)
+    spriteSheet?: string;  // Path to sprite sheet image
+    spriteLayout?: 'standard';  // Layout format: 'standard' = 2 rows (white/black) x 6 cols (K,Q,R,B,N,P)
 }
 
-export const PIECE_STYLES: Record<string, PieceStyleConfig> = {
-    // =========================================================================
-    // 3D PIECE STYLES
-    // =========================================================================
-
+// =============================================================================
+// 3D STYLES (procedural geometry - all work)
+// =============================================================================
+const STYLES_3D: Record<string, PieceStyleConfig> = {
     staunton3d: {
         id: 'staunton3d',
         name: 'Staunton Classic',
-        description: 'Tournament standard - polished ivory & ebony',
+        description: 'Tournament standard',
         type: '3d',
-        whiteColor: 0xf8f0e8,      // Warm ivory
-        blackColor: 0x1a1410,      // Rich ebony
-        whiteTrimColor: 0xc0a060,  // Gold accents
-        blackTrimColor: 0xd0d0d0,  // Silver accents
+        whiteColor: 0xf8f0e8,
+        blackColor: 0x1a1410,
+        whiteTrimColor: 0xc0a060,
+        blackTrimColor: 0xd0d0d0,
         whiteEmissive: 0xffffff,
         blackEmissive: 0x000000,
         emissiveIntensity: 0.05,
         roughness: 0.15,
         metalness: 0.0,
     },
-
     lewis3d: {
         id: 'lewis3d',
         name: 'Lewis Chessmen',
-        description: 'Medieval Norse carved ivory figures',
+        description: 'Medieval Norse carved',
         type: '3d',
-        whiteColor: 0xf5e6c8,      // Aged ivory/bone
-        blackColor: 0x8b4513,      // Walrus tusk brown
-        whiteTrimColor: 0xd4b896,  // Natural bone
-        blackTrimColor: 0x654321,  // Dark wood
+        whiteColor: 0xf5e6c8,
+        blackColor: 0x8b4513,
+        whiteTrimColor: 0xd4b896,
+        blackTrimColor: 0x654321,
         whiteEmissive: 0xffe4b5,
         blackEmissive: 0x3d2817,
         emissiveIntensity: 0.03,
-        roughness: 0.6,           // Carved texture
+        roughness: 0.6,
         metalness: 0.0,
     },
-
     modern3d: {
         id: 'modern3d',
         name: 'Modern Minimal',
-        description: 'Bauhaus-inspired geometric design',
+        description: 'Bauhaus geometric',
         type: '3d',
-        whiteColor: 0xffffff,      // Pure white
-        blackColor: 0x1a1a1a,      // Pure black
-        whiteTrimColor: 0x888888,  // Gray accent
-        blackTrimColor: 0x666666,  // Gray accent
+        whiteColor: 0xffffff,
+        blackColor: 0x1a1a1a,
+        whiteTrimColor: 0x888888,
+        blackTrimColor: 0x666666,
         whiteEmissive: 0x000000,
         blackEmissive: 0x000000,
         emissiveIntensity: 0.0,
-        roughness: 0.05,          // Super smooth/polished
+        roughness: 0.05,
         metalness: 0.1,
     },
-
     fantasy3d: {
         id: 'fantasy3d',
         name: 'Crystal Fantasy',
-        description: 'Glowing magical crystal pieces',
+        description: 'Glowing crystal pieces',
         type: '3d',
-        whiteColor: 0xccddff,      // Ice blue
-        blackColor: 0x330022,      // Dark purple
-        whiteTrimColor: 0x4488ff,  // Blue glow
-        blackTrimColor: 0xff4488,  // Pink glow
+        whiteColor: 0xccddff,
+        blackColor: 0x330022,
+        whiteTrimColor: 0x4488ff,
+        blackTrimColor: 0xff4488,
         whiteEmissive: 0x2244aa,
         blackEmissive: 0x882244,
         emissiveIntensity: 0.4,
         roughness: 0.2,
         metalness: 0.3,
         glowEffect: true,
-        crystalEffect: true,
     },
-
     neon3d: {
         id: 'neon3d',
         name: 'Neon Cyberpunk',
-        description: 'Futuristic neon-lit wireframe',
+        description: 'Futuristic neon',
         type: '3d',
-        whiteColor: 0x001122,      // Dark base
-        blackColor: 0x110011,      // Dark base
-        whiteTrimColor: 0x00ffff,  // Cyan neon
-        blackTrimColor: 0xff00ff,  // Magenta neon
+        whiteColor: 0x001122,
+        blackColor: 0x110011,
+        whiteTrimColor: 0x00ffff,
+        blackTrimColor: 0xff00ff,
         whiteEmissive: 0x00ffff,
         blackEmissive: 0xff00ff,
         emissiveIntensity: 0.8,
@@ -123,381 +109,152 @@ export const PIECE_STYLES: Record<string, PieceStyleConfig> = {
         metalness: 0.9,
         glowEffect: true,
     },
-
     marble3d: {
         id: 'marble3d',
         name: 'Italian Marble',
-        description: 'Luxurious carved Carrara & Nero marble',
+        description: 'Carrara & Nero marble',
         type: '3d',
-        whiteColor: 0xf0f0f5,      // White marble
-        blackColor: 0x1a1a20,      // Black marble
-        whiteTrimColor: 0xe0e0e8,  // Marble veins
-        blackTrimColor: 0x2a2a30,  // Dark veins
+        whiteColor: 0xf0f0f5,
+        blackColor: 0x1a1a20,
+        whiteTrimColor: 0xe0e0e8,
+        blackTrimColor: 0x2a2a30,
         whiteEmissive: 0xffffff,
         blackEmissive: 0x000000,
         emissiveIntensity: 0.02,
-        roughness: 0.1,           // Polished stone
+        roughness: 0.1,
         metalness: 0.0,
     },
-
     wooden3d: {
         id: 'wooden3d',
         name: 'Handcrafted Wood',
-        description: 'Warm boxwood & rosewood finish',
+        description: 'Boxwood & rosewood',
         type: '3d',
-        whiteColor: 0xdec89c,      // Light boxwood
-        blackColor: 0x5c3a21,      // Dark rosewood
-        whiteTrimColor: 0xc4a870,  // Wood grain
-        blackTrimColor: 0x3d2517,  // Dark grain
+        whiteColor: 0xdec89c,
+        blackColor: 0x5c3a21,
+        whiteTrimColor: 0xc4a870,
+        blackTrimColor: 0x3d2517,
         whiteEmissive: 0x806040,
         blackEmissive: 0x201008,
         emissiveIntensity: 0.02,
-        roughness: 0.4,           // Natural wood
+        roughness: 0.4,
         metalness: 0.0,
-    },
-
-    // =========================================================================
-    // 2D PIECE STYLES
-    // =========================================================================
-
-    staunton2d: {
-        id: 'staunton2d',
-        name: 'Staunton Diagram',
-        description: 'Traditional 2D tournament diagrams',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'serif',
-        whiteTextColor: '#1a1a1a',
-        blackTextColor: '#1a1a1a',
-        backgroundColor: '#f5f0e6',
-    },
-
-    lewis2d: {
-        id: 'lewis2d',
-        name: 'Lewis Illustrated',
-        description: 'Medieval manuscript illustration style',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Old English Text MT", serif',
-        whiteTextColor: '#4a3520',
-        blackTextColor: '#2a1810',
-        backgroundColor: '#f0e4c8',
-    },
-
-    modern2d: {
-        id: 'modern2d',
-        name: 'Modern Line Art',
-        description: 'Clean minimalist line drawings',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'Arial, sans-serif',
-        whiteTextColor: '#333333',
-        blackTextColor: '#111111',
-        backgroundColor: '#ffffff',
-    },
-
-    fantasy2d: {
-        id: 'fantasy2d',
-        name: 'Fantasy Illustrated',
-        description: 'Ornate fantasy-themed pieces',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Papyrus", fantasy',
-        whiteTextColor: '#4488ff',
-        blackTextColor: '#ff4488',
-        backgroundColor: '#1a1a2e',
-    },
-
-    newspaper2d: {
-        id: 'newspaper2d',
-        name: 'Newspaper Classic',
-        description: 'Classic newspaper diagram symbols',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Times New Roman", serif',
-        whiteTextColor: '#1a1a1a',
-        blackTextColor: '#1a1a1a',
-        backgroundColor: '#f5f0e6',
-    },
-
-    neon2d: {
-        id: 'neon2d',
-        name: 'Neon Cyberpunk 2D',
-        description: 'Glowing arcade style characters',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Courier New", monospace',
-        whiteTextColor: '#00ffff',  // Cyan
-        blackTextColor: '#ff00ff',  // Magenta
-        backgroundColor: '#000000', // Black arcade screen
-    },
-
-    marble2d: {
-        id: 'marble2d',
-        name: 'Marble Engraved',
-        description: 'Classical serif on stone',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Times New Roman", serif',
-        whiteTextColor: '#555555',  // Engraved Stone
-        blackTextColor: '#111111',  // Deep Carving
-        backgroundColor: '#f2f2f2', // Pale Marble
-    },
-
-    wooden2d: {
-        id: 'wooden2d',
-        name: 'Woodcut Print',
-        description: 'Traditional woodblock style',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'Georgia, serif',
-        whiteTextColor: '#5c3a21',  // Dark Brown
-        blackTextColor: '#3d2517',  // Deep Brown
-        backgroundColor: '#eaddcf', // Light Wood/Paper
-    },
-
-    gameboy2d: {
-        id: 'gameboy2d',
-        name: 'Retro Handheld',
-        description: 'Classic 8-bit green monochrome',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Courier New", monospace',
-        whiteTextColor: '#306230', // Medium Green (Light)
-        blackTextColor: '#0f380f', // Darkest Green (Dark)
-        backgroundColor: '#8bac0f', // LCD Green
-    },
-
-    blueprint2d: {
-        id: 'blueprint2d',
-        name: 'Architect Blueprint',
-        description: 'Technical drawing style',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Courier New", monospace',
-        whiteTextColor: '#ffffff', // White Lines
-        blackTextColor: '#e0e0e0', // Light Grey Lines
-        backgroundColor: '#1c3f94', // Blueprint Blue
-    },
-
-    matrix2d: {
-        id: 'matrix2d',
-        name: 'Digital Rain',
-        description: 'Hacker console style',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'monospace',
-        whiteTextColor: '#00ff00', // Bright Green
-        blackTextColor: '#008f11', // Darker Green
-        backgroundColor: '#000000', // Black Console
-    },
-
-    graffiti2d: {
-        id: 'graffiti2d',
-        name: 'Street Art',
-        description: 'Urban graffiti style',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'Impact, sans-serif',
-        whiteTextColor: '#ff00ff', // Magenta
-        blackTextColor: '#00ffff', // Cyan
-        backgroundColor: '#333333', // Concrete
-    },
-
-    sketch2d: {
-        id: 'sketch2d',
-        name: 'Hand Drawn',
-        description: 'Pencil sketch on paper',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: '"Comic Sans MS", "Chalkboard SE", sans-serif',
-        whiteTextColor: '#2f4f4f', // Charcoal
-        blackTextColor: '#1a1a1a', // Darker Charcoal
-        backgroundColor: '#fffcec', // Paper
-    },
-
-    bold2d: {
-        id: 'bold2d',
-        name: 'Bold Geometric',
-        description: 'High contrast modern shapes',
-        type: '2d',
-        useSymbols: true,
-        fontFamily: 'Verdana, sans-serif',
-        whiteTextColor: '#000000', // Crisp Black
-        blackTextColor: '#000000', // Crisp Black
-        backgroundColor: '#ffffff', // Pure White
-    },
-
-    // =========================================================================
-    // NEW HIGH-VARIETY 2D STYLES
-    // =========================================================================
-
-    alpha2d: {
-        id: 'alpha2d',
-        name: 'Alpha Letters',
-        description: 'Pieces shown as K, Q, R, B, N, P letters',
-        type: '2d',
-        useSymbols: false,
-        useLetters: true,
-        fontFamily: '"Arial Black", Impact, sans-serif',
-        whiteTextColor: '#ffffff',
-        blackTextColor: '#1a1a1a',
-        whiteBackgroundColor: '#2255aa',
-        blackBackgroundColor: '#cc3333',
-    },
-
-    cburnett2d: {
-        id: 'cburnett2d',
-        name: 'CBurnett Standard',
-        description: 'Clean flat design like chess.com/lichess',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'cburnett',
-        whiteColor: '#ffffff',
-        blackColor: '#000000',
-        whiteOutline: '#000000',
-        blackOutline: '#ffffff',
-    },
-
-    merida2d: {
-        id: 'merida2d',
-        name: 'Merida Classic',
-        description: 'Elegant traditional outlined style',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'merida',
-        whiteColor: '#f0f0f0',
-        blackColor: '#2a2a2a',
-        whiteOutline: '#333333',
-        blackOutline: '#f0f0f0',
-    },
-
-    pixel2d: {
-        id: 'pixel2d',
-        name: 'Pixel Art',
-        description: '16-bit retro game style',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'pixel',
-        whiteColor: '#e8e8e8',
-        blackColor: '#404040',
-        whiteOutline: '#606060',
-        blackOutline: '#a0a0a0',
-    },
-
-    flat2d: {
-        id: 'flat2d',
-        name: 'Flat Modern',
-        description: 'iOS/Material design flat icons',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'flat',
-        whiteColor: '#fafafa',
-        blackColor: '#37474f',
-        whiteOutline: '#90a4ae',
-        blackOutline: '#78909c',
-    },
-
-    tatiana2d: {
-        id: 'tatiana2d',
-        name: 'Tatiana Ornate',
-        description: 'Detailed decorative figurines',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'tatiana',
-        whiteColor: '#fff8e7',
-        blackColor: '#2c1810',
-        whiteOutline: '#8b7355',
-        blackOutline: '#d4c4a8',
-    },
-
-    magnetic2d: {
-        id: 'magnetic2d',
-        name: 'Magnetic Travel',
-        description: 'Simplified travel chess shapes',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'magnetic',
-        whiteColor: '#f5f5dc',
-        blackColor: '#228b22',
-        whiteOutline: '#8b4513',
-        blackOutline: '#006400',
-    },
-
-    glass2d: {
-        id: 'glass2d',
-        name: 'Frosted Glass',
-        description: 'Translucent modern glass pieces',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'glass',
-        whiteColor: 'rgba(255,255,255,0.85)',
-        blackColor: 'rgba(40,40,60,0.85)',
-        whiteOutline: 'rgba(200,200,220,0.9)',
-        blackOutline: 'rgba(100,100,140,0.9)',
-    },
-
-    metal2d: {
-        id: 'metal2d',
-        name: 'Brushed Metal',
-        description: 'Chrome and gunmetal industrial',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'metal',
-        whiteColor: '#c0c0c0',
-        blackColor: '#404040',
-        whiteOutline: '#808080',
-        blackOutline: '#606060',
-    },
-
-    classic2d: {
-        id: 'classic2d',
-        name: 'Classic Diagram',
-        description: 'Traditional black outline, filled shapes',
-        type: '2d',
-        useSymbols: false,
-        useCustomDraw: 'classic',
-        whiteColor: '#ffffff',
-        blackColor: '#000000',
-        whiteOutline: '#000000',
-        blackOutline: '#000000',
     },
 };
 
-// Ordered list for UI display
+// =============================================================================
+// 2D STYLES (canvas-drawn - no external files needed)
+// =============================================================================
+const STYLES_2D: Record<string, PieceStyleConfig> = {
+    classic2d: {
+        id: 'classic2d',
+        name: 'Classic',
+        description: 'Traditional silhouettes',
+        type: '2d',
+        drawStyle: 'classic',
+    },
+    staunton2d: {
+        id: 'staunton2d',
+        name: 'Staunton 2D',
+        description: 'Tournament style flat',
+        type: '2d',
+        drawStyle: 'staunton',
+    },
+    modern2d: {
+        id: 'modern2d',
+        name: 'Modern Minimal',
+        description: 'Clean geometric shapes',
+        type: '2d',
+        drawStyle: 'modern',
+    },
+    symbols2d: {
+        id: 'symbols2d',
+        name: 'Unicode Symbols',
+        description: 'Chess font symbols',
+        type: '2d',
+        drawStyle: 'symbols',
+    },
+    newspaper2d: {
+        id: 'newspaper2d',
+        name: 'Newspaper',
+        description: 'Classic newspaper diagram style',
+        type: '2d',
+        drawStyle: 'newspaper',
+    },
+    outline2d: {
+        id: 'outline2d',
+        name: 'Outline',
+        description: 'Simple outlined silhouettes',
+        type: '2d',
+        drawStyle: 'outline',
+    },
+    figurine2d: {
+        id: 'figurine2d',
+        name: 'Figurine',
+        description: 'Algebraic notation style',
+        type: '2d',
+        drawStyle: 'figurine',
+    },
+    pixel2d: {
+        id: 'pixel2d',
+        name: 'Pixel Art',
+        description: '8-bit retro game style',
+        type: '2d',
+        drawStyle: 'pixel',
+    },
+    gothic2d: {
+        id: 'gothic2d',
+        name: 'Gothic',
+        description: 'Dark medieval ornate',
+        type: '2d',
+        drawStyle: 'gothic',
+    },
+    minimalist2d: {
+        id: 'minimalist2d',
+        name: 'Minimalist',
+        description: 'Ultra simple geometric',
+        type: '2d',
+        drawStyle: 'minimalist',
+    },
+    celtic2d: {
+        id: 'celtic2d',
+        name: 'Celtic Knot',
+        description: 'Interlaced Celtic design',
+        type: '2d',
+        drawStyle: 'celtic',
+    },
+    sketch2d: {
+        id: 'sketch2d',
+        name: 'Hand Sketch',
+        description: 'Pencil drawn style',
+        type: '2d',
+        drawStyle: 'sketch',
+    },
+    pharaoh2d: {
+        id: 'pharaoh2d',
+        name: 'Pharaoh',
+        description: 'Ancient Egyptian sprite set',
+        type: '2d',
+        spriteSheet: '/assets/pieces/Pharoh Set.png',
+        spriteLayout: 'standard',
+    },
+};
+
+// =============================================================================
+// COMBINED EXPORTS
+// =============================================================================
+export const PIECE_STYLES: Record<string, PieceStyleConfig> = {
+    ...STYLES_3D,
+    ...STYLES_2D,
+};
+
+// Separate lists for UI
+export const STYLES_3D_ORDER: string[] = Object.keys(STYLES_3D);
+export const STYLES_2D_ORDER: string[] = Object.keys(STYLES_2D);
+
+// Combined order (legacy)
 export const PIECE_STYLE_ORDER: string[] = [
-    'staunton3d',
-    'staunton2d',
-    'lewis3d',
-    'lewis2d',
-    'modern3d',
-    'modern2d',
-    'fantasy3d',
-    'fantasy2d',
-    'neon3d',
-    'neon2d',
-    'newspaper2d',
-    'marble3d',
-    'marble2d',
-    'wooden3d',
-    'wooden2d',
-    'gameboy2d',
-    'blueprint2d',
-    'matrix2d',
-    'graffiti2d',
-    'sketch2d',
-    'bold2d',
-    // New variety styles
-    'classic2d',
-    'cburnett2d',
-    'merida2d',
-    'alpha2d',
-    'flat2d',
-    'pixel2d',
-    'tatiana2d',
-    'magnetic2d',
-    'glass2d',
-    'metal2d',
+    ...STYLES_3D_ORDER,
+    ...STYLES_2D_ORDER,
 ];
 
 export function getPieceStyleConfig(styleId: string): PieceStyleConfig {

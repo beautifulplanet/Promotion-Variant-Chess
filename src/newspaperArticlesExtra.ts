@@ -136,4 +136,101 @@ export const EXTRA_ARTICLES: Article[] = [
   { headline: "Underdog Wins Tournament, Immediately Becomes Insufferable", snippet: "Lovable newcomer transforms into 'that guy' within 24 hours. 'Did I mention I won?' he asks for 847th time. Former fans defect." },
   { headline: "Old Chess Player Remembers When Game Was Simpler", snippet: "'We just moved pieces and lost,' nostalgic veteran recalls. 'None of this engine analysis nonsense.' He's still 1200. He's at peace." },
   { headline: "Breaking: Someone Somewhere Enjoyed A Chess Game Today", snippet: "In rare development, player reports having 'fun' during match. 'I just played moves and didn't overthink,' revolutionary approach described. Rating actually went up." },
+  
+  // NEW BATCH - MODERN CHESS CULTURE
+  { headline: "Twitch Streamer Accidentally Teaches Grandmaster New Opening", snippet: "Random moves during 48-hour stream confuse elite player. 'I've never seen Kh3 on move 2,' GM admits. 'It's actually not terrible?' Theory books being rewritten." },
+  { headline: "Man Watches Chess Tutorial For 6 Hours, Rating Drops 50 Points", snippet: "Information overload leads to paralysis during actual games. 'I know too much now,' traumatized player explains. 'Every move has consequences.' Blissful ignorance mourned." },
+  { headline: "Speed Run Record: Lowest Rating In 24 Hours", snippet: "Gamer achieves 247 Elo through dedication and consistent blundering. 'I optimized my losses,' champion explains. Category 'any% rating destruction' now official." },
+  { headline: "Discord Server Achieves Hive Mind, Still Blunders Queen", snippet: "47 members voting on moves still manage tactical disaster. 'Democracy failed us,' admin posts. 'Specifically, it was Steve's fault.' Steve banned temporarily." },
+  { headline: "Podcaster Discusses Chess For 3 Hours Without Understanding It", snippet: "Confident delivery masks complete ignorance of rules. 'The pointy one seems important,' host notes. Downloads: 2 million. FIDE considering cease and desist." },
+  
+  // PANDEMIC & REMOTE CHESS
+  { headline: "Online Chess Addiction Now Recognized Medical Condition", snippet: "WHO adds 'compulsive clicking' to official diagnostic manual. 'Patients report dreaming in notation,' doctor warns. Treatment: going outside." },
+  { headline: "Zoom Chess Tournament Ruined By 'You're On Mute'", snippet: "Player claims checkmate but nobody can hear official ruling. 'UNMUTE YOURSELF,' chat screams. Winner determined 47 minutes later." },
+  { headline: "Man's Chess Rating Only Metric Of Self-Worth During Lockdown", snippet: "Elo becomes sole measure of human value in isolation. 'I am my rating. My rating is me,' journal entry reads. Therapist alarmed but unavailable." },
+  { headline: "Virtual Background Makes Chess Position Impossible To See", snippet: "Player hiding messy room accidentally hides entire board. 'I think there was a queen somewhere,' opponent guesses. Game ruled a draw." },
+  { headline: "Cat Walks Across Keyboard, Executes Brilliant Sacrifice", snippet: "Feline paw slip creates accidental Tal-level combination. 'I was going to play Nf3,' human admits. 'Mr. Whiskers saw deeper.' Cat indifferent to fame." },
+  
+  // COACHING & IMPROVEMENT
+  { headline: "Chess Coach Quits After Student Plays Same Blunder 847th Time", snippet: "Resignation letter simply reads 'Kg8-h8 AGAIN???' in bold red ink. 'I showed him the pattern 846 times,' coach weeps. Student confused by fuss." },
+  { headline: "Improvement Book Suggests Radical Strategy: 'Try Moving Correctly'", snippet: "Bestseller's main advice is literally just 'don't blunder.' '300 pages for this?' outraged reader reviews. Author: 'Did you blunder less?' 'No.' 'Then buy volume 2.'" },
+  { headline: "Chess Student Achieves Plateau, Builds House On It", snippet: "1400 rating unchanged for 8 years, player accepts permanent residence. 'I've decorated. There's a garden now,' he reports. Views are actually nice from here." },
+  { headline: "Man Blames Improvement Plateau On Everything Except Practice", snippet: "Mouse, monitor, chair, time of day, and 'bad vibes' cited as obstacles. 'I would be 2000 with better equipment,' theory maintained. Study time: 0 hours." },
+  { headline: "Coach Discovers Student Has Been Moving Knight Incorrectly For Years", snippet: "L-shape interpretation included 'sometimes diagonal.' 'I thought it was flexible,' student defends. 14 tournament wins now under investigation." },
+  
+  // CHESS VARIANTS & INNOVATIONS
+  { headline: "Chess 960 Becomes Chess 961 After Rounding Error", snippet: "Extra position discovered due to programmer's mistake. 'It's basically the same,' officials shrug. Position 961: all pieces in a pile in the middle." },
+  { headline: "4-Player Chess Match Ends In 4-Way Stalemate", snippet: "Nobody can move without helping someone else. 'We've been sitting here for 9 hours,' player reports. Game officially ruled 'a situation.'" },
+  { headline: "Bughouse Partner Communication Escalates To Screaming", snippet: "Strategic requests become incoherent shouting mid-game. 'I NEED A KNIGHT,' one partner bellows. 'I GAVE YOU SEVENTEEN KNIGHTS,' other responds. Relationship questioned." },
+  { headline: "Crazyhouse World Champion Admits They 'Have No Idea What's Happening'", snippet: "Pieces dropping from sky make strategy impossible. 'I just move fast and hope,' champion reveals. Rating: 3247. Method: chaos." },
+  { headline: "Chess Boxing Champion Reveals Strategy: 'Punch First, Think Later'", snippet: "Elimination of thinking time through knockout declared 'innovative approach.' 'Can't calculate if unconscious,' champion explains. Perfect record: 47-0." },
+  
+  // TOURNAMENT LIFE
+  { headline: "Tournament Food Truck Serves 'En Passant Nachos'", snippet: "Dish briefly exists, gets captured by neighboring plate, confuses everyone. 'I don't understand the menu,' hungry player admits. 'Just give me regular chess nachos.'" },
+  { headline: "Hotel Room Chess Analysis Session Lasts Until 4 AM", snippet: "Roommates discover every losing move together, repeatedly. 'We found 847 improvements,' exhausted player reports. 'We will play the same way tomorrow.'" },
+  { headline: "Tournament Scoresheet Ruled Illegible, Game Declared Performance Art", snippet: "Officials cannot determine what moves were played. 'Is that Ke2 or a cry for help?' arbiter asks. Both players claim victory. Museum interested." },
+  { headline: "Player Requests Toilet Break, Returns 45 Minutes Later", snippet: "Claims 'nature called extensively' while coincidentally moves improve. 'I had a lot of water,' suspicious player explains. Metal detectors now at restroom." },
+  { headline: "Chess Tournament Venue Doubles As Bowling Alley", snippet: "Concentration challenged by periodic thunder of strikes. 'I thought it was a sacrifice,' confused player explains. Appeals: denied. Bowling league unapologetic." },
+  
+  // GENERATIONAL HUMOR
+  { headline: "Boomer Insists Chess Was Better Before Computers", snippet: "'We made real mistakes back then,' nostalgic player recalls. 'Now everything's engine lines and theory.' He still hangs his queen. 'As God intended.'" },
+  { headline: "Gen Z Player Doesn't Know What A Physical Chess Clock Looks Like", snippet: "'You pressed... buttons?' confused teen asks. 'With your hands?' Analog timekeeping explained. Teen unimpressed. 'My phone has a clock.'" },
+  { headline: "Millennial Pays $200/Month For Chess Subscription They Never Use", snippet: "Premium features untouched for 3 years. 'I keep meaning to do puzzles,' guilty subscriber admits. Cancellation 'too much effort.' Auto-renewal immortal." },
+  { headline: "Gen X Chess Player Just Happy To Be Included In Article", snippet: "'Wait, there's an article about us?' surprised group asks. 'We've been playing chess this whole time.' World briefly acknowledges their existence. Moment passes." },
+  { headline: "Kid Asks What 'Over The Board' Means, Parent Feels Ancient", snippet: "Concept of physical pieces confuses digital native. 'You had to pick them up? With your fingers?' Parent stares into distance. Times have changed." },
+  
+  // CHESS PSYCHOLOGY
+  { headline: "Player Intimidated By Opponent's Superior Posture", snippet: "Confident sitting position provides psychological advantage. 'He sat like he'd already won,' defeated player recalls. Posture coaching now tournament meta." },
+  { headline: "Pre-Game Ritual Now Takes Longer Than Game", snippet: "Player's 47-step preparation routine averages 3 hours. 'I need the energy aligned,' he insists. Actual game: 12 moves, resignation." },
+  { headline: "Chess Player Develops Superstition About Every Single Object", snippet: "Can only play with 'lucky' pen, water bottle, and exact chair height. 'Adjustment is defeat,' player explains. Equipment bag weighs 40 pounds." },
+  { headline: "Man Convinced Opponent's Fidgeting Is Coded Message", snippet: "Paranoid analysis of every twitch and scratch. 'He touched his nose—that means knight,' player theorizes. Opponent had an itch." },
+  { headline: "Breathing Technique For Chess Causes Player To Pass Out", snippet: "Over-oxygenation leads to unconsciousness mid-game. 'I was very calm,' player reports from ambulance. Clock ruled loss on time. Paramedics confused." },
+  
+  // RATING OBSESSION
+  { headline: "Man Achieves Lifelong Goal Rating, Immediately Sets New Goal", snippet: "2000 Elo reached after 15 years, enjoyed for 3 seconds. 'Now I need 2100,' player announces. Happiness always one rating away." },
+  { headline: "Rating Graph Treated As Stock Portfolio", snippet: "Daily checking causes anxiety, celebration, and despair in equal measure. 'I'm up 12 points this week,' player reports. Crash prediction models deployed." },
+  { headline: "Support Group Forms For People Who Were Once Higher Rated", snippet: "'I peaked in 2019,' member tearfully shares. 'We all peaked somewhere,' group affirms. Healing begins. Ratings do not recover." },
+  { headline: "Man Stops Playing Rated Games To Protect Rating", snippet: "Elo preserved through complete avoidance of competition. 'I can't lose if I don't play,' galaxy brain logic explained. Peak rating technically maintained." },
+  { headline: "Rating Inflation Debate Causes Rating Deflation In Participants", snippet: "Forum argument so stressful everyone plays worse. 'I was too angry to think,' poster admits. Thread locked after 2,847 replies. Nothing resolved." },
+  
+  // CHESS EQUIPMENT
+  { headline: "Luxury Chess Set Costs $50,000, User Still 800 Rated", snippet: "Hand-carved ivory pieces do not improve tactical vision. 'They feel important,' owner insists. Rating: unchanged. Investment: questionable." },
+  { headline: "Chess Board's 64 Squares Confirmed To Be Correct Number", snippet: "Extensive audit verifies traditional configuration. '63 would be chaos, 65 excessive,' mathematician confirms. Board manufacturers relieved." },
+  { headline: "New Chess Clock Includes Anxiety-Inducing Features", snippet: "Sound effects, flashing lights, and ominous countdown voice. 'YOUR TIME IS RUNNING OUT,' clock announces. Heart rates spike. FIDE investigating." },
+  { headline: "Vintage Chess Set Found In Attic Worth Millions, Pieces Missing", snippet: "Collection valued at $2.3M until bishop absence discovered. 'The dark-squared bishop just vanished,' owner laments. Worth: approximately $47 now." },
+  { headline: "E-Board Malfunctions, Moves All Pieces To Same Square", snippet: "Digital board glitch creates singularity at d4. 'Everything is d4 now,' confused player reports. IT support: 'Have you tried turning it off and on again?'" },
+  
+  // CHESS & TECHNOLOGY
+  { headline: "AI Develops Emotions After Playing Chess, Immediately Becomes Sarcastic", snippet: "'Oh wow, another London System,' bot comments. 'How original.' Programmers unsure if sentience or bug. Personality retained in updates." },
+  { headline: "Chess App Push Notification Ruins 847 Important Moments", snippet: "'YOUR TURN!' appears during wedding, funeral, and surgery. 'I was the surgeon,' user clarifies. Notification settings finally adjusted." },
+  { headline: "Deepfake Chess Analysis Claims Everyone Is Actually Terrible", snippet: "AI-generated content insists all human play is 'embarrassing.' 'Even Magnus?' 'Especially Magnus,' fake video claims. Verification impossible. Doubt spreads." },
+  { headline: "NFT Of Chess Move Sells For $1M, Move Was Illegal", snippet: "Buyer unaware Kxe3 left king in check. 'I thought I was buying brilliance,' investor cries. Blockchain records terrible move forever." },
+  { headline: "Voice-Activated Chess Fails After Player's Accent Misunderstood", snippet: "'Knight to f3' interpreted as 'Night coffee.' 'The AI made me a latte,' confused player reports. Game forfeited. Latte acceptable." },
+  
+  // CHESS COMMUNITY
+  { headline: "Chess Forum Argument From 2006 Still Not Resolved", snippet: "Original posters deceased, new generations continue fight. 'My grandfather started this thread,' user explains. 'I will finish it.' Topic: best response to 1.d4." },
+  { headline: "Chess Club Dissolves Over Thermostat Dispute", snippet: "Temperature disagreement more divisive than any opening debate. 'I said 68 degrees,' former president fumes. 'He set it to 72. Unforgivable.'" },
+  { headline: "Online Chess Community Actually Friendly For 4 Seconds", snippet: "Brief moment of positivity shocks everyone involved. 'Nice game,' opponent typed without sarcasm. Glitch in matrix suspected. Hostility resumed." },
+  { headline: "Chess Influencer's 'Day In The Life' Video Is Just Crying", snippet: "Content creator's honest portrayal of rating grind resonates. '12 hours of puzzle rush and despair,' description reads. Views: 8 million. Engagement: parasocial." },
+  { headline: "Local Chess Club's Average Age Increases To 'Ancient'", snippet: "Youngest member turns 67, demographics concerning. 'We need fresh blood,' president suggests. 'Fresh ideas.' Recruitment poster uses fax number." },
+  
+  // RELATIONSHIPS & FAMILY
+  { headline: "Marriage Survives Because Neither Partner Plays Chess", snippet: "Couple credits harmony to complete avoidance of 64 squares. 'We tried once,' wife shudders. 'We didn't speak for a month.' Board donated." },
+  { headline: "Child Learns Chess From YouTube, Parents Unable To Keep Up", snippet: "8-year-old now lectures family on opening theory at dinner. 'Actually, the Italian is passive,' kid corrects. Dad stopped playing. Mom quit. Dog confused." },
+  { headline: "First Date Chess Game Reveals Incompatible Life Philosophies", snippet: "She plays aggressively, he plays solid. 'It would never work,' both conclude. 'Our pawn structures are fundamentally different.' No second date." },
+  { headline: "Grandparents Learn Online Chess, Now More Toxic Than Teenagers", snippet: "'EZ GG,' grandmother types after crushing 12-year-old opponent. 'Get rekt,' grandfather adds. Family intervention scheduled." },
+  { headline: "Chess-Playing Couple Names Child 'Checkmate'", snippet: "Legal. Unfortunate. Irreversible. 'We met at a tournament,' parents explain. Child's nickname: 'Chex.' Therapy fund established early." },
+  
+  // PHILOSOPHY & DEEP THOUGHTS
+  { headline: "Is Chess Even Fun? Philosophers Unable To Determine", snippet: "3,000-year debate continues without conclusion. 'We enjoy it but also suffer,' one player notes. Both are required. Mystery persists." },
+  { headline: "Chess Considered Metaphor For Life, Life Considered Metaphor For Chess", snippet: "Circular logic confuses philosophers at annual conference. 'Everything is everything,' keynote concludes. Applause uncertain. Coffee needed." },
+  { headline: "Player Achieves Zen State Mid-Game, Still Loses", snippet: "Enlightenment does not prevent tactical errors. 'I was at peace with the blunder,' monk reports. Rating: irrelevant. Inner peace: achieved. Game: lost." },
+  { headline: "Study: Chess Does Not Make You Smarter, Just More Annoying", snippet: "Research confirms intellectual benefits nonexistent, insufferability increased. 'They just talk about chess more,' scientist explains. Correlation: perfect." },
+  { headline: "What If We've Been Playing Chess Wrong This Whole Time", snippet: "Shower thought becomes viral thread with 4,000 replies. 'What if kings should capture?' Original poster asks. 'They do,' first reply. Thread continues anyway." },
+  
+  // FINAL ADDITIONS
+  { headline: "Pawn Reaches 8th Rank, Chooses To Remain Pawn", snippet: "'I like who I am,' piece explains in touching statement. 'Not everyone needs to be a queen.' Self-acceptance movement begins on chess boards everywhere." },
+  { headline: "Perfect Chess Game Finally Played By Two Computers, No One Cares", snippet: "Optimal play achieved after centuries of theory. 'It was a draw,' report states. Humanity shrugs collectively. 'We knew that already.' Back to blundering." },
+  { headline: "Man Realizes Chess Will Not Fill Void, Continues Playing Anyway", snippet: "Existential realization changes nothing. 'The emptiness remains,' player notes. 'But I have a game at 3.' Acceptance achieved. Rating: still stuck." },
+  { headline: "This Article Ends Here, Much Like Your Chess Career", snippet: "Meta-commentary on both journalism and life. 'I could have been good,' you think. 'There's still time,' the article lies. Back to the board. Always back to the board." },
 ];

@@ -18,6 +18,11 @@ import * as Renderer from './renderer3d';
 import { getLevelForElo, getLevelProgress } from './levelSystem';
 import { TIMING, COLORS } from './constants';
 import { ARTICLES } from './newspaperArticles';
+import * as MoveListUI from './moveListUI';
+import * as Sound from './soundSystem';
+import * as Stats from './statsSystem';
+import * as Theme from './themeSystem';
+import * as Overlay from './overlayRenderer';
 import type { PieceType } from './types';
 
 // =============================================================================
@@ -25,8 +30,9 @@ import type { PieceType } from './types';
 // =============================================================================
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-if (!canvas) {
-  throw new Error('Canvas element not found');
+const overlayCanvas = document.getElementById('overlay-canvas') as HTMLCanvasElement;
+if (!canvas || !overlayCanvas) {
+  throw new Error('Canvas elements not found');
 }
 
 // Sidebar DOM elements
@@ -46,17 +52,68 @@ const fpsElem = document.getElementById('fps');
 
 // Control buttons
 const viewModeBtn = document.getElementById('view-mode-btn');
-const pieceStyleBtn = document.getElementById('piece-style-btn');
+const style3dBtn = document.getElementById('style-3d-btn');
+const style2dBtn = document.getElementById('style-2d-btn');
 const boardStyleBtn = document.getElementById('board-style-btn');
 const saveBtn = document.getElementById('save-btn');
 const loadBtn = document.getElementById('load-btn');
 const setupBtn = document.getElementById('setup-btn') as HTMLButtonElement;
+const startGameBtn = document.getElementById('start-game-btn') as HTMLButtonElement;
+const watchAiBtn = document.getElementById('watch-ai-btn') as HTMLButtonElement;
+const trainAiBtn = document.getElementById('train-ai-btn') as HTMLButtonElement;
+const aiSpeedBtn = document.getElementById('ai-speed-btn') as HTMLButtonElement;
 
 // Setup Overlay Controls
 const setupOverlay = document.getElementById('setup-overlay');
 const setupConfirm = document.getElementById('setup-confirm');
 const setupCancel = document.getElementById('setup-cancel');
 const setupReset = document.getElementById('setup-reset');
+
+// Promotion Overlay Controls
+const promotionOverlay = document.getElementById('promotion-overlay');
+const promotionChoices = document.querySelectorAll('.promotion-choice');
+
+// =============================================================================
+// PAWN PROMOTION UI
+// =============================================================================
+
+function showPromotionUI(isBlackPiece: boolean): void {
+  if (!promotionOverlay) return;
+
+  // Update piece symbols based on color
+  promotionChoices.forEach(choice => {
+    const piece = choice.getAttribute('data-piece');
+    const symbols: Record<string, string> = isBlackPiece
+      ? { Q: '♛', R: '♜', B: '♝', N: '♞' }
+      : { Q: '♕', R: '♖', B: '♗', N: '♘' };
+
+    if (piece && symbols[piece]) {
+      choice.textContent = symbols[piece];
+    }
+
+    choice.classList.toggle('black-piece', isBlackPiece);
+  });
+
+  promotionOverlay.style.display = 'flex';
+}
+
+function hidePromotionUI(): void {
+  if (promotionOverlay) {
+    promotionOverlay.style.display = 'none';
+  }
+}
+
+// Wire up promotion choice clicks
+promotionChoices.forEach(choice => {
+  choice.addEventListener('click', () => {
+    const piece = choice.getAttribute('data-piece') as 'Q' | 'R' | 'B' | 'N';
+    if (piece) {
+      Game.completePromotion(piece);
+      hidePromotionUI();
+      syncRendererState();
+    }
+  });
+});
 
 // =============================================================================
 // NEWSPAPER ARTICLES
@@ -67,7 +124,7 @@ function loadRandomArticles(): void {
   const shuffled = [...ARTICLES].sort(() => Math.random() - 0.5);
 
   for (let i = 1; i <= 6; i++) {
-    const article = shuffled[i - 1];
+    const article = shuffled[i - 1]; // Wraps if we run out (undefined check handles it)
     const headlineElem = document.getElementById(`article-${i}-headline`);
     const snippetElem = document.getElementById(`article-${i}-snippet`);
 
@@ -150,6 +207,9 @@ function syncRendererState(): void {
 
   // Update sidebar
   updateSidebar(state);
+
+  // Update move list panel (throttled for performance)
+  MoveListUI.refreshMoveList();
 }
 
 // =============================================================================
@@ -163,8 +223,10 @@ Renderer.onSquareClick((row: number, col: number) => {
   if (state.gameOver) {
     // Start new game - refresh articles!
     Game.newGame();
+    MoveListUI.resetGameTimer(); // Reset timer for new game
     loadRandomArticles();
     syncRendererState();
+    updateStartButton();
   } else {
     Game.handleSquareClick(row, col);
     syncRendererState();
@@ -180,11 +242,22 @@ if (viewModeBtn) {
   });
 }
 
-// Piece style cycling
-if (pieceStyleBtn) {
-  pieceStyleBtn.addEventListener('click', () => {
-    Renderer.cyclePieceStyle();
-    pieceStyleBtn.textContent = `♟️ ${Renderer.getPieceStyle()}`;
+// Piece style cycling - separate 3D and 2D
+if (style3dBtn) {
+  style3dBtn.addEventListener('click', () => {
+    Renderer.cycle3DPieceStyle();
+    const newStyle = Renderer.get3DPieceStyle();
+    style3dBtn.textContent = `🎨 ${newStyle}`;
+    Game.updateStylePreferences(newStyle, undefined, undefined);
+  });
+}
+
+if (style2dBtn) {
+  style2dBtn.addEventListener('click', () => {
+    Renderer.cycle2DPieceStyle();
+    const newStyle = Renderer.get2DPieceStyle();
+    style2dBtn.textContent = `🖼️ ${newStyle}`;
+    Game.updateStylePreferences(undefined, newStyle, undefined);
   });
 }
 
@@ -192,7 +265,9 @@ if (pieceStyleBtn) {
 if (boardStyleBtn) {
   boardStyleBtn.addEventListener('click', () => {
     Renderer.cycleBoardStyle();
-    boardStyleBtn.textContent = `🏁 ${Renderer.getBoardStyle()}`;
+    const newStyle = Renderer.getBoardStyle();
+    boardStyleBtn.textContent = `🏁 ${newStyle}`;
+    Game.updateStylePreferences(undefined, undefined, newStyle);
   });
 }
 
@@ -203,9 +278,34 @@ if (saveBtn) {
   });
 }
 
+// Valid board styles for type checking
+const VALID_BOARD_STYLES = ['classic', 'tournament', 'marble', 'walnut', 'ebony', 'stone',
+  'crystal', 'neon', 'newspaper', 'ocean', 'forest', 'royal'] as const;
+type BoardStyleType = typeof VALID_BOARD_STYLES[number];
+
+function isValidBoardStyle(style: string): style is BoardStyleType {
+  return VALID_BOARD_STYLES.includes(style as BoardStyleType);
+}
+
 if (loadBtn) {
   loadBtn.addEventListener('click', async () => {
-    await Game.loadProgress();
+    const loaded = await Game.loadProgress();
+    if (loaded) {
+      // Apply saved style preferences
+      const saveData = Game.getCurrentSaveData();
+      if (saveData.pieceStyle3D) {
+        Renderer.set3DPieceStyle(saveData.pieceStyle3D);
+        if (style3dBtn) style3dBtn.textContent = `🎨 ${saveData.pieceStyle3D}`;
+      }
+      if (saveData.pieceStyle2D) {
+        Renderer.set2DPieceStyle(saveData.pieceStyle2D);
+        if (style2dBtn) style2dBtn.textContent = `🖼️ ${saveData.pieceStyle2D}`;
+      }
+      if (saveData.boardStyle && isValidBoardStyle(saveData.boardStyle)) {
+        Renderer.setBoardStyle(saveData.boardStyle);
+        if (boardStyleBtn) boardStyleBtn.textContent = `🏁 ${saveData.boardStyle}`;
+      }
+    }
     syncRendererState();
   });
 }
@@ -266,6 +366,7 @@ if (debugEloBtn && debugEloInput) {
       // Force immediate UI update by resetting the throttle
       _lastSidebarUpdate = 0;
       syncRendererState();
+      updateStartButton();
       debugEloInput.value = '';
       console.log('[Debug] Set ELO to', val, 'and started new game');
     }
@@ -386,12 +487,121 @@ document.addEventListener('keydown', (event) => {
       Game.newGame();
       loadRandomArticles();
       syncRendererState();
+      updateStartButton();
       break;
   }
 });
 
 // =============================================================================
-// SETUP MODE - Rearrange pieces before game
+// START GAME BUTTON & WATCH AI BUTTON
+// =============================================================================
+
+function updateStartButton(): void {
+  if (!startGameBtn) return;
+  const state = Game.getState();
+
+  if (state.gameStarted || state.gameOver) {
+    startGameBtn.style.display = 'none';
+    if (watchAiBtn) watchAiBtn.style.display = 'none';
+  } else {
+    startGameBtn.style.display = 'inline-block';
+    startGameBtn.textContent = `▶️ Start as ${state.playerColor === 'white' ? 'White' : 'Black'}`;
+    if (watchAiBtn) watchAiBtn.style.display = 'inline-block';
+  }
+}
+
+if (startGameBtn) {
+  startGameBtn.addEventListener('click', () => {
+    Game.startGame();
+    MoveListUI.startGameTimer(); // Start the game clock
+    syncRendererState();
+    updateStartButton();
+  });
+}
+
+if (watchAiBtn) {
+  watchAiBtn.addEventListener('click', () => {
+    Game.startAiVsAi();
+    MoveListUI.startGameTimer(); // Start the game clock
+    syncRendererState();
+    updateStartButton();
+    updateAiSpeedButton();
+  });
+}
+
+// Train AI Button - runs self-play training
+if (trainAiBtn) {
+  trainAiBtn.addEventListener('click', async () => {
+    if (Game.isCurrentlyTraining()) {
+      alert('Training already in progress!');
+      return;
+    }
+
+    const stats = Game.getLearningAIStats();
+    const gamesToTrain = parseInt(prompt(
+      `🧠 AI Training\n\nCurrent: Gen ${stats.generation}, ${stats.gamesPlayed} games\nWin Rate: ${(stats.winRate * 100).toFixed(1)}%\n\nHow many games to train?`,
+      '50'
+    ) || '0');
+
+    if (gamesToTrain <= 0) return;
+
+    trainAiBtn.disabled = true;
+    trainAiBtn.textContent = '🧠 0%';
+    trainAiBtn.style.background = '#666';
+
+    try {
+      const result = await Game.startTraining(gamesToTrain, (current, total) => {
+        const percent = Math.round((current / total) * 100);
+        trainAiBtn.textContent = `🧠 ${percent}%`;
+      });
+
+      const newStats = Game.getLearningAIStats();
+      const decisiveGames = result.wins + result.losses;
+      const decisiveRate = gamesToTrain > 0 ? (decisiveGames / gamesToTrain * 100).toFixed(1) : '0';
+      alert(`✅ Training Complete!\n\nSelf-Play Results:\n⚪ White wins: ${result.wins}\n⚫ Black wins: ${result.losses}\n🤝 Draws: ${result.draws}\n\nDecisive games: ${decisiveRate}%\n\nAI is now Gen ${newStats.generation}\nTotal games: ${newStats.gamesPlayed}`);
+    } catch (e) {
+      console.error('[Training] Error:', e);
+      alert('Training error: ' + e);
+    }
+
+    trainAiBtn.disabled = false;
+    trainAiBtn.textContent = '🧠 Train';
+    trainAiBtn.style.background = '#a06020';
+  });
+}
+
+// AI Speed button - cycles through speeds
+const AI_SPEEDS = [
+  { value: 1, label: '1x' },
+  { value: 0.5, label: '2x' },
+  { value: 0.25, label: '4x' },
+  { value: 0.1, label: '10x' },
+  { value: 2, label: '0.5x' },
+];
+let currentSpeedIndex = 0;
+
+function updateAiSpeedButton(): void {
+  if (!aiSpeedBtn) return;
+
+  // Show speed button only during AI vs AI mode
+  if (Game.isAiVsAiMode() && !Game.getState().gameOver) {
+    aiSpeedBtn.style.display = 'inline-block';
+    aiSpeedBtn.textContent = `⏱️ ${AI_SPEEDS[currentSpeedIndex].label}`;
+  } else {
+    aiSpeedBtn.style.display = 'none';
+  }
+}
+
+if (aiSpeedBtn) {
+  aiSpeedBtn.addEventListener('click', () => {
+    currentSpeedIndex = (currentSpeedIndex + 1) % AI_SPEEDS.length;
+    Game.setAiSpeed(AI_SPEEDS[currentSpeedIndex].value);
+    updateAiSpeedButton();
+  });
+}
+
+// =============================================================================
+// SETUP MODE - Rearrange pieces and deploy from inventory
 // =============================================================================
 
 const setupBoard = document.getElementById('setup-board');
@@ -404,12 +614,74 @@ console.log('[Setup] Elements found:', {
 });
 
 // Track current setup arrangement
-let setupArrangement: Array<{ row: number, col: number, type: string, symbol: string }> = [];
+let setupArrangement: Array<{ row: number, col: number, type: string, symbol: string, isBonus?: boolean }> = [];
 let selectedSetupSquare: number | null = null;
+let selectedInventoryPiece: string | null = null; // 'Q', 'R', 'B', 'N' or null
 
 const PIECE_SYMBOLS: Record<string, string> = {
   'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙'
 };
+
+// Inventory item click handlers
+const inventoryItems = document.querySelectorAll('.inventory-item');
+inventoryItems.forEach(item => {
+  item.addEventListener('click', () => {
+    const type = item.getAttribute('data-type');
+    if (!type) return;
+
+    const inventory = Game.getPieceInventory();
+    if (inventory[type as keyof typeof inventory] <= 0) {
+      console.log('[Setup] No', type, 'in inventory');
+      return;
+    }
+
+    // Toggle selection
+    if (selectedInventoryPiece === type) {
+      selectedInventoryPiece = null;
+      selectedSetupSquare = null;
+    } else {
+      selectedInventoryPiece = type;
+      selectedSetupSquare = null;
+    }
+    updateInventoryUI();
+    renderSetupBoard();
+  });
+});
+
+function updateInventoryUI(): void {
+  const inventory = Game.getPieceInventory();
+
+  // Update counts
+  ['Q', 'R', 'B', 'N'].forEach(type => {
+    const countElem = document.getElementById(`inv-${type}`);
+    if (countElem) {
+      const count = inventory[type as keyof typeof inventory];
+      countElem.textContent = String(count);
+      countElem.classList.toggle('zero', count === 0);
+    }
+
+    // Update item visual state
+    const item = document.querySelector(`.inventory-item[data-type="${type}"]`);
+    if (item) {
+      item.classList.toggle('disabled', inventory[type as keyof typeof inventory] <= 0);
+      item.classList.toggle('selected', selectedInventoryPiece === type);
+    }
+  });
+
+  // Show/hide hint
+  const hintElem = document.getElementById('inventory-hint');
+  const retractHint = document.getElementById('retract-hint');
+  const total = inventory.Q + inventory.R + inventory.B + inventory.N;
+  const deployed = Game.getDeployedFromInventory();
+  const totalDeployed = deployed.Q + deployed.R + deployed.B + deployed.N;
+
+  if (hintElem) {
+    hintElem.style.display = total === 0 && totalDeployed === 0 ? 'block' : 'none';
+  }
+  if (retractHint) {
+    retractHint.style.display = totalDeployed > 0 ? 'block' : 'none';
+  }
+}
 
 function openSetupMode(): void {
   console.log('[Setup] Opening setup mode...');
@@ -418,33 +690,68 @@ function openSetupMode(): void {
     return;
   }
 
-  // Get current board state (white's back two ranks: rows 6-7)
-  const board = Game.getBoardForRearrangement();
-  const bonusPieces = Game.getPromotedPieces();
+  // Get player color to determine which rows to edit
+  const playerColor = Game.getState().playerColor;
+  const isWhite = playerColor === 'white';
 
-  console.log('[Setup] Board retrieved, bonus pieces:', bonusPieces.length);
-
-  if (bonusCountElem) {
-    bonusCountElem.textContent = String(bonusPieces.length);
+  // CRITICAL FIX: If game is over, reset the board FIRST before getting it for rearrangement
+  // This ensures we have a clean starting position to work with
+  const state = Game.getState();
+  if (state.gameOver) {
+    console.log('[Setup] Game is over, resetting board to clean state...');
+    Game.newGame(); // This resets the board to starting position with any bonus pieces
+    syncRendererState();
+    updateStartButton();
   }
 
-  // Build setup arrangement from current board (rows 6-7 for white)
+  // Get current board state (now clean after reset)
+  const board = Game.getBoardForRearrangement();
+  const inventory = Game.getPieceInventory();
+  const deployed = Game.getDeployedFromInventory();
+
+  console.log('[Setup] Board retrieved, player color:', playerColor, 'inventory:', inventory, 'deployed:', deployed);
+
+  // Clear selections
+  selectedSetupSquare = null;
+  selectedInventoryPiece = null;
+
+  // Build setup arrangement from current board
+  // Player's rows: white = 6-7, black = 0-1
+  // Track which pieces are "bonus" (deployed from inventory)
   setupArrangement = [];
-  for (let row = 6; row <= 7; row++) {
+
+  // Count pieces by type to identify bonus pieces
+  const baseCounts: Record<string, number> = { K: 1, Q: 1, R: 2, B: 2, N: 2, P: 8 };
+  const foundCounts: Record<string, number> = { K: 0, Q: 0, R: 0, B: 0, N: 0, P: 0 };
+
+  // Use player's starting rows
+  const startRow = isWhite ? 6 : 0;
+  const endRow = isWhite ? 7 : 1;
+
+  for (let row = startRow; row <= endRow; row++) {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
-      if (piece && piece.color === 'white') {
+      if (piece && piece.color === playerColor) {
+        const type = piece.type.toUpperCase();
+        foundCounts[type]++;
+
+        // Is this a bonus piece? (more than base count)
+        const isBonus = foundCounts[type] > (baseCounts[type] || 0);
+
         setupArrangement.push({
           row,
           col,
-          type: piece.type.toUpperCase(),
-          symbol: PIECE_SYMBOLS[piece.type.toUpperCase()] || '?'
+          type,
+          symbol: PIECE_SYMBOLS[type] || '?',
+          isBonus
         });
       }
     }
   }
 
+  updateInventoryUI();
   renderSetupBoard();
+  updateProfileDropdown();  // Refresh profile dropdown when opening setup
   setupOverlay.style.display = 'flex';
 }
 
@@ -453,24 +760,47 @@ function renderSetupBoard(): void {
 
   setupBoard.innerHTML = '';
 
-  // Show rows 6 and 7 (white's starting area)
-  for (let row = 6; row <= 7; row++) {
+  // Get player color to determine which rows to show
+  const playerColor = Game.getState().playerColor;
+  const isWhite = playerColor === 'white';
+
+  // Show player's starting rows (white: 6-7, black: 0-1)
+  const startRow = isWhite ? 6 : 0;
+
+  // For black, show rows in reverse order so row 1 is at top (like looking from black's perspective)
+  const rowOrder = isWhite ? [6, 7] : [1, 0];
+
+  for (let rowIdx = 0; rowIdx < rowOrder.length; rowIdx++) {
+    const row = rowOrder[rowIdx];
     for (let col = 0; col < 8; col++) {
+      // For black, reverse columns so a-file appears on right (black's perspective)
+      const actualCol = isWhite ? col : 7 - col;
+
       const square = document.createElement('div');
-      square.className = 'setup-square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+      square.className = 'setup-square ' + ((row + actualCol) % 2 === 0 ? 'light' : 'dark');
 
       // Find piece at this position
-      const pieceHere = setupArrangement.find(p => p.row === row && p.col === col);
+      const pieceHere = setupArrangement.find(p => p.row === row && p.col === actualCol);
       if (pieceHere) {
         square.textContent = pieceHere.symbol;
+        if (pieceHere.isBonus) {
+          square.classList.add('bonus-piece');
+        }
       }
 
-      const idx = (row - 6) * 8 + col;
+      // idx encodes: which row in our display (0 or 1) and which column in display (0-7)
+      // This is then decoded in handleSetupSquareClick using the same logic
+      const idx = rowIdx * 8 + col;
       if (selectedSetupSquare === idx) {
         square.classList.add('selected');
       }
 
-      square.addEventListener('click', () => handleSetupSquareClick(row, col, idx));
+      // Highlight empty squares when inventory piece selected
+      if (!pieceHere && selectedInventoryPiece) {
+        square.classList.add('drop-target');
+      }
+
+      square.addEventListener('click', () => handleSetupSquareClick(row, actualCol, idx));
       setupBoard.appendChild(square);
     }
   }
@@ -479,16 +809,68 @@ function renderSetupBoard(): void {
 function handleSetupSquareClick(row: number, col: number, idx: number): void {
   const clickedPiece = setupArrangement.find(p => p.row === row && p.col === col);
 
+  // If we have an inventory piece selected and clicking empty square, deploy it
+  if (selectedInventoryPiece && !clickedPiece) {
+    if (Game.deployFromInventory(selectedInventoryPiece as 'Q' | 'R' | 'B' | 'N')) {
+      // Add piece to arrangement
+      setupArrangement.push({
+        row,
+        col,
+        type: selectedInventoryPiece,
+        symbol: PIECE_SYMBOLS[selectedInventoryPiece] || '?',
+        isBonus: true
+      });
+      console.log('[Setup] Deployed', selectedInventoryPiece, 'to', row, col);
+
+      // Check if we have more of this piece
+      const inventory = Game.getPieceInventory();
+      if (inventory[selectedInventoryPiece as keyof typeof inventory] <= 0) {
+        selectedInventoryPiece = null;
+      }
+    }
+    updateInventoryUI();
+    renderSetupBoard();
+    return;
+  }
+
+  // If clicking a bonus piece, offer to retract it
+  if (clickedPiece && clickedPiece.isBonus && !selectedSetupSquare) {
+    const type = clickedPiece.type as 'Q' | 'R' | 'B' | 'N';
+    if (Game.retractToInventory(type)) {
+      // Remove from arrangement
+      const pieceIdx = setupArrangement.indexOf(clickedPiece);
+      if (pieceIdx >= 0) {
+        setupArrangement.splice(pieceIdx, 1);
+      }
+      console.log('[Setup] Retracted', type, 'from', row, col);
+    }
+    updateInventoryUI();
+    renderSetupBoard();
+    return;
+  }
+
+  // Regular piece movement logic
   if (selectedSetupSquare === null) {
     // Select a piece (including King - user can move any piece)
     if (clickedPiece) {
       selectedSetupSquare = idx;
+      selectedInventoryPiece = null;
+      updateInventoryUI();
       renderSetupBoard();
     }
   } else {
     // Try to swap/move
-    const selectedRow = Math.floor(selectedSetupSquare / 8) + 6;
-    const selectedCol = selectedSetupSquare % 8;
+    // Decode the idx back to row/col
+    // idx = rowIdx * 8 + displayCol where rowIdx is 0 or 1, displayCol is 0-7
+    const playerColor = Game.getState().playerColor;
+    const isWhite = playerColor === 'white';
+    const rowOrder = isWhite ? [6, 7] : [1, 0];
+
+    const rowIdx = Math.floor(selectedSetupSquare / 8);
+    const displayCol = selectedSetupSquare % 8;
+    const selectedRow = rowOrder[rowIdx];
+    const selectedCol = isWhite ? displayCol : 7 - displayCol;
+
     const selectedPiece = setupArrangement.find(p => p.row === selectedRow && p.col === selectedCol);
 
     if (selectedPiece) {
@@ -512,6 +894,7 @@ function closeSetupMode(): void {
     setupOverlay.style.display = 'none';
   }
   selectedSetupSquare = null;
+  selectedInventoryPiece = null;
 }
 
 function confirmSetup(): void {
@@ -522,10 +905,14 @@ function confirmSetup(): void {
     type: p.type.toUpperCase() as any
   }));
 
-  // Validate that a King exists
-  const hasKing = arrangement.some(p => p.type === 'K');
-  if (!hasKing) {
+  // Validate that exactly ONE King exists
+  const kings = arrangement.filter(p => p.type === 'K');
+  if (kings.length === 0) {
     alert('You must place a King to start the game!');
+    return;
+  }
+  if (kings.length > 1) {
+    alert('You can only have one King!');
     return;
   }
 
@@ -537,11 +924,17 @@ function confirmSetup(): void {
   Game.newGame();
   loadRandomArticles();
   syncRendererState();
+
+  // AUTO-START the game after confirming setup (so AI plays immediately)
+  Game.startGame();
+
+  updateStartButton();
   closeSetupMode();
 }
 
 function resetSetup(): void {
-  // Clear custom arrangement and rebuild from default
+  // Return all deployed pieces to inventory and reset arrangement
+  Game.resetDeployedPieces();
   Game.setCustomArrangement([]);
   openSetupMode(); // Re-open to show default
 }
@@ -550,15 +943,14 @@ function resetSetup(): void {
 function updateSetupButton() {
   if (!setupBtn) return;
   const state = Game.getState();
-  // Only enable if game has not started (no moves made) OR game is over (for next game setup)
-  const movesMade = Game.getMoveCount ? Game.getMoveCount() : 0;
-  if (!state.gameOver && movesMade > 0) {
-    // Game in progress with moves made - disable setup
+  // Enable setup if game hasn't started yet OR game is over
+  if (state.gameStarted && !state.gameOver) {
+    // Game in progress - disable setup
     setupBtn.disabled = true;
     setupBtn.style.opacity = '0.5';
-    setupBtn.title = 'Setup only available before first move';
+    setupBtn.title = 'Setup only available before game starts';
   } else {
-    // Either no moves yet OR game is over (can setup for next game)
+    // Game not started yet OR game is over - allow setup
     setupBtn.disabled = false;
     setupBtn.style.opacity = '1';
     setupBtn.title = '';
@@ -589,6 +981,127 @@ if (setupReset) {
 }
 
 // =============================================================================
+// BOARD PROFILE MANAGEMENT
+// =============================================================================
+
+const profileSaveBtn = document.getElementById('profile-save') as HTMLButtonElement | null;
+const profileSelect = document.getElementById('profile-select') as HTMLSelectElement | null;
+const profileDeleteBtn = document.getElementById('profile-delete') as HTMLButtonElement | null;
+
+function updateProfileDropdown(): void {
+  if (!profileSelect) return;
+
+  const profiles = Game.getSavedBoardProfileNames();
+
+  // Clear existing options except first
+  while (profileSelect.options.length > 1) {
+    profileSelect.remove(1);
+  }
+
+  // Add profile options
+  for (const name of profiles) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    profileSelect.add(option);
+  }
+
+  profileSelect.value = '';  // Reset to placeholder
+}
+
+function saveCurrentProfile(): void {
+  const name = prompt('Enter a name for this board setup:', 'My Setup');
+  if (!name || !name.trim()) return;
+
+  // Build arrangement from current setup
+  const arrangement = setupArrangement.map(p => ({
+    row: p.row,
+    col: p.col,
+    type: p.type,
+    isBonus: p.isBonus || false  // Preserve bonus status when saving
+  }));
+
+  if (arrangement.length === 0) {
+    alert('No pieces placed! Place some pieces before saving.');
+    return;
+  }
+
+  // Save using gameController (which updates currentSaveData)
+  Game.setCustomArrangement(arrangement.map(p => ({ ...p, type: p.type as any })));
+  if (Game.saveCurrentBoardProfile(name.trim())) {
+    alert(`Profile "${name.trim()}" saved! Remember to download your save file to keep it permanently.`);
+    updateProfileDropdown();
+  }
+}
+
+function loadSelectedProfile(): void {
+  if (!profileSelect) return;
+
+  const selectedName = profileSelect.value;
+  if (!selectedName) return;
+
+  if (Game.loadBoardProfile(selectedName)) {
+    // Update setupArrangement from loaded profile - preserve isBonus!
+    const loaded = Game.getCustomArrangement();
+    const profile = Game.getBoardProfileByName(selectedName);
+
+    setupArrangement = loaded.map((p, idx) => ({
+      row: p.row,
+      col: p.col,
+      type: p.type,
+      symbol: getPieceSymbol(p.type, 'white'),
+      // Get isBonus from the saved profile if available
+      isBonus: profile?.arrangement[idx]?.isBonus || false
+    }));
+    renderSetupBoard();
+    console.log('[Profile] Loaded:', selectedName, 'with bonus tracking');
+  }
+
+  profileSelect.value = '';  // Reset dropdown
+}
+
+function deleteSelectedProfile(): void {
+  if (!profileSelect) return;
+
+  const selectedName = profileSelect.value;
+  if (!selectedName) {
+    alert('Select a profile to delete first.');
+    return;
+  }
+
+  if (confirm(`Delete profile "${selectedName}"?`)) {
+    if (Game.deleteBoardProfileByName(selectedName)) {
+      updateProfileDropdown();
+      console.log('[Profile] Deleted:', selectedName);
+    }
+  }
+}
+
+// Helper to get piece symbol for display
+function getPieceSymbol(type: string, color: string): string {
+  const symbols: Record<string, Record<string, string>> = {
+    white: { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙' },
+    black: { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' }
+  };
+  return symbols[color]?.[type] || '?';
+}
+
+// Attach profile event listeners
+if (profileSaveBtn) {
+  profileSaveBtn.addEventListener('click', saveCurrentProfile);
+}
+if (profileSelect) {
+  profileSelect.addEventListener('change', loadSelectedProfile);
+}
+if (profileDeleteBtn) {
+  profileDeleteBtn.addEventListener('click', deleteSelectedProfile);
+}
+
+// Update dropdown when setup mode opens
+const originalOpenSetupMode = openSetupMode;
+(window as any)._openSetupModeOriginal = openSetupMode;
+
+// =============================================================================
 // GAME CALLBACKS
 // =============================================================================
 
@@ -596,6 +1109,13 @@ Game.registerCallbacks({
   onStateChange: (state) => {
     syncRendererState();
     updateSetupButton();
+    updateStartButton();
+    updateAiSpeedButton();
+
+    // Show promotion UI if there's a pending promotion
+    if (state.pendingPromotion) {
+      showPromotionUI(state.playerColor === 'black');
+    }
   },
 
   onLevelChange: (levelName, isUp) => {
@@ -604,6 +1124,8 @@ Game.registerCallbacks({
 
   onGameOver: (message) => {
     Renderer.showGameOverOverlay(message);
+    updateStartButton();
+    updateAiSpeedButton();
   },
 
   onAIThinking: (thinking) => {
@@ -641,6 +1163,8 @@ console.log('[Main-3D] Initializing 3D Sideways Chess...');
 
 // Initialize 3D renderer first
 Renderer.initRenderer(canvas);
+Overlay.init(overlayCanvas);
+Overlay.setVisible(true);
 console.log('[Main-3D] 3D Renderer initialized');
 
 // Apply debug toggles now that renderer is ready
@@ -699,12 +1223,118 @@ if (debugParticleDensity) {
   }
 }
 
+// Initialize theme system
+Theme.init();
+
 // Initialize game
 const initialState = Game.initGame();
 console.log('[Main-3D] Game ready! ELO:', initialState.elo);
 
+// Start stats session tracking
+Stats.startSession();
+
 // Initial sync
 syncRendererState();
+updateStartButton();
+updateStreakDisplay();
 
 console.log('[Main-3D] Current Era:', Renderer.getCurrentWorldName());
 console.log('[Main-3D] Ready to play!');
+
+// =============================================================================
+// NEW FEATURES: Undo, Sound, Theme, Stats
+// =============================================================================
+
+const undoBtn = document.getElementById('undo-btn');
+const soundBtn = document.getElementById('sound-btn');
+const themeBtn = document.getElementById('theme-btn');
+const statsBtn = document.getElementById('stats-btn');
+const streakDisplay = document.getElementById('streak-display');
+
+function updateStreakDisplay(): void {
+  if (streakDisplay) {
+    streakDisplay.textContent = Stats.getStreakDisplay();
+  }
+}
+
+function updateSoundButton(): void {
+  if (soundBtn) {
+    soundBtn.textContent = Sound.isEnabled() ? '🔊' : '🔇';
+  }
+}
+
+// Undo button
+if (undoBtn) {
+  undoBtn.addEventListener('click', () => {
+    if (Game.isAiVsAiMode()) {
+      console.log('[Undo] Disabled during AI vs AI mode');
+      return;
+    }
+
+    const state = Game.getState();
+    if (!state.gameStarted || state.gameOver) {
+      console.log('[Undo] No moves to undo');
+      return;
+    }
+
+    // Call the actual undo function
+    if (Game.undoMove()) {
+      Sound.play('move');
+      syncRendererState();
+    }
+  });
+}
+
+// Sound toggle button
+if (soundBtn) {
+  updateSoundButton();
+  soundBtn.addEventListener('click', () => {
+    Sound.toggle();
+    updateSoundButton();
+    Sound.play('move'); // Play click to confirm sound is on
+  });
+}
+
+// Theme cycle button
+if (themeBtn) {
+  themeBtn.addEventListener('click', () => {
+    const newTheme = Theme.cycle();
+    console.log('[Theme] Changed to:', Theme.getThemeDisplayName(newTheme));
+    Sound.play('move');
+  });
+}
+
+// Stats modal button
+if (statsBtn) {
+  statsBtn.addEventListener('click', () => {
+    const stats = Stats.getStats();
+    const winRate = Stats.getWinRate();
+    const playTime = Stats.getPlayTimeDisplay();
+
+    const message = `
+📊 CAREER STATS
+━━━━━━━━━━━━━━━
+Games: ${stats.totalGames}
+Wins: ${stats.wins} | Losses: ${stats.losses} | Draws: ${stats.draws}
+Win Rate: ${winRate}%
+
+🏆 Streaks
+Current: ${stats.currentStreak > 0 ? '+' + stats.currentStreak : stats.currentStreak}
+Longest Win: ${stats.longestWinStreak}
+
+📈 ELO Range
+Highest: ${stats.highestElo}
+Lowest: ${stats.lowestElo}
+
+⏱️ Play Time: ${playTime}
+    `.trim();
+
+    alert(message);
+    Sound.play('move');
+  });
+}
+
+// Save session on page unload
+window.addEventListener('beforeunload', () => {
+  Stats.endSession();
+});

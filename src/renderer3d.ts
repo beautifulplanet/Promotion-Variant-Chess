@@ -17,7 +17,7 @@ import {
 import { ProceduralSkybox, WormholeTransition } from './proceduralSkybox';
 import { DynamicLighting } from './dynamicLighting';
 import { createEraEnvironment, updateEraEnvironment, setAssetDensityScale as setEraAssetDensityScale, setParticleDensityScale as setEraParticleDensityScale } from './eraWorlds';
-import { getPieceStyleConfig, is2DPieceStyle, PIECE_STYLE_ORDER, type PieceStyleConfig } from './pieceStyles';
+import { getPieceStyleConfig, is2DPieceStyle, PIECE_STYLE_ORDER, STYLES_3D_ORDER, STYLES_2D_ORDER, type PieceStyleConfig } from './pieceStyles';
 import { getBoardStyleConfig, BOARD_STYLE_ORDER, type BoardStyleConfig } from './boardStyles';
 
 // =============================================================================
@@ -94,8 +94,8 @@ let envEnabled = true;
 let particlesEnabled = true;
 let skyboxEnabled = true;
 let lightingEnabled = true;
-let shadowsEnabled = false;
-let envAnimEnabled = true;
+let shadowsEnabled = false;  // PERFORMANCE: Shadows disabled by default
+let envAnimEnabled = true;   // Re-enabled for scrolling world
 let wormholeEnabled = true;
 let motionScale = 1;
 
@@ -121,13 +121,13 @@ let onSquareClickCallback: ((row: number, col: number) => void) | null = null;
 // 2D Overhead Mode - Newspaper-style chess symbols
 let is2DMode = false;
 let pieceSpritesCache: Map<string, THREE.SpriteMaterial> = new Map();
-let spriteTextureCache: Map<string, THREE.Texture> = new Map(); // Cache for loaded textures
 const OVERHEAD_THRESHOLD = 0.35; // Switch to 2D when camera angle < this (radians from vertical)
 
-// Piece Style System - 12 unique styles
-export type PieceStyle = 'staunton3d' | 'staunton2d' | 'lewis3d' | 'lewis2d' | 'modern3d' | 'modern2d' |
-    'fantasy3d' | 'fantasy2d' | 'neon3d' | 'newspaper2d' | 'marble3d' | 'wooden3d';
-let currentPieceStyle: PieceStyle = 'staunton3d';
+// Piece Style System - Separate 2D and 3D styles
+export type PieceStyle = string;
+let current3DStyle: string = 'staunton3d';
+let current2DStyle: string = 'classic2d';
+let currentPieceStyle: PieceStyle = 'staunton3d';  // Active style (switches based on mode)
 let currentPieceStyleConfig: PieceStyleConfig = getPieceStyleConfig('staunton3d');
 
 // Board Style System - 12 unique themes
@@ -192,8 +192,8 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     basePixelRatio = Math.min(window.devicePixelRatio, 1.5); // Balanced quality/performance
     renderer.setPixelRatio(basePixelRatio);
 
-    // OPTIMIZED SHADOW SETTINGS - Manual updates for performance
-    renderer.shadowMap.enabled = true;
+    // OPTIMIZED SHADOW SETTINGS - Disabled by default for performance
+    renderer.shadowMap.enabled = false;  // PERFORMANCE: Start with shadows off
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;  // Better quality than BasicShadowMap
     renderer.shadowMap.autoUpdate = false;  // Manual control - update only when pieces move
 
@@ -613,11 +613,11 @@ function createBoard(): void {
 
 function createRibbonExtensions(): void {
     const style = currentBoardStyleConfig;
-    
+
     // Create infinite path extending forward and backward
     const pathLength = 500; // Very long path for infinite look
     const pathWidth = BOARD_WIDTH + 0.4;
-    
+
     // Forward infinite path (into the distance)
     const forwardPathGeo = new THREE.PlaneGeometry(pathWidth, pathLength);
     const forwardPathMat = new THREE.MeshStandardMaterial({
@@ -632,34 +632,34 @@ function createRibbonExtensions(): void {
     forwardPath.position.set(0, -0.17, -pathLength / 2 - BOARD_LENGTH / 2);
     forwardPath.receiveShadow = true;
     boardGroup.add(forwardPath);
-    
+
     // Backward infinite path (behind the player)
     const backwardPath = new THREE.Mesh(forwardPathGeo.clone(), forwardPathMat.clone());
     backwardPath.rotation.x = -Math.PI / 2;
     backwardPath.position.set(0, -0.17, pathLength / 2 + BOARD_LENGTH / 2);
     backwardPath.receiveShadow = true;
     boardGroup.add(backwardPath);
-    
+
     // Add faded checker pattern on the paths for continuity
     const extensionCount = 12;
     for (let ext = 1; ext <= extensionCount; ext++) {
         const distanceFactor = ext / extensionCount;
         const opacity = Math.max(0.08, 0.5 - distanceFactor * 0.4);
-        
+
         // Forward faded boards
         createFadedBoard(-ext * BOARD_LENGTH, opacity, style);
-        
+
         // Backward faded boards  
         createFadedBoard(ext * BOARD_LENGTH, opacity, style);
     }
-    
+
     // Add edge lines for the infinite path look
-    const lineMat = new THREE.LineBasicMaterial({ 
-        color: style.frameColor || 0x4a4a6a, 
-        transparent: true, 
-        opacity: 0.4 
+    const lineMat = new THREE.LineBasicMaterial({
+        color: style.frameColor || 0x4a4a6a,
+        transparent: true,
+        opacity: 0.4
     });
-    
+
     // Left edge line
     const leftLineGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(-pathWidth / 2, -0.1, -pathLength),
@@ -667,7 +667,7 @@ function createRibbonExtensions(): void {
     ]);
     const leftLine = new THREE.Line(leftLineGeo, lineMat);
     boardGroup.add(leftLine);
-    
+
     // Right edge line
     const rightLineGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(pathWidth / 2, -0.1, -pathLength),
@@ -685,8 +685,8 @@ function createFadedBoard(zOffset: number, opacity: number, style?: BoardStyleCo
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const isLight = (row + col) % 2 === 0;
-            const baseColor = isLight ? 
-                (boardStyle.lightSquareColor || COLORS_3D.lightSquare) : 
+            const baseColor = isLight ?
+                (boardStyle.lightSquareColor || COLORS_3D.lightSquare) :
                 (boardStyle.darkSquareColor || COLORS_3D.darkSquare);
 
             const geometry = new THREE.BoxGeometry(BOARD_UNIT * 0.95, 0.06, BOARD_UNIT * 0.95);
@@ -771,9 +771,18 @@ function updateCameraPosition(): void {
     const wasIs2DMode = is2DMode;
     is2DMode = orbitPhi < OVERHEAD_THRESHOLD || currentViewMode === 'play';
 
-    // If mode changed, rebuild pieces
+    // If mode changed, switch to appropriate style and rebuild pieces
     if (wasIs2DMode !== is2DMode && cachedBoard.length > 0) {
-        console.log('[Renderer3D] Switching to', is2DMode ? '2D Newspaper' : '3D', 'piece mode');
+        console.log('[Renderer3D] Switching to', is2DMode ? '2D' : '3D', 'piece mode');
+        // Apply the correct style for the new mode
+        const newStyle = is2DMode ? current2DStyle : current3DStyle;
+        if (currentPieceStyle !== newStyle) {
+            currentPieceStyle = newStyle;
+            currentPieceStyleConfig = getPieceStyleConfig(newStyle);
+            pieceSpritesCache.clear();
+            pieceMaterialCache.clear();
+            pieceMeshCache.clear();
+        }
         updatePieces(true); // Force update since hash hasn't changed
     }
 }
@@ -993,6 +1002,13 @@ export function setPieceStyle(style: PieceStyle): void {
     currentPieceStyle = style;
     currentPieceStyleConfig = getPieceStyleConfig(style);
 
+    // Track which type was set
+    if (is2DPieceStyle(style)) {
+        current2DStyle = style;
+    } else {
+        current3DStyle = style;
+    }
+
     // Clear caches
     pieceSpritesCache.clear();
     pieceMaterialCache.clear();
@@ -1008,10 +1024,48 @@ export function setPieceStyle(style: PieceStyle): void {
 }
 
 /**
+ * Set 3D piece style specifically
+ */
+export function set3DPieceStyle(style: string): void {
+    current3DStyle = style;
+    console.log('[Renderer3D] Set 3D style:', style);
+    // If currently in 3D mode, apply immediately
+    if (!is2DMode) {
+        setPieceStyle(style);
+    }
+}
+
+/**
+ * Set 2D piece style specifically
+ */
+export function set2DPieceStyle(style: string): void {
+    current2DStyle = style;
+    console.log('[Renderer3D] Set 2D style:', style);
+    // If currently in 2D mode, apply immediately
+    if (is2DMode) {
+        setPieceStyle(style);
+    }
+}
+
+/**
  * Get current piece style
  */
 export function getPieceStyle(): PieceStyle {
     return currentPieceStyle;
+}
+
+/**
+ * Get current 3D style
+ */
+export function get3DPieceStyle(): string {
+    return current3DStyle;
+}
+
+/**
+ * Get current 2D style  
+ */
+export function get2DPieceStyle(): string {
+    return current2DStyle;
 }
 
 /**
@@ -1036,12 +1090,30 @@ export function getBoardStyle(): BoardStyle {
 }
 
 /**
- * Cycle to next piece style
+ * Cycle to next piece style (legacy - cycles through all)
  */
 export function cyclePieceStyle(): void {
     const currentIndex = PIECE_STYLE_ORDER.indexOf(currentPieceStyle);
     const nextIndex = (currentIndex + 1) % PIECE_STYLE_ORDER.length;
     setPieceStyle(PIECE_STYLE_ORDER[nextIndex] as PieceStyle);
+}
+
+/**
+ * Cycle to next 3D piece style
+ */
+export function cycle3DPieceStyle(): void {
+    const currentIndex = STYLES_3D_ORDER.indexOf(current3DStyle);
+    const nextIndex = (currentIndex + 1) % STYLES_3D_ORDER.length;
+    set3DPieceStyle(STYLES_3D_ORDER[nextIndex]);
+}
+
+/**
+ * Cycle to next 2D piece style
+ */
+export function cycle2DPieceStyle(): void {
+    const currentIndex = STYLES_2D_ORDER.indexOf(current2DStyle);
+    const nextIndex = (currentIndex + 1) % STYLES_2D_ORDER.length;
+    set2DPieceStyle(STYLES_2D_ORDER[nextIndex]);
 }
 
 /**
@@ -1257,1012 +1329,1930 @@ export function screenToBoard(screenX: number, screenY: number): { row: number; 
 }
 
 // =============================================================================
-// PIECE RENDERING
+// PIECE RENDERING - 2D Canvas-Drawn Pieces (SVG-style)
 // =============================================================================
 
-// Newspaper style: White pieces = OUTLINE symbols, Black pieces = FILLED SOLID symbols
+// Unicode chess symbols
 const PIECE_SYMBOLS: Record<string, Record<string, string>> = {
-    white: { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙' },  // Outline symbols
-    black: { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' }   // Filled solid symbols
+    white: { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙' },
+    black: { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' }
 };
 
-// =============================================================================
-// CUSTOM 2D PIECE DRAWING - Multiple visual styles
-// =============================================================================
+// Draw classic silhouette style pieces
+function drawClassicPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+    const fill = isWhite ? '#f8f4e8' : '#2a2420';
+    const stroke = isWhite ? '#1a1a1a' : '#d0d0d0';
 
-function drawCustomPiece(
-    ctx: CanvasRenderingContext2D,
-    pieceType: string,
-    isWhite: boolean,
-    size: number,
-    config: import('./pieceStyles').PieceStyleConfig
-): void {
-    const cx = size / 2;
-    const cy = size / 2;
-    const scale = size / 256; // Normalize to 256px base
-    
-    const fillColor = isWhite ? (config.whiteColor as string || '#ffffff') : (config.blackColor as string || '#000000');
-    const outlineColor = isWhite ? (config.whiteOutline || '#000000') : (config.blackOutline || '#ffffff');
-    const lineWidth = 4 * scale;
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.04;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // King - cross on top
+            // Base
+            ctx.moveTo(cx - s * 0.3, s * 0.88);
+            ctx.lineTo(cx + s * 0.3, s * 0.88);
+            ctx.lineTo(cx + s * 0.25, s * 0.78);
+            ctx.lineTo(cx + s * 0.2, s * 0.45);
+            ctx.quadraticCurveTo(cx + s * 0.25, s * 0.35, cx + s * 0.15, s * 0.28);
+            // Cross
+            ctx.lineTo(cx + s * 0.15, s * 0.22);
+            ctx.lineTo(cx + s * 0.08, s * 0.22);
+            ctx.lineTo(cx + s * 0.08, s * 0.15);
+            ctx.lineTo(cx + s * 0.15, s * 0.15);
+            ctx.lineTo(cx + s * 0.15, s * 0.08);
+            ctx.lineTo(cx - s * 0.15, s * 0.08);
+            ctx.lineTo(cx - s * 0.15, s * 0.15);
+            ctx.lineTo(cx - s * 0.08, s * 0.15);
+            ctx.lineTo(cx - s * 0.08, s * 0.22);
+            ctx.lineTo(cx - s * 0.15, s * 0.22);
+            ctx.lineTo(cx - s * 0.15, s * 0.28);
+            ctx.quadraticCurveTo(cx - s * 0.25, s * 0.35, cx - s * 0.2, s * 0.45);
+            ctx.lineTo(cx - s * 0.25, s * 0.78);
+            ctx.closePath();
+            break;
+
+        case 'Q': // Queen - crown with points
+            ctx.moveTo(cx - s * 0.28, s * 0.88);
+            ctx.lineTo(cx + s * 0.28, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.75);
+            ctx.lineTo(cx + s * 0.18, s * 0.4);
+            ctx.lineTo(cx + s * 0.28, s * 0.18);
+            ctx.arc(cx + s * 0.28, s * 0.14, s * 0.04, Math.PI * 0.5, Math.PI * 2.5);
+            ctx.lineTo(cx + s * 0.14, s * 0.25);
+            ctx.lineTo(cx + s * 0.14, s * 0.08);
+            ctx.arc(cx + s * 0.14, s * 0.06, s * 0.03, Math.PI * 0.5, Math.PI * 2.5);
+            ctx.lineTo(cx, s * 0.2);
+            ctx.lineTo(cx, s * 0.08);
+            ctx.arc(cx, s * 0.05, s * 0.04, Math.PI * 0.5, Math.PI * 2.5);
+            ctx.lineTo(cx - s * 0.14, s * 0.2);
+            ctx.lineTo(cx - s * 0.14, s * 0.08);
+            ctx.arc(cx - s * 0.14, s * 0.06, s * 0.03, Math.PI * 0.5, Math.PI * 2.5);
+            ctx.lineTo(cx - s * 0.28, s * 0.25);
+            ctx.lineTo(cx - s * 0.28, s * 0.18);
+            ctx.arc(cx - s * 0.28, s * 0.14, s * 0.04, Math.PI * 0.5, Math.PI * 2.5);
+            ctx.lineTo(cx - s * 0.18, s * 0.4);
+            ctx.lineTo(cx - s * 0.22, s * 0.75);
+            ctx.closePath();
+            break;
+
+        case 'R': // Rook - castle tower
+            ctx.moveTo(cx - s * 0.25, s * 0.88);
+            ctx.lineTo(cx + s * 0.25, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.75);
+            ctx.lineTo(cx + s * 0.18, s * 0.35);
+            ctx.lineTo(cx + s * 0.25, s * 0.3);
+            ctx.lineTo(cx + s * 0.25, s * 0.12);
+            ctx.lineTo(cx + s * 0.18, s * 0.12);
+            ctx.lineTo(cx + s * 0.18, s * 0.2);
+            ctx.lineTo(cx + s * 0.08, s * 0.2);
+            ctx.lineTo(cx + s * 0.08, s * 0.12);
+            ctx.lineTo(cx - s * 0.08, s * 0.12);
+            ctx.lineTo(cx - s * 0.08, s * 0.2);
+            ctx.lineTo(cx - s * 0.18, s * 0.2);
+            ctx.lineTo(cx - s * 0.18, s * 0.12);
+            ctx.lineTo(cx - s * 0.25, s * 0.12);
+            ctx.lineTo(cx - s * 0.25, s * 0.3);
+            ctx.lineTo(cx - s * 0.18, s * 0.35);
+            ctx.lineTo(cx - s * 0.22, s * 0.75);
+            ctx.closePath();
+            break;
+
+        case 'B': // Bishop - mitre hat
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.78);
+            ctx.lineTo(cx + s * 0.12, s * 0.5);
+            ctx.quadraticCurveTo(cx + s * 0.22, s * 0.35, cx + s * 0.15, s * 0.22);
+            ctx.quadraticCurveTo(cx + s * 0.12, s * 0.12, cx, s * 0.1);
+            ctx.quadraticCurveTo(cx - s * 0.12, s * 0.12, cx - s * 0.15, s * 0.22);
+            ctx.quadraticCurveTo(cx - s * 0.22, s * 0.35, cx - s * 0.12, s * 0.5);
+            ctx.lineTo(cx - s * 0.18, s * 0.78);
+            ctx.closePath();
+            // Ball on top
+            ctx.moveTo(cx + s * 0.06, s * 0.08);
+            ctx.arc(cx, s * 0.06, s * 0.06, 0, Math.PI * 2);
+            // Slot
+            ctx.moveTo(cx - s * 0.02, s * 0.28);
+            ctx.lineTo(cx + s * 0.02, s * 0.28);
+            ctx.lineTo(cx + s * 0.02, s * 0.42);
+            ctx.lineTo(cx - s * 0.02, s * 0.42);
+            ctx.closePath();
+            break;
+
+        case 'N': // Knight - horse head
+            ctx.moveTo(cx - s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.72);
+            ctx.lineTo(cx + s * 0.15, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.25, s * 0.45, cx + s * 0.22, s * 0.32);
+            ctx.quadraticCurveTo(cx + s * 0.2, s * 0.22, cx + s * 0.1, s * 0.18);
+            ctx.lineTo(cx + s * 0.15, s * 0.12);
+            ctx.quadraticCurveTo(cx + s * 0.08, s * 0.08, cx - s * 0.05, s * 0.12);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.15, cx - s * 0.25, s * 0.25);
+            ctx.lineTo(cx - s * 0.3, s * 0.28);
+            ctx.lineTo(cx - s * 0.22, s * 0.32);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.38, cx - s * 0.12, s * 0.42);
+            ctx.quadraticCurveTo(cx - s * 0.2, s * 0.55, cx - s * 0.15, s * 0.72);
+            ctx.closePath();
+            // Eye
+            ctx.moveTo(cx + s * 0.02, s * 0.28);
+            ctx.arc(cx - s * 0.02, s * 0.28, s * 0.04, 0, Math.PI * 2);
+            break;
+
+        case 'P': // Pawn - simple rounded
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.15, s * 0.78);
+            ctx.lineTo(cx + s * 0.1, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.45, cx + s * 0.15, s * 0.35);
+            ctx.arc(cx, s * 0.25, s * 0.15, Math.PI * 0.3, Math.PI * 2.7);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.45, cx - s * 0.1, s * 0.55);
+            ctx.lineTo(cx - s * 0.15, s * 0.78);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+}
+
+// Draw modern minimal geometric pieces
+function drawModernPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+    const fill = isWhite ? '#ffffff' : '#1a1a1a';
+    const stroke = isWhite ? '#333333' : '#cccccc';
+
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.035;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Common base
+    ctx.beginPath();
+    ctx.ellipse(cx, s * 0.85, s * 0.25, s * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // King - tall rectangle with cross
+            ctx.rect(cx - s * 0.12, s * 0.25, s * 0.24, s * 0.55);
+            ctx.fill();
+            ctx.stroke();
+            // Cross
+            ctx.fillRect(cx - s * 0.08, s * 0.08, s * 0.16, s * 0.06);
+            ctx.fillRect(cx - s * 0.03, s * 0.05, s * 0.06, s * 0.18);
+            ctx.strokeRect(cx - s * 0.08, s * 0.08, s * 0.16, s * 0.06);
+            ctx.strokeRect(cx - s * 0.03, s * 0.05, s * 0.06, s * 0.18);
+            break;
+
+        case 'Q': // Queen - tall with circle on top
+            ctx.rect(cx - s * 0.12, s * 0.3, s * 0.24, s * 0.5);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.18, s * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'R': // Rook - rectangle with flat top
+            ctx.rect(cx - s * 0.15, s * 0.2, s * 0.3, s * 0.6);
+            ctx.fill();
+            ctx.stroke();
+            // Battlements
+            ctx.fillRect(cx - s * 0.18, s * 0.12, s * 0.1, s * 0.12);
+            ctx.fillRect(cx + s * 0.08, s * 0.12, s * 0.1, s * 0.12);
+            ctx.strokeRect(cx - s * 0.18, s * 0.12, s * 0.1, s * 0.12);
+            ctx.strokeRect(cx + s * 0.08, s * 0.12, s * 0.1, s * 0.12);
+            break;
+
+        case 'B': // Bishop - tall with pointed top
+            ctx.moveTo(cx - s * 0.1, s * 0.8);
+            ctx.lineTo(cx - s * 0.1, s * 0.35);
+            ctx.lineTo(cx, s * 0.12);
+            ctx.lineTo(cx + s * 0.1, s * 0.35);
+            ctx.lineTo(cx + s * 0.1, s * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            // Ball
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.1, s * 0.05, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'N': // Knight - L shape
+            ctx.moveTo(cx - s * 0.15, s * 0.8);
+            ctx.lineTo(cx - s * 0.15, s * 0.4);
+            ctx.lineTo(cx - s * 0.05, s * 0.4);
+            ctx.lineTo(cx - s * 0.05, s * 0.15);
+            ctx.lineTo(cx + s * 0.15, s * 0.15);
+            ctx.lineTo(cx + s * 0.15, s * 0.3);
+            ctx.lineTo(cx + s * 0.05, s * 0.3);
+            ctx.lineTo(cx + s * 0.05, s * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'P': // Pawn - circle on stem
+            ctx.rect(cx - s * 0.06, s * 0.4, s * 0.12, s * 0.4);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.3, s * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+    }
+}
+
+// Draw Staunton style pieces
+function drawStauntonPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+    const fill = isWhite ? '#f0e8d8' : '#3a3028';
+    const stroke = isWhite ? '#2a2a2a' : '#c8c0b0';
+    const highlight = isWhite ? '#ffffff' : '#5a5048';
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    switch (config.useCustomDraw) {
-        case 'cburnett':
-        case 'merida':
-        case 'classic':
-            drawClassicPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        case 'pixel':
-            drawPixelPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor);
-            break;
-        case 'flat':
-            drawFlatPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        case 'tatiana':
-            drawTatianaPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        case 'magnetic':
-            drawMagneticPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        case 'glass':
-            drawGlassPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        case 'metal':
-            drawMetalPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-            break;
-        default:
-            drawClassicPiece(ctx, pieceType, isWhite, cx, cy, scale, fillColor, outlineColor, lineWidth);
-    }
-}
+    // Draw with gradient for 3D effect
+    const gradient = ctx.createLinearGradient(cx - s * 0.3, 0, cx + s * 0.3, 0);
+    gradient.addColorStop(0, fill);
+    gradient.addColorStop(0.3, highlight);
+    gradient.addColorStop(0.7, fill);
+    gradient.addColorStop(1, isWhite ? '#d0c8b8' : '#2a2420');
 
-// Classic/CBurnett style - clean filled shapes with outlines
-function drawClassicPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = lw;
-
-    // For black pieces, we'll add white inner details
-    const detailColor = isWhite ? '#888888' : '#ffffff';
-
-    switch (type) {
-        case 'K': // King - tall with cross
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 45*s, cy + 90*s);
-            ctx.lineTo(cx + 45*s, cy + 90*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.lineTo(cx - 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Body
-            ctx.beginPath();
-            ctx.moveTo(cx - 35*s, cy + 70*s);
-            ctx.lineTo(cx - 40*s, cy + 20*s);
-            ctx.quadraticCurveTo(cx - 45*s, cy - 20*s, cx - 25*s, cy - 50*s);
-            ctx.lineTo(cx - 15*s, cy - 60*s);
-            ctx.lineTo(cx - 15*s, cy - 75*s);
-            ctx.lineTo(cx - 25*s, cy - 75*s);
-            ctx.lineTo(cx - 25*s, cy - 85*s);
-            ctx.lineTo(cx - 8*s, cy - 85*s);
-            ctx.lineTo(cx - 8*s, cy - 95*s);
-            ctx.lineTo(cx + 8*s, cy - 95*s);
-            ctx.lineTo(cx + 8*s, cy - 85*s);
-            ctx.lineTo(cx + 25*s, cy - 85*s);
-            ctx.lineTo(cx + 25*s, cy - 75*s);
-            ctx.lineTo(cx + 15*s, cy - 75*s);
-            ctx.lineTo(cx + 15*s, cy - 60*s);
-            ctx.lineTo(cx + 25*s, cy - 50*s);
-            ctx.quadraticCurveTo(cx + 45*s, cy - 20*s, cx + 40*s, cy + 20*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // WHITE DETAILS for black pieces - cross highlight and collar
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                // Cross inner detail
-                ctx.beginPath();
-                ctx.moveTo(cx - 4*s, cy - 90*s);
-                ctx.lineTo(cx + 4*s, cy - 90*s);
-                ctx.moveTo(cx, cy - 94*s);
-                ctx.lineTo(cx, cy - 78*s);
-                ctx.stroke();
-                // Collar line
-                ctx.beginPath();
-                ctx.moveTo(cx - 28*s, cy + 60*s);
-                ctx.lineTo(cx + 28*s, cy + 60*s);
-                ctx.stroke();
-                // Body detail lines
-                ctx.beginPath();
-                ctx.moveTo(cx - 20*s, cy + 40*s);
-                ctx.lineTo(cx + 20*s, cy + 40*s);
-                ctx.stroke();
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-
-        case 'Q': // Queen - with crown points
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 45*s, cy + 90*s);
-            ctx.lineTo(cx + 45*s, cy + 90*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.lineTo(cx - 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Body with crown
-            ctx.beginPath();
-            ctx.moveTo(cx - 35*s, cy + 70*s);
-            ctx.lineTo(cx - 42*s, cy + 10*s);
-            ctx.quadraticCurveTo(cx - 50*s, cy - 30*s, cx - 35*s, cy - 55*s);
-            // Crown points
-            ctx.lineTo(cx - 45*s, cy - 85*s);
-            ctx.arc(cx - 45*s, cy - 90*s, 5*s, Math.PI/2, -Math.PI/2, true);
-            ctx.lineTo(cx - 25*s, cy - 60*s);
-            ctx.lineTo(cx - 15*s, cy - 90*s);
-            ctx.arc(cx - 15*s, cy - 95*s, 5*s, Math.PI/2, -Math.PI/2, true);
-            ctx.lineTo(cx, cy - 65*s);
-            ctx.lineTo(cx + 15*s, cy - 100*s);
-            ctx.arc(cx + 15*s, cy - 95*s, 5*s, -Math.PI/2, Math.PI/2, true);
-            ctx.lineTo(cx + 25*s, cy - 60*s);
-            ctx.lineTo(cx + 45*s, cy - 95*s);
-            ctx.arc(cx + 45*s, cy - 90*s, 5*s, -Math.PI/2, Math.PI/2, true);
-            ctx.lineTo(cx + 35*s, cy - 55*s);
-            ctx.quadraticCurveTo(cx + 50*s, cy - 30*s, cx + 42*s, cy + 10*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // WHITE DETAILS for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                // Crown ball highlights
-                ctx.beginPath();
-                ctx.arc(cx - 45*s, cy - 90*s, 2*s, 0, Math.PI * 2);
-                ctx.arc(cx - 15*s, cy - 95*s, 2*s, 0, Math.PI * 2);
-                ctx.arc(cx + 15*s, cy - 95*s, 2*s, 0, Math.PI * 2);
-                ctx.arc(cx + 45*s, cy - 90*s, 2*s, 0, Math.PI * 2);
-                ctx.fillStyle = detailColor;
-                ctx.fill();
-                ctx.fillStyle = fill;
-                // Collar lines
-                ctx.beginPath();
-                ctx.moveTo(cx - 28*s, cy + 60*s);
-                ctx.lineTo(cx + 28*s, cy + 60*s);
-                ctx.moveTo(cx - 22*s, cy + 40*s);
-                ctx.lineTo(cx + 22*s, cy + 40*s);
-                ctx.stroke();
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-
-        case 'R': // Rook - castle tower
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 40*s, cy + 90*s);
-            ctx.lineTo(cx + 40*s, cy + 90*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.lineTo(cx - 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Tower body
-            ctx.beginPath();
-            ctx.moveTo(cx - 35*s, cy + 70*s);
-            ctx.lineTo(cx - 30*s, cy - 40*s);
-            ctx.lineTo(cx - 40*s, cy - 40*s);
-            ctx.lineTo(cx - 40*s, cy - 90*s);
-            ctx.lineTo(cx - 25*s, cy - 90*s);
-            ctx.lineTo(cx - 25*s, cy - 60*s);
-            ctx.lineTo(cx - 10*s, cy - 60*s);
-            ctx.lineTo(cx - 10*s, cy - 90*s);
-            ctx.lineTo(cx + 10*s, cy - 90*s);
-            ctx.lineTo(cx + 10*s, cy - 60*s);
-            ctx.lineTo(cx + 25*s, cy - 60*s);
-            ctx.lineTo(cx + 25*s, cy - 90*s);
-            ctx.lineTo(cx + 40*s, cy - 90*s);
-            ctx.lineTo(cx + 40*s, cy - 40*s);
-            ctx.lineTo(cx + 30*s, cy - 40*s);
-            ctx.lineTo(cx + 35*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // WHITE DETAILS for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                // Horizontal lines on tower
-                ctx.beginPath();
-                ctx.moveTo(cx - 28*s, cy + 60*s);
-                ctx.lineTo(cx + 28*s, cy + 60*s);
-                ctx.moveTo(cx - 25*s, cy + 20*s);
-                ctx.lineTo(cx + 25*s, cy + 20*s);
-                ctx.moveTo(cx - 25*s, cy - 20*s);
-                ctx.lineTo(cx + 25*s, cy - 20*s);
-                ctx.stroke();
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-
-        case 'B': // Bishop - with mitre
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 40*s, cy + 90*s);
-            ctx.lineTo(cx + 40*s, cy + 90*s);
-            ctx.lineTo(cx + 30*s, cy + 70*s);
-            ctx.lineTo(cx - 30*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Body with mitre
-            ctx.beginPath();
-            ctx.moveTo(cx - 30*s, cy + 70*s);
-            ctx.quadraticCurveTo(cx - 35*s, cy + 30*s, cx - 30*s, cy);
-            ctx.quadraticCurveTo(cx - 40*s, cy - 40*s, cx, cy - 90*s);
-            ctx.quadraticCurveTo(cx + 40*s, cy - 40*s, cx + 30*s, cy);
-            ctx.quadraticCurveTo(cx + 35*s, cy + 30*s, cx + 30*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Slot in mitre
-            ctx.beginPath();
-            ctx.moveTo(cx - 8*s, cy - 30*s);
-            ctx.lineTo(cx, cy - 60*s);
-            ctx.lineTo(cx + 8*s, cy - 30*s);
-            ctx.closePath();
-            ctx.fillStyle = outline;
-            ctx.fill();
-            ctx.fillStyle = fill;
-            // Top ball
-            ctx.beginPath();
-            ctx.arc(cx, cy - 90*s, 8*s, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke();
-            // WHITE DETAILS for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                // Ball highlight
-                ctx.beginPath();
-                ctx.arc(cx - 2*s, cy - 92*s, 3*s, 0, Math.PI * 2);
-                ctx.fillStyle = detailColor;
-                ctx.fill();
-                ctx.fillStyle = fill;
-                // Collar line
-                ctx.beginPath();
-                ctx.moveTo(cx - 22*s, cy + 60*s);
-                ctx.lineTo(cx + 22*s, cy + 60*s);
-                ctx.stroke();
-                // Curved detail on body
-                ctx.beginPath();
-                ctx.moveTo(cx - 18*s, cy + 20*s);
-                ctx.quadraticCurveTo(cx, cy + 10*s, cx + 18*s, cy + 20*s);
-                ctx.stroke();
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-
-        case 'N': // Knight - horse head
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 40*s, cy + 90*s);
-            ctx.lineTo(cx + 40*s, cy + 90*s);
-            ctx.lineTo(cx + 30*s, cy + 70*s);
-            ctx.lineTo(cx - 30*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Horse head
-            ctx.beginPath();
-            ctx.moveTo(cx - 30*s, cy + 70*s);
-            ctx.lineTo(cx - 25*s, cy + 20*s);
-            ctx.quadraticCurveTo(cx - 40*s, cy - 10*s, cx - 45*s, cy - 40*s);
-            ctx.quadraticCurveTo(cx - 50*s, cy - 70*s, cx - 30*s, cy - 80*s);
-            ctx.lineTo(cx - 15*s, cy - 75*s);
-            ctx.lineTo(cx - 25*s, cy - 60*s);
-            ctx.quadraticCurveTo(cx - 10*s, cy - 70*s, cx + 5*s, cy - 90*s);
-            ctx.quadraticCurveTo(cx + 25*s, cy - 85*s, cx + 35*s, cy - 60*s);
-            ctx.quadraticCurveTo(cx + 45*s, cy - 30*s, cx + 35*s, cy + 10*s);
-            ctx.lineTo(cx + 30*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Eye
-            ctx.beginPath();
-            ctx.arc(cx - 15*s, cy - 45*s, 5*s, 0, Math.PI * 2);
-            ctx.fillStyle = outline;
-            ctx.fill();
-            ctx.fillStyle = fill;
-            // WHITE DETAILS for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.fillStyle = detailColor;
-                // Eye highlight
-                ctx.beginPath();
-                ctx.arc(cx - 16*s, cy - 46*s, 2*s, 0, Math.PI * 2);
-                ctx.fill();
-                // Mane detail
-                ctx.lineWidth = lw * 0.8;
-                ctx.beginPath();
-                ctx.moveTo(cx - 5*s, cy - 75*s);
-                ctx.quadraticCurveTo(cx + 10*s, cy - 70*s, cx + 20*s, cy - 55*s);
-                ctx.stroke();
-                // Collar line
-                ctx.beginPath();
-                ctx.moveTo(cx - 22*s, cy + 60*s);
-                ctx.lineTo(cx + 22*s, cy + 60*s);
-                ctx.stroke();
-                ctx.fillStyle = fill;
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-
-        case 'P': // Pawn - simple
-            ctx.beginPath();
-            // Base
-            ctx.moveTo(cx - 35*s, cy + 90*s);
-            ctx.lineTo(cx + 35*s, cy + 90*s);
-            ctx.lineTo(cx + 25*s, cy + 70*s);
-            ctx.lineTo(cx - 25*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Stem
-            ctx.beginPath();
-            ctx.moveTo(cx - 25*s, cy + 70*s);
-            ctx.lineTo(cx - 15*s, cy + 20*s);
-            ctx.lineTo(cx - 20*s, cy + 10*s);
-            ctx.quadraticCurveTo(cx - 30*s, cy - 20*s, cx, cy - 60*s);
-            ctx.quadraticCurveTo(cx + 30*s, cy - 20*s, cx + 20*s, cy + 10*s);
-            ctx.lineTo(cx + 15*s, cy + 20*s);
-            ctx.lineTo(cx + 25*s, cy + 70*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // Head
-            ctx.beginPath();
-            ctx.arc(cx, cy - 60*s, 22*s, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke();
-            // WHITE DETAILS for black pieces
-            if (!isWhite) {
-                ctx.fillStyle = detailColor;
-                // Head highlight
-                ctx.beginPath();
-                ctx.arc(cx - 6*s, cy - 66*s, 6*s, 0, Math.PI * 2);
-                ctx.fill();
-                // Collar line
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                ctx.beginPath();
-                ctx.moveTo(cx - 18*s, cy + 60*s);
-                ctx.lineTo(cx + 18*s, cy + 60*s);
-                ctx.stroke();
-                ctx.fillStyle = fill;
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = lw;
-            }
-            break;
-    }
-}
-
-// Pixel art style - blocky retro look
-function drawPixelPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string
-): void {
-    const px = 16 * s; // Pixel size
-    ctx.fillStyle = fill;
-    
-    // Simple pixel patterns for each piece
-    const patterns: Record<string, number[][]> = {
-        K: [
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,0,0,1,0,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,1,1,1,1,1,1,1,0],
-        ],
-        Q: [
-            [1,0,1,0,1,0,1,0,1],
-            [0,1,0,1,0,1,0,1,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,1,1,1,1,1,1,1,0],
-            [1,1,1,1,1,1,1,1,1],
-        ],
-        R: [
-            [1,1,0,1,1,1,0,1,1],
-            [1,1,1,1,1,1,1,1,1],
-            [0,1,1,1,1,1,1,1,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,1,1,1,1,1,1,1,0],
-            [1,1,1,1,1,1,1,1,1],
-        ],
-        B: [
-            [0,0,0,0,1,0,0,0,0],
-            [0,0,0,1,0,1,0,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,1,1,1,1,1,1,1,0],
-        ],
-        N: [
-            [0,0,1,1,1,0,0,0,0],
-            [0,1,1,1,1,1,0,0,0],
-            [0,1,0,1,1,1,1,0,0],
-            [0,0,0,0,1,1,1,0,0],
-            [0,0,0,1,1,1,1,0,0],
-            [0,0,1,1,1,1,1,1,0],
-            [0,1,1,1,1,1,1,1,0],
-        ],
-        P: [
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,0,0,1,0,0,0,0],
-            [0,0,0,1,1,1,0,0,0],
-            [0,0,1,1,1,1,1,0,0],
-            [0,1,1,1,1,1,1,1,0],
-        ],
-    };
-
-    // White highlight patterns for black pieces (inner details)
-    const highlightPatterns: Record<string, number[][]> = {
-        K: [
-            [0,0,0,0,2,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,0,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-        Q: [
-            [2,0,0,0,2,0,0,0,2],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,0,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-        R: [
-            [0,2,0,0,0,0,0,2,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,2,2,2,2,2,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,2,2,2,2,2,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-        B: [
-            [0,0,0,0,2,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,2,0,0,0,0],
-            [0,0,0,2,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-        N: [
-            [0,0,0,2,0,0,0,0,0],
-            [0,0,2,0,0,0,0,0,0],
-            [0,0,0,0,0,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-        P: [
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,2,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,0,0,2,2,2,0,0,0],
-            [0,0,0,0,0,0,0,0,0],
-        ],
-    };
-
-    const pattern = patterns[type] || patterns.P;
-    const highlightPattern = highlightPatterns[type] || highlightPatterns.P;
-    const startX = cx - (pattern[0].length * px) / 2;
-    const startY = cy - (pattern.length * px) / 2 + 20 * s;
-
-    // Draw filled pixels
-    pattern.forEach((row, y) => {
-        row.forEach((pixel, x) => {
-            if (pixel) {
-                ctx.fillStyle = fill;
-                ctx.fillRect(startX + x * px, startY + y * px, px - 1, px - 1);
-                // Add outline effect
-                ctx.strokeStyle = outline;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(startX + x * px, startY + y * px, px - 1, px - 1);
-            }
-        });
-    });
-
-    // Draw white highlight pixels for black pieces
-    if (!isWhite) {
-        highlightPattern.forEach((row, y) => {
-            row.forEach((pixel, x) => {
-                if (pixel === 2) {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(startX + x * px + 2, startY + y * px + 2, px - 5, px - 5);
-                }
-            });
-        });
-    }
-}
-
-// Flat modern style - clean with subtle shadows
-function drawFlatPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    // Add subtle shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.3)';
-    ctx.shadowBlur = 8 * s;
-    ctx.shadowOffsetX = 3 * s;
-    ctx.shadowOffsetY = 3 * s;
-    
-    drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw * 0.5);
-    
-    ctx.shadowColor = 'transparent';
-}
-
-// Tatiana ornate style - detailed with decorations
-function drawTatianaPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    // Draw base piece
-    drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw);
-    
-    // Add decorative elements
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = lw * 0.5;
-    
-    // Horizontal decorative lines
-    ctx.beginPath();
-    ctx.moveTo(cx - 25*s, cy + 50*s);
-    ctx.lineTo(cx + 25*s, cy + 50*s);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(cx - 20*s, cy + 30*s);
-    ctx.lineTo(cx + 20*s, cy + 30*s);
-    ctx.stroke();
-}
-
-// Magnetic/Travel style - simplified shapes
-function drawMagneticPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = lw;
-    
-    // White detail color for black pieces
-    const detailColor = '#ffffff';
-
-    // Simplified geometric shapes
-    switch (type) {
-        case 'K':
-            // Cross on circle
-            ctx.beginPath();
-            ctx.arc(cx, cy, 50*s, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(cx, cy - 60*s); ctx.lineTo(cx, cy - 30*s);
-            ctx.moveTo(cx - 15*s, cy - 45*s); ctx.lineTo(cx + 15*s, cy - 45*s);
-            ctx.lineWidth = lw * 2;
-            ctx.stroke();
-            // White details for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw;
-                ctx.beginPath();
-                ctx.arc(cx, cy, 30*s, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-            break;
-        case 'Q':
-            // Star shape
-            ctx.beginPath();
-            for (let i = 0; i < 5; i++) {
-                const angle = (i * 72 - 90) * Math.PI / 180;
-                const r = i % 2 === 0 ? 55*s : 25*s;
-                if (i === 0) ctx.moveTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
-                else ctx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
-            }
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // White details for black pieces
-            if (!isWhite) {
-                ctx.fillStyle = detailColor;
-                ctx.beginPath();
-                ctx.arc(cx, cy, 10*s, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            break;
-        case 'R':
-            // Rectangle with notches
-            ctx.fillRect(cx - 35*s, cy - 50*s, 70*s, 100*s);
-            ctx.strokeRect(cx - 35*s, cy - 50*s, 70*s, 100*s);
-            ctx.fillStyle = isWhite ? outline : fill;
-            ctx.fillRect(cx - 25*s, cy - 50*s, 15*s, 20*s);
-            ctx.fillRect(cx + 10*s, cy - 50*s, 15*s, 20*s);
-            // White details for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw * 0.8;
-                ctx.beginPath();
-                ctx.moveTo(cx - 25*s, cy); ctx.lineTo(cx + 25*s, cy);
-                ctx.moveTo(cx - 25*s, cy + 30*s); ctx.lineTo(cx + 25*s, cy + 30*s);
-                ctx.stroke();
-            }
-            break;
-        case 'B':
-            // Diamond
-            ctx.beginPath();
-            ctx.moveTo(cx, cy - 60*s);
-            ctx.lineTo(cx + 40*s, cy);
-            ctx.lineTo(cx, cy + 60*s);
-            ctx.lineTo(cx - 40*s, cy);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // White details for black pieces
-            if (!isWhite) {
-                ctx.strokeStyle = detailColor;
-                ctx.lineWidth = lw;
-                ctx.beginPath();
-                ctx.moveTo(cx, cy - 35*s);
-                ctx.lineTo(cx + 22*s, cy);
-                ctx.lineTo(cx, cy + 35*s);
-                ctx.lineTo(cx - 22*s, cy);
-                ctx.closePath();
-                ctx.stroke();
-            }
-            break;
-        case 'N':
-            // L-shape for knight
-            ctx.beginPath();
-            ctx.moveTo(cx - 30*s, cy + 50*s);
-            ctx.lineTo(cx - 30*s, cy - 30*s);
-            ctx.lineTo(cx + 30*s, cy - 30*s);
-            ctx.lineTo(cx + 30*s, cy - 50*s);
-            ctx.lineTo(cx - 10*s, cy - 50*s);
-            ctx.lineTo(cx - 10*s, cy + 30*s);
-            ctx.lineTo(cx + 30*s, cy + 30*s);
-            ctx.lineTo(cx + 30*s, cy + 50*s);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            // White details for black pieces - eye dot
-            if (!isWhite) {
-                ctx.fillStyle = detailColor;
-                ctx.beginPath();
-                ctx.arc(cx - 18*s, cy - 38*s, 5*s, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            break;
-        case 'P':
-            // Simple circle
-            ctx.beginPath();
-            ctx.arc(cx, cy, 40*s, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke();
-            // White details for black pieces
-            if (!isWhite) {
-                ctx.fillStyle = detailColor;
-                ctx.beginPath();
-                ctx.arc(cx - 10*s, cy - 10*s, 10*s, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            break;
-    }
-}
-
-// Glass style - translucent with glow
-function drawGlassPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    // Outer glow
-    ctx.shadowColor = isWhite ? 'rgba(200,200,255,0.5)' : 'rgba(80,80,120,0.5)';
-    ctx.shadowBlur = 15 * s;
-    
-    // Draw with transparency
-    ctx.globalAlpha = 0.85;
-    drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw);
-    ctx.globalAlpha = 1.0;
-    
-    // Add highlight - stronger for black pieces
-    ctx.strokeStyle = isWhite ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = isWhite ? 2 * s : 3 * s;
-    ctx.beginPath();
-    ctx.arc(cx - 15*s, cy - 30*s, 20*s, Math.PI, Math.PI * 1.5);
-    ctx.stroke();
-    
-    // Extra white shine for black pieces
-    if (!isWhite) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 2 * s;
-        ctx.beginPath();
-        ctx.arc(cx + 10*s, cy + 10*s, 15*s, 0, Math.PI * 0.5);
-        ctx.stroke();
-    }
-    
-    ctx.shadowColor = 'transparent';
-}
-
-// Metal style - with gradient sheen
-function drawMetalPiece(
-    ctx: CanvasRenderingContext2D, type: string, isWhite: boolean,
-    cx: number, cy: number, s: number, fill: string, outline: string, lw: number
-): void {
-    // Create metallic gradient
-    const gradient = ctx.createLinearGradient(cx - 50*s, cy - 80*s, cx + 50*s, cy + 80*s);
-    if (isWhite) {
-        gradient.addColorStop(0, '#e8e8e8');
-        gradient.addColorStop(0.3, '#ffffff');
-        gradient.addColorStop(0.5, '#d0d0d0');
-        gradient.addColorStop(0.7, '#f0f0f0');
-        gradient.addColorStop(1, '#a0a0a0');
-    } else {
-        // Brighter gradient stops for black pieces for better visibility
-        gradient.addColorStop(0, '#606060');
-        gradient.addColorStop(0.3, '#909090');
-        gradient.addColorStop(0.5, '#505050');
-        gradient.addColorStop(0.7, '#808080');
-        gradient.addColorStop(1, '#404040');
-    }
-    
-    drawClassicPiece(ctx, type, isWhite, cx, cy, s, fill, outline, lw);
-    
-    // Overlay gradient
-    ctx.globalCompositeOperation = 'source-atop';
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256 * s, 256 * s);
-    ctx.globalCompositeOperation = 'source-over';
-    
-    // Re-stroke outline
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = lw;
-    
-    // Add white highlights for black pieces
-    if (!isWhite) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth = 2 * s;
-        // Top-left highlight
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.025;
+
+    // Draw the piece based on type
+    drawClassicPiece(ctx, type, isWhite, size);
+}
+
+// Draw unicode symbols
+function drawSymbolPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const symbol = PIECE_SYMBOLS[isWhite ? 'white' : 'black']?.[type] || '?';
+
+    ctx.font = `bold ${size * 0.82}px "Segoe UI Symbol", "Arial Unicode MS", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Shadow
+    ctx.shadowColor = isWhite ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)';
+    ctx.shadowBlur = size * 0.05;
+    ctx.shadowOffsetY = size * 0.015;
+
+    // Outline
+    ctx.strokeStyle = isWhite ? '#000' : '#fff';
+    ctx.lineWidth = size * 0.045;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(symbol, size / 2, size / 2 + size * 0.05);
+
+    // Fill
+    ctx.fillStyle = isWhite ? '#fff' : '#111';
+    ctx.fillText(symbol, size / 2, size / 2 + size * 0.05);
+
+    ctx.shadowColor = 'transparent';
+}
+
+// Draw newspaper-style pieces (classic diagram style with hatching for black pieces)
+function drawNewspaperPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    // Newspaper style: white pieces are hollow, black pieces are filled with diagonal lines
+    ctx.lineWidth = s * 0.025;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = '#ffffff';
+
+    // Helper to draw the piece outline
+    const drawPieceShape = (fill: boolean) => {
         ctx.beginPath();
-        ctx.moveTo(cx - 25*s, cy - 50*s);
-        ctx.lineTo(cx - 15*s, cy - 60*s);
+
+        switch (type) {
+            case 'K': // King
+                ctx.moveTo(cx - s * 0.25, s * 0.88);
+                ctx.lineTo(cx + s * 0.25, s * 0.88);
+                ctx.lineTo(cx + s * 0.2, s * 0.78);
+                ctx.lineTo(cx + s * 0.15, s * 0.48);
+                ctx.quadraticCurveTo(cx + s * 0.2, s * 0.38, cx + s * 0.12, s * 0.32);
+                ctx.lineTo(cx + s * 0.12, s * 0.25);
+                ctx.lineTo(cx + s * 0.06, s * 0.25);
+                ctx.lineTo(cx + s * 0.06, s * 0.18);
+                ctx.lineTo(cx + s * 0.12, s * 0.18);
+                ctx.lineTo(cx + s * 0.12, s * 0.12);
+                ctx.lineTo(cx - s * 0.12, s * 0.12);
+                ctx.lineTo(cx - s * 0.12, s * 0.18);
+                ctx.lineTo(cx - s * 0.06, s * 0.18);
+                ctx.lineTo(cx - s * 0.06, s * 0.25);
+                ctx.lineTo(cx - s * 0.12, s * 0.25);
+                ctx.lineTo(cx - s * 0.12, s * 0.32);
+                ctx.quadraticCurveTo(cx - s * 0.2, s * 0.38, cx - s * 0.15, s * 0.48);
+                ctx.lineTo(cx - s * 0.2, s * 0.78);
+                ctx.closePath();
+                break;
+
+            case 'Q': // Queen
+                ctx.moveTo(cx - s * 0.25, s * 0.88);
+                ctx.lineTo(cx + s * 0.25, s * 0.88);
+                ctx.lineTo(cx + s * 0.2, s * 0.75);
+                ctx.lineTo(cx + s * 0.15, s * 0.42);
+                ctx.lineTo(cx + s * 0.25, s * 0.2);
+                ctx.arc(cx + s * 0.25, s * 0.15, s * 0.045, Math.PI * 0.5, Math.PI * 2.5);
+                ctx.lineTo(cx + s * 0.12, s * 0.28);
+                ctx.lineTo(cx + s * 0.12, s * 0.1);
+                ctx.arc(cx + s * 0.12, s * 0.07, s * 0.035, Math.PI * 0.5, Math.PI * 2.5);
+                ctx.lineTo(cx, s * 0.22);
+                ctx.lineTo(cx, s * 0.1);
+                ctx.arc(cx, s * 0.065, s * 0.04, Math.PI * 0.5, Math.PI * 2.5);
+                ctx.lineTo(cx - s * 0.12, s * 0.22);
+                ctx.lineTo(cx - s * 0.12, s * 0.1);
+                ctx.arc(cx - s * 0.12, s * 0.07, s * 0.035, Math.PI * 0.5, Math.PI * 2.5);
+                ctx.lineTo(cx - s * 0.25, s * 0.28);
+                ctx.lineTo(cx - s * 0.25, s * 0.2);
+                ctx.arc(cx - s * 0.25, s * 0.15, s * 0.045, Math.PI * 0.5, Math.PI * 2.5);
+                ctx.lineTo(cx - s * 0.15, s * 0.42);
+                ctx.lineTo(cx - s * 0.2, s * 0.75);
+                ctx.closePath();
+                break;
+
+            case 'R': // Rook
+                ctx.moveTo(cx - s * 0.22, s * 0.88);
+                ctx.lineTo(cx + s * 0.22, s * 0.88);
+                ctx.lineTo(cx + s * 0.18, s * 0.75);
+                ctx.lineTo(cx + s * 0.14, s * 0.35);
+                ctx.lineTo(cx + s * 0.22, s * 0.32);
+                ctx.lineTo(cx + s * 0.22, s * 0.14);
+                ctx.lineTo(cx + s * 0.15, s * 0.14);
+                ctx.lineTo(cx + s * 0.15, s * 0.22);
+                ctx.lineTo(cx + s * 0.06, s * 0.22);
+                ctx.lineTo(cx + s * 0.06, s * 0.14);
+                ctx.lineTo(cx - s * 0.06, s * 0.14);
+                ctx.lineTo(cx - s * 0.06, s * 0.22);
+                ctx.lineTo(cx - s * 0.15, s * 0.22);
+                ctx.lineTo(cx - s * 0.15, s * 0.14);
+                ctx.lineTo(cx - s * 0.22, s * 0.14);
+                ctx.lineTo(cx - s * 0.22, s * 0.32);
+                ctx.lineTo(cx - s * 0.14, s * 0.35);
+                ctx.lineTo(cx - s * 0.18, s * 0.75);
+                ctx.closePath();
+                break;
+
+            case 'B': // Bishop
+                ctx.moveTo(cx - s * 0.2, s * 0.88);
+                ctx.lineTo(cx + s * 0.2, s * 0.88);
+                ctx.lineTo(cx + s * 0.16, s * 0.78);
+                ctx.lineTo(cx + s * 0.1, s * 0.52);
+                ctx.quadraticCurveTo(cx + s * 0.2, s * 0.38, cx + s * 0.14, s * 0.25);
+                ctx.quadraticCurveTo(cx + s * 0.1, s * 0.15, cx, s * 0.14);
+                ctx.quadraticCurveTo(cx - s * 0.1, s * 0.15, cx - s * 0.14, s * 0.25);
+                ctx.quadraticCurveTo(cx - s * 0.2, s * 0.38, cx - s * 0.1, s * 0.52);
+                ctx.lineTo(cx - s * 0.16, s * 0.78);
+                ctx.closePath();
+                break;
+
+            case 'N': // Knight
+                ctx.moveTo(cx - s * 0.18, s * 0.88);
+                ctx.lineTo(cx + s * 0.2, s * 0.88);
+                ctx.lineTo(cx + s * 0.16, s * 0.7);
+                ctx.lineTo(cx + s * 0.12, s * 0.55);
+                ctx.quadraticCurveTo(cx + s * 0.22, s * 0.42, cx + s * 0.18, s * 0.3);
+                ctx.quadraticCurveTo(cx + s * 0.15, s * 0.2, cx + s * 0.05, s * 0.18);
+                ctx.lineTo(cx + s * 0.1, s * 0.12);
+                ctx.quadraticCurveTo(cx + s * 0.05, s * 0.08, cx - s * 0.08, s * 0.12);
+                ctx.quadraticCurveTo(cx - s * 0.2, s * 0.16, cx - s * 0.28, s * 0.26);
+                ctx.lineTo(cx - s * 0.32, s * 0.3);
+                ctx.lineTo(cx - s * 0.24, s * 0.34);
+                ctx.quadraticCurveTo(cx - s * 0.18, s * 0.4, cx - s * 0.12, s * 0.44);
+                ctx.quadraticCurveTo(cx - s * 0.18, s * 0.55, cx - s * 0.14, s * 0.7);
+                ctx.closePath();
+                break;
+
+            case 'P': // Pawn
+                ctx.moveTo(cx - s * 0.16, s * 0.88);
+                ctx.lineTo(cx + s * 0.16, s * 0.88);
+                ctx.lineTo(cx + s * 0.13, s * 0.78);
+                ctx.lineTo(cx + s * 0.09, s * 0.55);
+                ctx.quadraticCurveTo(cx + s * 0.16, s * 0.45, cx + s * 0.14, s * 0.35);
+                ctx.arc(cx, s * 0.26, s * 0.14, Math.PI * 0.25, Math.PI * 2.75);
+                ctx.quadraticCurveTo(cx - s * 0.16, s * 0.45, cx - s * 0.09, s * 0.55);
+                ctx.lineTo(cx - s * 0.13, s * 0.78);
+                ctx.closePath();
+                break;
+        }
+
+        if (fill) {
+            ctx.fill();
+        }
         ctx.stroke();
-        // Small white specular highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    };
+
+    // Draw white background first
+    ctx.fillStyle = '#ffffff';
+    drawPieceShape(true);
+
+    // For black pieces, add diagonal line hatching
+    if (!isWhite) {
+        ctx.save();
+        ctx.clip();
+
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.018;
+
+        // Draw diagonal lines
+        const spacing = s * 0.045;
+        for (let i = -s; i < s * 2; i += spacing) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i + s, s);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+
+        // Redraw outline
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.025;
+        drawPieceShape(false);
+    }
+
+    // Add bishop ball and slot
+    if (type === 'B') {
         ctx.beginPath();
-        ctx.arc(cx - 18*s, cy - 40*s, 5*s, 0, Math.PI * 2);
+        ctx.arc(cx, s * 0.095, s * 0.055, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        if (!isWhite) {
+            ctx.save();
+            ctx.clip();
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = s * 0.018;
+            const spacing = s * 0.045;
+            for (let i = -s; i < s * 2; i += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + s, s);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.025;
+        ctx.stroke();
+
+        // Slot
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(cx - s * 0.015, s * 0.3, s * 0.03, s * 0.14);
+    }
+
+    // Knight eye
+    if (type === 'N') {
+        ctx.beginPath();
+        ctx.arc(cx - s * 0.04, s * 0.28, s * 0.025, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
         ctx.fill();
     }
 }
 
+// Draw outline-only pieces (simple hollow silhouettes)
+function drawOutlinePiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    ctx.lineWidth = s * 0.04;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = isWhite ? '#e8e4d8' : '#1a1816';
+    ctx.fillStyle = 'transparent';
+
+    // Add subtle glow for visibility
+    ctx.shadowColor = isWhite ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.3)';
+    ctx.shadowBlur = s * 0.03;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // King - simplified crown with cross
+            ctx.moveTo(cx - s * 0.22, s * 0.85);
+            ctx.lineTo(cx + s * 0.22, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.5);
+            ctx.lineTo(cx + s * 0.1, s * 0.35);
+            ctx.lineTo(cx + s * 0.1, s * 0.28);
+            ctx.lineTo(cx + s * 0.05, s * 0.28);
+            ctx.lineTo(cx + s * 0.05, s * 0.2);
+            ctx.lineTo(cx + s * 0.1, s * 0.2);
+            ctx.lineTo(cx + s * 0.1, s * 0.15);
+            ctx.lineTo(cx - s * 0.1, s * 0.15);
+            ctx.lineTo(cx - s * 0.1, s * 0.2);
+            ctx.lineTo(cx - s * 0.05, s * 0.2);
+            ctx.lineTo(cx - s * 0.05, s * 0.28);
+            ctx.lineTo(cx - s * 0.1, s * 0.28);
+            ctx.lineTo(cx - s * 0.1, s * 0.35);
+            ctx.lineTo(cx - s * 0.18, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'Q': // Queen - crown shape
+            ctx.moveTo(cx - s * 0.22, s * 0.85);
+            ctx.lineTo(cx + s * 0.22, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.5);
+            ctx.lineTo(cx + s * 0.24, s * 0.18);
+            ctx.lineTo(cx + s * 0.12, s * 0.32);
+            ctx.lineTo(cx, s * 0.12);
+            ctx.lineTo(cx - s * 0.12, s * 0.32);
+            ctx.lineTo(cx - s * 0.24, s * 0.18);
+            ctx.lineTo(cx - s * 0.18, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'R': // Rook - castle
+            ctx.moveTo(cx - s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.16, s * 0.35);
+            ctx.lineTo(cx + s * 0.2, s * 0.35);
+            ctx.lineTo(cx + s * 0.2, s * 0.15);
+            ctx.lineTo(cx + s * 0.12, s * 0.15);
+            ctx.lineTo(cx + s * 0.12, s * 0.25);
+            ctx.lineTo(cx + s * 0.04, s * 0.25);
+            ctx.lineTo(cx + s * 0.04, s * 0.15);
+            ctx.lineTo(cx - s * 0.04, s * 0.15);
+            ctx.lineTo(cx - s * 0.04, s * 0.25);
+            ctx.lineTo(cx - s * 0.12, s * 0.25);
+            ctx.lineTo(cx - s * 0.12, s * 0.15);
+            ctx.lineTo(cx - s * 0.2, s * 0.15);
+            ctx.lineTo(cx - s * 0.2, s * 0.35);
+            ctx.lineTo(cx - s * 0.16, s * 0.35);
+            ctx.closePath();
+            break;
+
+        case 'B': // Bishop - mitre
+            ctx.moveTo(cx - s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.14, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.35, cx, s * 0.12);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.35, cx - s * 0.14, s * 0.55);
+            ctx.closePath();
+            break;
+
+        case 'N': // Knight - horse head
+            ctx.moveTo(cx - s * 0.15, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.14, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.2, s * 0.4, cx + s * 0.12, s * 0.25);
+            ctx.lineTo(cx + s * 0.08, s * 0.15);
+            ctx.quadraticCurveTo(cx - s * 0.05, s * 0.1, cx - s * 0.2, s * 0.2);
+            ctx.lineTo(cx - s * 0.28, s * 0.28);
+            ctx.lineTo(cx - s * 0.18, s * 0.32);
+            ctx.quadraticCurveTo(cx - s * 0.15, s * 0.45, cx - s * 0.12, s * 0.55);
+            ctx.closePath();
+            break;
+
+        case 'P': // Pawn - simple
+            ctx.moveTo(cx - s * 0.15, s * 0.85);
+            ctx.lineTo(cx + s * 0.15, s * 0.85);
+            ctx.lineTo(cx + s * 0.1, s * 0.58);
+            ctx.quadraticCurveTo(cx + s * 0.16, s * 0.45, cx + s * 0.12, s * 0.35);
+            ctx.arc(cx, s * 0.26, s * 0.12, Math.PI * 0.3, Math.PI * 2.7);
+            ctx.quadraticCurveTo(cx - s * 0.16, s * 0.45, cx - s * 0.1, s * 0.58);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+}
+
+// Draw figurine algebraic notation style pieces (bold, filled, iconic)
+function drawFigurinePiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    // Figurine style: solid filled pieces with clear outlines
+    const fill = isWhite ? '#f5f2e8' : '#2a2622';
+    const stroke = isWhite ? '#1a1815' : '#d8d4c8';
+
+    ctx.lineWidth = s * 0.03;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // King - bold with prominent cross
+            // Base
+            ctx.ellipse(cx, s * 0.84, s * 0.26, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.22, s * 0.8);
+            ctx.lineTo(cx + s * 0.22, s * 0.8);
+            ctx.lineTo(cx + s * 0.16, s * 0.45);
+            ctx.lineTo(cx + s * 0.12, s * 0.32);
+            ctx.lineTo(cx + s * 0.12, s * 0.24);
+            ctx.lineTo(cx + s * 0.2, s * 0.24);
+            ctx.lineTo(cx + s * 0.2, s * 0.18);
+            ctx.lineTo(cx + s * 0.06, s * 0.18);
+            ctx.lineTo(cx + s * 0.06, s * 0.1);
+            ctx.lineTo(cx - s * 0.06, s * 0.1);
+            ctx.lineTo(cx - s * 0.06, s * 0.18);
+            ctx.lineTo(cx - s * 0.2, s * 0.18);
+            ctx.lineTo(cx - s * 0.2, s * 0.24);
+            ctx.lineTo(cx - s * 0.12, s * 0.24);
+            ctx.lineTo(cx - s * 0.12, s * 0.32);
+            ctx.lineTo(cx - s * 0.16, s * 0.45);
+            ctx.closePath();
+            break;
+
+        case 'Q': // Queen - bold crown with ball
+            ctx.ellipse(cx, s * 0.84, s * 0.26, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.22, s * 0.8);
+            ctx.lineTo(cx + s * 0.22, s * 0.8);
+            ctx.lineTo(cx + s * 0.16, s * 0.45);
+            ctx.lineTo(cx + s * 0.22, s * 0.3);
+            ctx.lineTo(cx + s * 0.1, s * 0.35);
+            ctx.lineTo(cx, s * 0.2);
+            ctx.lineTo(cx - s * 0.1, s * 0.35);
+            ctx.lineTo(cx - s * 0.22, s * 0.3);
+            ctx.lineTo(cx - s * 0.16, s * 0.45);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Ball on top
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.14, s * 0.06, 0, Math.PI * 2);
+            break;
+
+        case 'R': // Rook
+            ctx.ellipse(cx, s * 0.84, s * 0.24, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.2, s * 0.8);
+            ctx.lineTo(cx + s * 0.2, s * 0.8);
+            ctx.lineTo(cx + s * 0.15, s * 0.35);
+            ctx.lineTo(cx + s * 0.22, s * 0.35);
+            ctx.lineTo(cx + s * 0.22, s * 0.12);
+            ctx.lineTo(cx + s * 0.14, s * 0.12);
+            ctx.lineTo(cx + s * 0.14, s * 0.22);
+            ctx.lineTo(cx + s * 0.05, s * 0.22);
+            ctx.lineTo(cx + s * 0.05, s * 0.12);
+            ctx.lineTo(cx - s * 0.05, s * 0.12);
+            ctx.lineTo(cx - s * 0.05, s * 0.22);
+            ctx.lineTo(cx - s * 0.14, s * 0.22);
+            ctx.lineTo(cx - s * 0.14, s * 0.12);
+            ctx.lineTo(cx - s * 0.22, s * 0.12);
+            ctx.lineTo(cx - s * 0.22, s * 0.35);
+            ctx.lineTo(cx - s * 0.15, s * 0.35);
+            ctx.closePath();
+            break;
+
+        case 'B': // Bishop
+            ctx.ellipse(cx, s * 0.84, s * 0.22, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.18, s * 0.8);
+            ctx.lineTo(cx + s * 0.18, s * 0.8);
+            ctx.lineTo(cx + s * 0.12, s * 0.5);
+            ctx.quadraticCurveTo(cx + s * 0.2, s * 0.35, cx + s * 0.12, s * 0.22);
+            ctx.quadraticCurveTo(cx + s * 0.08, s * 0.12, cx, s * 0.12);
+            ctx.quadraticCurveTo(cx - s * 0.08, s * 0.12, cx - s * 0.12, s * 0.22);
+            ctx.quadraticCurveTo(cx - s * 0.2, s * 0.35, cx - s * 0.12, s * 0.5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Ball on top
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.09, s * 0.05, 0, Math.PI * 2);
+            break;
+
+        case 'N': // Knight
+            ctx.ellipse(cx, s * 0.84, s * 0.22, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.16, s * 0.8);
+            ctx.lineTo(cx + s * 0.18, s * 0.8);
+            ctx.lineTo(cx + s * 0.14, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.22, s * 0.42, cx + s * 0.16, s * 0.28);
+            ctx.quadraticCurveTo(cx + s * 0.12, s * 0.18, cx + s * 0.02, s * 0.16);
+            ctx.lineTo(cx + s * 0.06, s * 0.1);
+            ctx.quadraticCurveTo(cx - s * 0.02, s * 0.06, cx - s * 0.12, s * 0.12);
+            ctx.quadraticCurveTo(cx - s * 0.22, s * 0.16, cx - s * 0.28, s * 0.25);
+            ctx.lineTo(cx - s * 0.32, s * 0.28);
+            ctx.lineTo(cx - s * 0.24, s * 0.32);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.4, cx - s * 0.12, s * 0.45);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.55, cx - s * 0.14, s * 0.65);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Eye
+            ctx.beginPath();
+            ctx.arc(cx - s * 0.05, s * 0.26, s * 0.03, 0, Math.PI * 2);
+            ctx.fillStyle = stroke;
+            ctx.fill();
+            ctx.fillStyle = fill;
+            return;
+
+        case 'P': // Pawn
+            ctx.ellipse(cx, s * 0.84, s * 0.2, s * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.14, s * 0.8);
+            ctx.lineTo(cx + s * 0.14, s * 0.8);
+            ctx.lineTo(cx + s * 0.1, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.16, s * 0.45, cx + s * 0.14, s * 0.35);
+            ctx.arc(cx, s * 0.25, s * 0.14, Math.PI * 0.25, Math.PI * 2.75);
+            ctx.quadraticCurveTo(cx - s * 0.16, s * 0.45, cx - s * 0.1, s * 0.55);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+}
+
+// =============================================================================
+// NEW 2D STYLES - Pixel, Gothic, Minimalist, Celtic, Sketch
+// =============================================================================
+
+// Draw pixel art 8-bit style pieces
+function drawPixelPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const pixelSize = s / 16; // 16x16 grid
+    const fill = isWhite ? '#f0ece0' : '#2a2520';
+    const outline = isWhite ? '#3a3530' : '#c8c4b8';
+    const highlight = isWhite ? '#ffffff' : '#4a4540';
+
+    ctx.imageSmoothingEnabled = false;
+
+    const drawPixel = (x: number, y: number, color: string) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    };
+
+    // Pixel art patterns for each piece (16x16 grid, centered)
+    const patterns: Record<string, number[][]> = {
+        'K': [
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        'Q': [
+            [0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        'R': [
+            [0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        'B': [
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        'N': [
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+        'P': [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ],
+    };
+
+    const pattern = patterns[type] || patterns['P'];
+
+    // Draw outline first
+    for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+            if (pattern[y][x] === 1) {
+                // Check if edge pixel
+                const isEdge = (
+                    x === 0 || x === 15 || y === 0 || y === 15 ||
+                    pattern[y - 1]?.[x] !== 1 || pattern[y + 1]?.[x] !== 1 ||
+                    pattern[y][x - 1] !== 1 || pattern[y][x + 1] !== 1
+                );
+                drawPixel(x, y, isEdge ? outline : fill);
+            }
+        }
+    }
+
+    // Add highlight pixels (top-left inner)
+    for (let y = 1; y < 15; y++) {
+        for (let x = 1; x < 15; x++) {
+            if (pattern[y][x] === 1 && pattern[y - 1]?.[x] === 1 && pattern[y][x - 1] === 1 &&
+                (pattern[y - 1]?.[x - 1] !== 1 || y < 5)) {
+                drawPixel(x, y, highlight);
+            }
+        }
+    }
+}
+
+// Draw gothic ornate medieval style
+function drawGothicPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    // Dark gothic colors
+    const fill = isWhite ? '#d8d0c0' : '#1a1412';
+    const stroke = isWhite ? '#2a2420' : '#a09080';
+    const accent = isWhite ? '#8b7355' : '#705840';
+
+    ctx.lineWidth = s * 0.025;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    // Add dark shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = s * 0.05;
+    ctx.shadowOffsetX = s * 0.02;
+    ctx.shadowOffsetY = s * 0.02;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // Gothic King - pointed crown
+            // Base
+            ctx.moveTo(cx - s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.78);
+            ctx.lineTo(cx + s * 0.18, s * 0.55);
+            // Gothic crown points
+            ctx.lineTo(cx + s * 0.16, s * 0.35);
+            ctx.lineTo(cx + s * 0.22, s * 0.22);
+            ctx.lineTo(cx + s * 0.14, s * 0.28);
+            ctx.lineTo(cx + s * 0.1, s * 0.15);
+            ctx.lineTo(cx + s * 0.04, s * 0.25);
+            ctx.lineTo(cx, s * 0.08);
+            ctx.lineTo(cx - s * 0.04, s * 0.25);
+            ctx.lineTo(cx - s * 0.1, s * 0.15);
+            ctx.lineTo(cx - s * 0.14, s * 0.28);
+            ctx.lineTo(cx - s * 0.22, s * 0.22);
+            ctx.lineTo(cx - s * 0.16, s * 0.35);
+            ctx.lineTo(cx - s * 0.18, s * 0.55);
+            ctx.lineTo(cx - s * 0.22, s * 0.78);
+            ctx.closePath();
+            break;
+
+        case 'Q': // Gothic Queen - ornate crown
+            ctx.moveTo(cx - s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.75);
+            ctx.lineTo(cx + s * 0.18, s * 0.5);
+            // Fleur-de-lis style crown
+            ctx.quadraticCurveTo(cx + s * 0.25, s * 0.4, cx + s * 0.2, s * 0.25);
+            ctx.quadraticCurveTo(cx + s * 0.22, s * 0.2, cx + s * 0.15, s * 0.18);
+            ctx.quadraticCurveTo(cx + s * 0.1, s * 0.22, cx + s * 0.08, s * 0.15);
+            ctx.quadraticCurveTo(cx + s * 0.04, s * 0.08, cx, s * 0.06);
+            ctx.quadraticCurveTo(cx - s * 0.04, s * 0.08, cx - s * 0.08, s * 0.15);
+            ctx.quadraticCurveTo(cx - s * 0.1, s * 0.22, cx - s * 0.15, s * 0.18);
+            ctx.quadraticCurveTo(cx - s * 0.22, s * 0.2, cx - s * 0.2, s * 0.25);
+            ctx.quadraticCurveTo(cx - s * 0.25, s * 0.4, cx - s * 0.18, s * 0.5);
+            ctx.lineTo(cx - s * 0.22, s * 0.75);
+            ctx.closePath();
+            break;
+
+        case 'R': // Gothic Rook - castle tower
+            ctx.moveTo(cx - s * 0.24, s * 0.88);
+            ctx.lineTo(cx + s * 0.24, s * 0.88);
+            ctx.lineTo(cx + s * 0.2, s * 0.7);
+            ctx.lineTo(cx + s * 0.18, s * 0.4);
+            // Crenellations
+            ctx.lineTo(cx + s * 0.24, s * 0.4);
+            ctx.lineTo(cx + s * 0.24, s * 0.12);
+            ctx.lineTo(cx + s * 0.16, s * 0.12);
+            ctx.lineTo(cx + s * 0.16, s * 0.22);
+            ctx.lineTo(cx + s * 0.06, s * 0.22);
+            ctx.lineTo(cx + s * 0.06, s * 0.12);
+            ctx.lineTo(cx - s * 0.06, s * 0.12);
+            ctx.lineTo(cx - s * 0.06, s * 0.22);
+            ctx.lineTo(cx - s * 0.16, s * 0.22);
+            ctx.lineTo(cx - s * 0.16, s * 0.12);
+            ctx.lineTo(cx - s * 0.24, s * 0.12);
+            ctx.lineTo(cx - s * 0.24, s * 0.4);
+            ctx.lineTo(cx - s * 0.18, s * 0.4);
+            ctx.lineTo(cx - s * 0.2, s * 0.7);
+            ctx.closePath();
+            break;
+
+        case 'B': // Gothic Bishop - pointed mitre
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.7);
+            ctx.lineTo(cx + s * 0.14, s * 0.45);
+            ctx.quadraticCurveTo(cx + s * 0.2, s * 0.35, cx + s * 0.12, s * 0.22);
+            ctx.lineTo(cx, s * 0.08);
+            ctx.lineTo(cx - s * 0.12, s * 0.22);
+            ctx.quadraticCurveTo(cx - s * 0.2, s * 0.35, cx - s * 0.14, s * 0.45);
+            ctx.lineTo(cx - s * 0.18, s * 0.7);
+            ctx.closePath();
+            break;
+
+        case 'N': // Gothic Knight - armored horse
+            ctx.moveTo(cx - s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.65);
+            ctx.quadraticCurveTo(cx + s * 0.28, s * 0.5, cx + s * 0.2, s * 0.3);
+            ctx.lineTo(cx + s * 0.15, s * 0.18);
+            ctx.quadraticCurveTo(cx + s * 0.1, s * 0.1, cx - s * 0.05, s * 0.12);
+            ctx.lineTo(cx - s * 0.15, s * 0.08);
+            ctx.lineTo(cx - s * 0.25, s * 0.15);
+            ctx.lineTo(cx - s * 0.3, s * 0.25);
+            ctx.lineTo(cx - s * 0.2, s * 0.3);
+            ctx.quadraticCurveTo(cx - s * 0.15, s * 0.45, cx - s * 0.12, s * 0.55);
+            ctx.lineTo(cx - s * 0.16, s * 0.7);
+            ctx.closePath();
+            break;
+
+        case 'P': // Gothic Pawn - pointed helmet
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.14, s * 0.7);
+            ctx.lineTo(cx + s * 0.1, s * 0.5);
+            ctx.quadraticCurveTo(cx + s * 0.16, s * 0.4, cx + s * 0.1, s * 0.3);
+            ctx.lineTo(cx, s * 0.12);
+            ctx.lineTo(cx - s * 0.1, s * 0.3);
+            ctx.quadraticCurveTo(cx - s * 0.16, s * 0.4, cx - s * 0.1, s * 0.5);
+            ctx.lineTo(cx - s * 0.14, s * 0.7);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+
+    // Add gothic decorative lines
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = s * 0.015;
+
+    if (type === 'K' || type === 'Q') {
+        // Crown band
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.16, s * 0.35);
+        ctx.lineTo(cx + s * 0.16, s * 0.35);
+        ctx.stroke();
+    }
+    if (type === 'B') {
+        // Mitre cross
+        ctx.beginPath();
+        ctx.moveTo(cx, s * 0.2);
+        ctx.lineTo(cx, s * 0.4);
+        ctx.moveTo(cx - s * 0.08, s * 0.3);
+        ctx.lineTo(cx + s * 0.08, s * 0.3);
+        ctx.stroke();
+    }
+}
+
+// Draw ultra-minimalist geometric style
+function drawMinimalistPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const fill = isWhite ? '#f8f6f0' : '#18161a';
+    const stroke = isWhite ? '#1a1816' : '#e8e6e0';
+
+    ctx.lineWidth = s * 0.035;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // Simple cross on rectangle
+            // Rectangle body
+            ctx.rect(cx - s * 0.15, s * 0.35, s * 0.3, s * 0.5);
+            ctx.fill();
+            ctx.stroke();
+            // Cross
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.1);
+            ctx.lineTo(cx, s * 0.3);
+            ctx.moveTo(cx - s * 0.1, s * 0.2);
+            ctx.lineTo(cx + s * 0.1, s * 0.2);
+            ctx.stroke();
+            return;
+
+        case 'Q': // Circle on rectangle
+            ctx.rect(cx - s * 0.15, s * 0.4, s * 0.3, s * 0.45);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.25, s * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            return;
+
+        case 'R': // Simple rectangle with notches
+            ctx.rect(cx - s * 0.18, s * 0.25, s * 0.36, s * 0.6);
+            ctx.fill();
+            ctx.stroke();
+            // Three notches at top
+            ctx.fillStyle = isWhite ? '#f8f6f0' : '#18161a';
+            ctx.fillRect(cx - s * 0.1, s * 0.15, s * 0.06, s * 0.15);
+            ctx.fillRect(cx + s * 0.04, s * 0.15, s * 0.06, s * 0.15);
+            return;
+
+        case 'B': // Triangle
+            ctx.moveTo(cx, s * 0.12);
+            ctx.lineTo(cx + s * 0.18, s * 0.85);
+            ctx.lineTo(cx - s * 0.18, s * 0.85);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            return;
+
+        case 'N': // L-shape
+            ctx.moveTo(cx - s * 0.15, s * 0.85);
+            ctx.lineTo(cx - s * 0.15, s * 0.2);
+            ctx.lineTo(cx + s * 0.15, s * 0.2);
+            ctx.lineTo(cx + s * 0.15, s * 0.45);
+            ctx.lineTo(cx, s * 0.45);
+            ctx.lineTo(cx, s * 0.85);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            return;
+
+        case 'P': // Simple circle
+            ctx.arc(cx, s * 0.5, s * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            return;
+    }
+}
+
+// Draw Celtic knotwork style
+function drawCelticPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const fill = isWhite ? '#e8e4d8' : '#1a1816';
+    const stroke = isWhite ? '#2a6030' : '#40a048'; // Celtic green
+    const accent = isWhite ? '#8b4513' : '#cd853f'; // Celtic bronze
+
+    ctx.lineWidth = s * 0.03;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Draw main shape
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // Celtic King with knotwork crown
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.5);
+            // Interlaced top
+            ctx.quadraticCurveTo(cx + s * 0.22, s * 0.35, cx + s * 0.1, s * 0.25);
+            ctx.quadraticCurveTo(cx + s * 0.15, s * 0.15, cx, s * 0.1);
+            ctx.quadraticCurveTo(cx - s * 0.15, s * 0.15, cx - s * 0.1, s * 0.25);
+            ctx.quadraticCurveTo(cx - s * 0.22, s * 0.35, cx - s * 0.18, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'Q': // Celtic Queen with spiral
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.16, s * 0.45);
+            ctx.arc(cx, s * 0.28, s * 0.16, 0, Math.PI * 2);
+            ctx.moveTo(cx - s * 0.16, s * 0.45);
+            ctx.closePath();
+            break;
+
+        case 'R': // Celtic tower
+            ctx.moveTo(cx - s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.16, s * 0.35);
+            ctx.lineTo(cx + s * 0.2, s * 0.15);
+            ctx.lineTo(cx - s * 0.2, s * 0.15);
+            ctx.lineTo(cx - s * 0.16, s * 0.35);
+            ctx.closePath();
+            break;
+
+        case 'B': // Celtic bishop with trinity knot area
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.12, s * 0.5);
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.3, cx, s * 0.12);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.3, cx - s * 0.12, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'N': // Celtic horse
+            ctx.moveTo(cx - s * 0.16, s * 0.88);
+            ctx.lineTo(cx + s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.16, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.25, s * 0.4, cx + s * 0.15, s * 0.25);
+            ctx.quadraticCurveTo(cx + s * 0.05, s * 0.1, cx - s * 0.15, s * 0.15);
+            ctx.lineTo(cx - s * 0.25, s * 0.25);
+            ctx.quadraticCurveTo(cx - s * 0.15, s * 0.4, cx - s * 0.12, s * 0.55);
+            ctx.closePath();
+            break;
+
+        case 'P': // Celtic pawn with spiral
+            ctx.moveTo(cx - s * 0.14, s * 0.88);
+            ctx.lineTo(cx + s * 0.14, s * 0.88);
+            ctx.lineTo(cx + s * 0.1, s * 0.55);
+            ctx.arc(cx, s * 0.35, s * 0.14, Math.PI * 0.3, Math.PI * 2.7);
+            ctx.lineTo(cx - s * 0.1, s * 0.55);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+
+    // Add Celtic knotwork decoration
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = s * 0.02;
+
+    // Draw interlace patterns
+    if (type === 'K' || type === 'Q') {
+        // Circular knotwork
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+            const angle = (i * Math.PI * 2) / 3;
+            const r = s * 0.08;
+            const x = cx + Math.cos(angle) * r * 0.6;
+            const y = s * 0.32 + Math.sin(angle) * r * 0.6;
+            ctx.moveTo(x + r * 0.4, y);
+            ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
+        }
+        ctx.stroke();
+    }
+
+    if (type === 'B') {
+        // Trinity knot
+        ctx.beginPath();
+        ctx.moveTo(cx, s * 0.22);
+        ctx.quadraticCurveTo(cx + s * 0.08, s * 0.32, cx, s * 0.42);
+        ctx.quadraticCurveTo(cx - s * 0.08, s * 0.32, cx, s * 0.22);
+        ctx.stroke();
+    }
+}
+
+// Draw hand-sketched pencil style
+function drawSketchPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const stroke = isWhite ? '#3a3835' : '#d8d4c8';
+    const fill = isWhite ? '#f5f2e8' : '#252220';
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+
+    // Sketchy line function - draws wobbly lines
+    const sketchLine = (x1: number, y1: number, x2: number, y2: number) => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        // Add slight wobble
+        const midX = (x1 + x2) / 2 + (Math.random() - 0.5) * s * 0.02;
+        const midY = (y1 + y2) / 2 + (Math.random() - 0.5) * s * 0.02;
+        ctx.quadraticCurveTo(midX, midY, x2, y2);
+        ctx.stroke();
+    };
+
+    // Draw multiple sketchy lines for that hand-drawn look
+    const sketchyStroke = () => {
+        ctx.strokeStyle = stroke;
+        // Draw 2-3 overlapping strokes with slight variation
+        for (let i = 0; i < 2; i++) {
+            ctx.lineWidth = s * (0.015 + Math.random() * 0.01);
+            ctx.stroke();
+        }
+    };
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K':
+            ctx.moveTo(cx - s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.16, s * 0.5);
+            ctx.lineTo(cx + s * 0.12, s * 0.35);
+            // Cross
+            ctx.lineTo(cx + s * 0.06, s * 0.35);
+            ctx.lineTo(cx + s * 0.06, s * 0.25);
+            ctx.lineTo(cx + s * 0.12, s * 0.25);
+            ctx.lineTo(cx + s * 0.12, s * 0.18);
+            ctx.lineTo(cx - s * 0.12, s * 0.18);
+            ctx.lineTo(cx - s * 0.12, s * 0.25);
+            ctx.lineTo(cx - s * 0.06, s * 0.25);
+            ctx.lineTo(cx - s * 0.06, s * 0.35);
+            ctx.lineTo(cx - s * 0.12, s * 0.35);
+            ctx.lineTo(cx - s * 0.16, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'Q':
+            ctx.moveTo(cx - s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.2, s * 0.85);
+            ctx.lineTo(cx + s * 0.16, s * 0.5);
+            ctx.lineTo(cx + s * 0.2, s * 0.3);
+            ctx.lineTo(cx + s * 0.08, s * 0.35);
+            ctx.lineTo(cx, s * 0.18);
+            ctx.lineTo(cx - s * 0.08, s * 0.35);
+            ctx.lineTo(cx - s * 0.2, s * 0.3);
+            ctx.lineTo(cx - s * 0.16, s * 0.5);
+            ctx.closePath();
+            break;
+
+        case 'R':
+            ctx.moveTo(cx - s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.14, s * 0.35);
+            ctx.lineTo(cx + s * 0.18, s * 0.35);
+            ctx.lineTo(cx + s * 0.18, s * 0.15);
+            ctx.lineTo(cx + s * 0.1, s * 0.15);
+            ctx.lineTo(cx + s * 0.1, s * 0.25);
+            ctx.lineTo(cx - s * 0.1, s * 0.25);
+            ctx.lineTo(cx - s * 0.1, s * 0.15);
+            ctx.lineTo(cx - s * 0.18, s * 0.15);
+            ctx.lineTo(cx - s * 0.18, s * 0.35);
+            ctx.lineTo(cx - s * 0.14, s * 0.35);
+            ctx.closePath();
+            break;
+
+        case 'B':
+            ctx.moveTo(cx - s * 0.16, s * 0.85);
+            ctx.lineTo(cx + s * 0.16, s * 0.85);
+            ctx.lineTo(cx + s * 0.12, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.4, cx, s * 0.15);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.4, cx - s * 0.12, s * 0.55);
+            ctx.closePath();
+            break;
+
+        case 'N':
+            ctx.moveTo(cx - s * 0.14, s * 0.85);
+            ctx.lineTo(cx + s * 0.18, s * 0.85);
+            ctx.lineTo(cx + s * 0.14, s * 0.55);
+            ctx.quadraticCurveTo(cx + s * 0.22, s * 0.4, cx + s * 0.12, s * 0.25);
+            ctx.lineTo(cx + s * 0.06, s * 0.15);
+            ctx.quadraticCurveTo(cx - s * 0.08, s * 0.12, cx - s * 0.2, s * 0.2);
+            ctx.lineTo(cx - s * 0.26, s * 0.28);
+            ctx.lineTo(cx - s * 0.18, s * 0.32);
+            ctx.quadraticCurveTo(cx - s * 0.12, s * 0.45, cx - s * 0.1, s * 0.55);
+            ctx.closePath();
+            break;
+
+        case 'P':
+            ctx.moveTo(cx - s * 0.12, s * 0.85);
+            ctx.lineTo(cx + s * 0.12, s * 0.85);
+            ctx.lineTo(cx + s * 0.08, s * 0.55);
+            ctx.arc(cx, s * 0.38, s * 0.12, Math.PI * 0.3, Math.PI * 2.7);
+            ctx.lineTo(cx - s * 0.08, s * 0.55);
+            ctx.closePath();
+            break;
+    }
+
+    ctx.fill();
+    sketchyStroke();
+
+    // Add sketch hatching for shading
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.008;
+    ctx.globalAlpha = 0.3;
+
+    // Quick diagonal hatch marks
+    for (let i = 0; i < 8; i++) {
+        const y = s * 0.3 + i * s * 0.08;
+        sketchLine(cx - s * 0.1, y, cx - s * 0.05, y + s * 0.04);
+    }
+
+    ctx.globalAlpha = 1;
+}
+
+// Draw Ancient Egyptian Pharaoh style pieces
+function drawPharaohPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    // Egyptian colors - gold and lapis lazuli blue
+    const fill = isWhite ? '#f5e6a8' : '#1a2840';  // Gold / Dark blue
+    const stroke = isWhite ? '#8b6914' : '#c9a227'; // Dark gold / Bright gold
+    const accent = isWhite ? '#1e4d8c' : '#f5e6a8'; // Blue / Gold accents
+    const detail = isWhite ? '#2a1810' : '#d4af37'; // Dark detail / Gold detail
+
+    ctx.lineWidth = s * 0.025;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    // Add golden glow
+    ctx.shadowColor = isWhite ? 'rgba(212, 175, 55, 0.5)' : 'rgba(201, 162, 39, 0.4)';
+    ctx.shadowBlur = s * 0.04;
+
+    ctx.beginPath();
+
+    switch (type) {
+        case 'K': // Pharaoh with Nemes headdress and Uraeus
+            // Nemes headdress (striped cloth)
+            ctx.moveTo(cx - s * 0.28, s * 0.88);
+            ctx.lineTo(cx + s * 0.28, s * 0.88);
+            ctx.lineTo(cx + s * 0.24, s * 0.7);
+            ctx.lineTo(cx + s * 0.26, s * 0.55);
+            // Headdress flaps
+            ctx.lineTo(cx + s * 0.22, s * 0.35);
+            ctx.lineTo(cx + s * 0.18, s * 0.28);
+            // Crown top
+            ctx.lineTo(cx + s * 0.14, s * 0.22);
+            ctx.lineTo(cx + s * 0.08, s * 0.18);
+            // Uraeus (cobra) on top
+            ctx.lineTo(cx + s * 0.04, s * 0.12);
+            ctx.quadraticCurveTo(cx + s * 0.06, s * 0.06, cx, s * 0.05);
+            ctx.quadraticCurveTo(cx - s * 0.06, s * 0.06, cx - s * 0.04, s * 0.12);
+            ctx.lineTo(cx - s * 0.08, s * 0.18);
+            ctx.lineTo(cx - s * 0.14, s * 0.22);
+            ctx.lineTo(cx - s * 0.18, s * 0.28);
+            ctx.lineTo(cx - s * 0.22, s * 0.35);
+            ctx.lineTo(cx - s * 0.26, s * 0.55);
+            ctx.lineTo(cx - s * 0.24, s * 0.7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw Nemes stripes
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.015;
+            for (let i = 0; i < 5; i++) {
+                const y = s * 0.35 + i * s * 0.1;
+                ctx.beginPath();
+                ctx.moveTo(cx - s * 0.22 + i * s * 0.01, y);
+                ctx.lineTo(cx + s * 0.22 - i * s * 0.01, y);
+                ctx.stroke();
+            }
+
+            // Uraeus cobra head detail
+            ctx.fillStyle = accent;
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.09, s * 0.03, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+
+        case 'Q': // Queen with vulture crown (Nekhbet)
+            ctx.moveTo(cx - s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.26, s * 0.88);
+            ctx.lineTo(cx + s * 0.22, s * 0.7);
+            ctx.lineTo(cx + s * 0.2, s * 0.5);
+            // Vulture wings spreading
+            ctx.quadraticCurveTo(cx + s * 0.28, s * 0.38, cx + s * 0.22, s * 0.28);
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.22, cx + s * 0.12, s * 0.2);
+            // Vulture head
+            ctx.lineTo(cx + s * 0.06, s * 0.15);
+            ctx.quadraticCurveTo(cx + s * 0.04, s * 0.08, cx, s * 0.06);
+            ctx.quadraticCurveTo(cx - s * 0.04, s * 0.08, cx - s * 0.06, s * 0.15);
+            ctx.lineTo(cx - s * 0.12, s * 0.2);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.22, cx - s * 0.22, s * 0.28);
+            ctx.quadraticCurveTo(cx - s * 0.28, s * 0.38, cx - s * 0.2, s * 0.5);
+            ctx.lineTo(cx - s * 0.22, s * 0.7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Wing feather details
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.012;
+            for (let i = 0; i < 4; i++) {
+                const angle = Math.PI * 0.15 + i * 0.12;
+                ctx.beginPath();
+                ctx.moveTo(cx + s * 0.08, s * 0.35);
+                ctx.lineTo(cx + s * 0.18 + i * s * 0.015, s * 0.28 + i * s * 0.04);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - s * 0.08, s * 0.35);
+                ctx.lineTo(cx - s * 0.18 - i * s * 0.015, s * 0.28 + i * s * 0.04);
+                ctx.stroke();
+            }
+            return;
+
+        case 'R': // Obelisk
+            ctx.moveTo(cx - s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.2, s * 0.88);
+            ctx.lineTo(cx + s * 0.16, s * 0.75);
+            ctx.lineTo(cx + s * 0.14, s * 0.25);
+            // Pyramidion (pointed top)
+            ctx.lineTo(cx + s * 0.1, s * 0.18);
+            ctx.lineTo(cx, s * 0.08);
+            ctx.lineTo(cx - s * 0.1, s * 0.18);
+            ctx.lineTo(cx - s * 0.14, s * 0.25);
+            ctx.lineTo(cx - s * 0.16, s * 0.75);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Hieroglyphic decorations
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = accent;
+            // Ankh symbol
+            ctx.beginPath();
+            ctx.ellipse(cx, s * 0.38, s * 0.04, s * 0.05, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(cx - s * 0.015, s * 0.42, s * 0.03, s * 0.15);
+            ctx.fillRect(cx - s * 0.05, s * 0.48, s * 0.1, s * 0.025);
+
+            // Eye of Horus simplified
+            ctx.beginPath();
+            ctx.ellipse(cx, s * 0.65, s * 0.04, s * 0.025, 0, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+
+        case 'B': // Anubis (jackal-headed god)
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.lineTo(cx + s * 0.14, s * 0.65);
+            ctx.lineTo(cx + s * 0.12, s * 0.45);
+            // Jackal snout
+            ctx.quadraticCurveTo(cx + s * 0.18, s * 0.35, cx + s * 0.22, s * 0.28);
+            ctx.lineTo(cx + s * 0.2, s * 0.22);
+            // Tall ears
+            ctx.lineTo(cx + s * 0.14, s * 0.18);
+            ctx.lineTo(cx + s * 0.12, s * 0.08);
+            ctx.lineTo(cx + s * 0.06, s * 0.15);
+            ctx.lineTo(cx, s * 0.2);
+            ctx.lineTo(cx - s * 0.06, s * 0.15);
+            ctx.lineTo(cx - s * 0.12, s * 0.08);
+            ctx.lineTo(cx - s * 0.14, s * 0.18);
+            ctx.lineTo(cx - s * 0.2, s * 0.22);
+            ctx.lineTo(cx - s * 0.22, s * 0.28);
+            ctx.quadraticCurveTo(cx - s * 0.18, s * 0.35, cx - s * 0.12, s * 0.45);
+            ctx.lineTo(cx - s * 0.14, s * 0.65);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Eye
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = detail;
+            ctx.beginPath();
+            ctx.ellipse(cx + s * 0.02, s * 0.28, s * 0.025, s * 0.018, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+
+        case 'N': // Sphinx
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx + s * 0.24, s * 0.88);
+            // Lion body crouching
+            ctx.lineTo(cx + s * 0.22, s * 0.7);
+            ctx.lineTo(cx + s * 0.18, s * 0.55);
+            // Human head with Nemes
+            ctx.quadraticCurveTo(cx + s * 0.24, s * 0.45, cx + s * 0.18, s * 0.32);
+            ctx.lineTo(cx + s * 0.14, s * 0.25);
+            ctx.lineTo(cx + s * 0.1, s * 0.18);
+            ctx.lineTo(cx + s * 0.06, s * 0.14);
+            ctx.quadraticCurveTo(cx, s * 0.12, cx - s * 0.06, s * 0.14);
+            // Front profile
+            ctx.lineTo(cx - s * 0.12, s * 0.2);
+            ctx.lineTo(cx - s * 0.16, s * 0.28);
+            ctx.lineTo(cx - s * 0.22, s * 0.35);
+            // Front paws
+            ctx.lineTo(cx - s * 0.28, s * 0.45);
+            ctx.lineTo(cx - s * 0.26, s * 0.55);
+            ctx.lineTo(cx - s * 0.22, s * 0.65);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Face detail
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = detail;
+            ctx.beginPath();
+            ctx.arc(cx - s * 0.02, s * 0.24, s * 0.02, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Beard
+            ctx.strokeStyle = detail;
+            ctx.lineWidth = s * 0.02;
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.08, s * 0.32);
+            ctx.lineTo(cx - s * 0.06, s * 0.42);
+            ctx.stroke();
+            return;
+
+        case 'P': // Scarab beetle
+            // Oval body
+            ctx.ellipse(cx, s * 0.52, s * 0.16, s * 0.22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.26, s * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Wing line
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.02;
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.35);
+            ctx.lineTo(cx, s * 0.7);
+            ctx.stroke();
+
+            // Legs
+            ctx.lineWidth = s * 0.015;
+            for (let i = 0; i < 3; i++) {
+                const y = s * 0.42 + i * s * 0.12;
+                ctx.beginPath();
+                ctx.moveTo(cx - s * 0.14, y);
+                ctx.lineTo(cx - s * 0.22, y + s * 0.04);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + s * 0.14, y);
+                ctx.lineTo(cx + s * 0.22, y + s * 0.04);
+                ctx.stroke();
+            }
+
+            // Sun disk on head
+            ctx.fillStyle = accent;
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.18, s * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+}
+
+// =============================================================================
+// SPRITE SHEET LOADING FOR IMAGE-BASED 2D STYLES
+// =============================================================================
+
+// Cache for loaded sprite sheet images
+const spriteSheetCache: Map<string, HTMLImageElement> = new Map();
+const spriteSheetLoadingPromises: Map<string, Promise<HTMLImageElement>> = new Map();
+
+// Load sprite sheet image (returns cached if available)
+async function loadSpriteSheet(path: string): Promise<HTMLImageElement> {
+    // Return cached image if available
+    if (spriteSheetCache.has(path)) {
+        return spriteSheetCache.get(path)!;
+    }
+
+    // Return existing loading promise if in progress
+    if (spriteSheetLoadingPromises.has(path)) {
+        return spriteSheetLoadingPromises.get(path)!;
+    }
+
+    // Create new loading promise
+    const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            spriteSheetCache.set(path, img);
+            spriteSheetLoadingPromises.delete(path);
+            console.log(`[Renderer3D] Loaded sprite sheet: ${path} (${img.width}x${img.height})`);
+            resolve(img);
+        };
+        img.onerror = (err) => {
+            spriteSheetLoadingPromises.delete(path);
+            console.error(`[Renderer3D] Failed to load sprite sheet: ${path}`, err);
+            reject(err);
+        };
+        img.src = path;
+    });
+
+    spriteSheetLoadingPromises.set(path, loadPromise);
+    return loadPromise;
+}
+
+// Extract a single piece from sprite sheet
+// Standard layout: 2 rows (white=0, black=1) x 6 cols (K,Q,R,B,N,P)
+function extractPieceFromSpriteSheet(
+    img: HTMLImageElement,
+    pieceType: string,
+    isWhite: boolean,
+    outputSize: number
+): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = outputSize;
+    const ctx = canvas.getContext('2d')!;
+
+    // Piece order in sprite sheet: K, Q, R, B, N, P
+    const pieceOrder = ['K', 'Q', 'R', 'B', 'N', 'P'];
+    const col = pieceOrder.indexOf(pieceType);
+    const row = isWhite ? 0 : 1;
+
+    if (col === -1) {
+        console.warn(`[Renderer3D] Unknown piece type: ${pieceType}`);
+        return canvas;
+    }
+
+    // Calculate sprite dimensions (assume equal-sized sprites in 6x2 grid)
+    const spriteWidth = img.width / 6;
+    const spriteHeight = img.height / 2;
+
+    // Extract and draw to canvas
+    ctx.drawImage(
+        img,
+        col * spriteWidth,      // Source X
+        row * spriteHeight,     // Source Y
+        spriteWidth,            // Source Width
+        spriteHeight,           // Source Height
+        0,                      // Dest X
+        0,                      // Dest Y
+        outputSize,             // Dest Width
+        outputSize              // Dest Height
+    );
+
+    return canvas;
+}
+
+// Create material from sprite sheet
+function createSpriteSheetMaterial(piece: Piece, spriteSheet: HTMLImageElement): THREE.SpriteMaterial {
+    const size = 256;
+    const canvas = extractPieceFromSpriteSheet(
+        spriteSheet,
+        piece.type,
+        piece.color === 'white',
+        size
+    );
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    return new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+    });
+}
+
+// Main function to create 2D piece material
+function create2DPieceMaterial(piece: Piece): THREE.SpriteMaterial {
+    const canvas = document.createElement('canvas');
+    const size = 256;
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    const isWhite = piece.color === 'white';
+    const drawStyle = currentPieceStyleConfig.drawStyle || 'classic';
+
+    // Clear canvas
+    ctx.clearRect(0, 0, size, size);
+
+    // Draw based on style
+    switch (drawStyle) {
+        case 'classic':
+            drawClassicPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'modern':
+            drawModernPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'staunton':
+            drawStauntonPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'newspaper':
+            drawNewspaperPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'outline':
+            drawOutlinePiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'figurine':
+            drawFigurinePiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'pixel':
+            drawPixelPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'gothic':
+            drawGothicPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'minimalist':
+            drawMinimalistPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'celtic':
+            drawCelticPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'sketch':
+            drawSketchPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'pharaoh':
+            drawPharaohPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'symbols':
+        default:
+            drawSymbolPiece(ctx, piece.type, isWhite, size);
+            break;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    return new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+    });
+}
+
 function create2DPieceSprite(piece: Piece, row: number, col: number): void {
     try {
-        const cacheKey = `${piece.color}-${piece.type}`;
+        const styleConfig = currentPieceStyleConfig;
+        const cacheKey = `${styleConfig.id}-${piece.color}-${piece.type}`;
 
-        // Create or get cached sprite material
+        // Check if this style uses a sprite sheet
+        if (styleConfig.spriteSheet) {
+            // Async sprite sheet loading
+            createSpriteSheetPiece(piece, row, col, styleConfig.spriteSheet, cacheKey);
+            return;
+        }
+
         let material = pieceSpritesCache.get(cacheKey);
 
         if (!material) {
-            const styleConfig = currentPieceStyleConfig;
-
-            // Check for Sprite Sheet style
-            if (styleConfig.spriteSheet) {
-                // Load or get cached texture (with loading flag to prevent duplicate loads)
-                const cacheKeyTexture = styleConfig.spriteSheet;
-                let texture = spriteTextureCache.get(cacheKeyTexture);
-                const loadingKey = `_loading_${cacheKeyTexture}`;
-                
-                if (!texture && !spriteTextureCache.has(loadingKey)) {
-                    // Mark as loading to prevent duplicate requests
-                    spriteTextureCache.set(loadingKey, null as any);
-                    
-                    const loader = new THREE.TextureLoader();
-                    console.log('[Renderer3D] Loading sprite sheet:', styleConfig.spriteSheet);
-                    texture = loader.load(
-                        styleConfig.spriteSheet,
-                        (tex) => {
-                            console.log('[Renderer3D] Texture loaded successfully', tex.image.width, 'x', tex.image.height);
-                            // Remove loading flag
-                            spriteTextureCache.delete(loadingKey);
-                            // Force update of all pieces using this texture
-                            updatePieces(true);
-                        },
-                        undefined,
-                        (err) => {
-                            console.error('[Renderer3D] Error loading sprite sheet:', err);
-                            spriteTextureCache.delete(loadingKey);
-                        }
-                    );
-                    texture.colorSpace = THREE.SRGBColorSpace;
-                    spriteTextureCache.set(cacheKeyTexture, texture);
-                } else if (!texture) {
-                    // Still loading, use placeholder or skip
-                    texture = spriteTextureCache.get(cacheKeyTexture);
-                    if (!texture) return undefined; // Still loading, skip creating sprite
-                }
-
-                // Clone texture to set specific UVs for this piece type
-                // Note: We clone the texture object to change offset/repeat without affecting others
-                // But efficient way is to just use the same texture and update offset? 
-                // No, SpriteMaterial shares the map. We need distinct materials, which we have (cached by key).
-                // But the texture itself?
-                // Actually, THREE.Texture.clone() is lightweight (shares image).
-                const pieceTexture = texture.clone();
-                pieceTexture.needsUpdate = true;
-
-                // Calculate UVs (Assume 1 row, 6 columns: K, Q, B, N, R, P)
-                // If user image is different, we might need to adjust.
-                const pieceOrder = ['K', 'Q', 'B', 'N', 'R', 'P'];
-                const index = pieceOrder.indexOf(piece.type);
-                const cols = 6;
-                const rows = 1;
-
-                pieceTexture.repeat.set(1 / cols, 1 / rows);
-                pieceTexture.offset.x = index / cols;
-                pieceTexture.offset.y = 0; // Top row
-
-                material = new THREE.SpriteMaterial({
-                    map: pieceTexture,
-                    transparent: true,
-                    depthTest: true,
-                    depthWrite: false,
-                    color: piece.color === 'black' ? 0x808080 : 0xffffff, // Tint black pieces dark grey
-                });
-
-                // Add background if specified
-                if (styleConfig.backgroundColor) {
-                    // We can't easily add a background rect to a Sprite without a second sprite or canvas.
-                    // For now, we assume the sprite sheet handles it or we rely on the board.
-                    // Or we could create a canvas, fill color, draw image... but that requires image to be loaded.
-                    // Simple solution: Just render the sprite.
-                }
-
-            } else if (styleConfig.useLetters) {
-                // LETTER-BASED style (K, Q, R, B, N, P)
-                const spriteCanvas = document.createElement('canvas');
-                const size = 256;
-                spriteCanvas.width = size;
-                spriteCanvas.height = size;
-                const ctx = spriteCanvas.getContext('2d');
-                if (!ctx) return;
-
-                const isWhite = piece.color === 'white';
-                const letter = piece.type;
-
-                // Draw colored background circle
-                ctx.beginPath();
-                ctx.arc(size / 2, size / 2, size * 0.42, 0, Math.PI * 2);
-                ctx.fillStyle = isWhite ? 
-                    (styleConfig.whiteBackgroundColor || '#2255aa') : 
-                    (styleConfig.blackBackgroundColor || '#cc3333');
-                ctx.fill();
-                ctx.strokeStyle = isWhite ? '#1a3d6e' : '#8b1a1a';
-                ctx.lineWidth = 6;
-                ctx.stroke();
-
-                // Draw letter
-                ctx.font = `bold 140px ${styleConfig.fontFamily || 'Arial Black'}`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isWhite ? 
-                    (styleConfig.whiteTextColor || '#ffffff') : 
-                    (styleConfig.blackTextColor || '#ffffff');
-                ctx.fillText(letter, size / 2, size / 2 + 5);
-
-                const texture = new THREE.CanvasTexture(spriteCanvas);
-                texture.needsUpdate = true;
-                material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: true, depthWrite: false });
-
-            } else if (styleConfig.useCustomDraw) {
-                // CUSTOM DRAWN PIECES - more detailed vector-like rendering
-                const spriteCanvas = document.createElement('canvas');
-                const size = 256;
-                spriteCanvas.width = size;
-                spriteCanvas.height = size;
-                const ctx = spriteCanvas.getContext('2d');
-                if (!ctx) return;
-
-                const isWhite = piece.color === 'white';
-                drawCustomPiece(ctx, piece.type, isWhite, size, styleConfig);
-
-                const texture = new THREE.CanvasTexture(spriteCanvas);
-                texture.needsUpdate = true;
-                material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: true, depthWrite: false });
-
-            } else {
-                // FALLBACK: Canvas generation for Font-based styles (Newspaper, etc.)
-                const spriteCanvas = document.createElement('canvas');
-                // ... (Existing canvas logic)
-                const size = 256;
-                spriteCanvas.width = size;
-                spriteCanvas.height = size;
-                const ctx = spriteCanvas.getContext('2d');
-                if (!ctx) {
-                    console.error('[Renderer3D] Failed to get 2D context');
-                    return;
-                }
-
-                const isWhite = piece.color === 'white';
-
-                // Draw square background
-                if (styleConfig.backgroundColor) {
-                    ctx.fillStyle = styleConfig.backgroundColor;
-                    ctx.fillRect(0, 0, size, size);
-                }
-
-                // Draw piece symbol (Unicode)
-                const symbolSet = PIECE_SYMBOLS[piece.color];
-                const symbol = symbolSet ? symbolSet[piece.type] : '?';
-
-                const fontName = styleConfig.fontFamily || 'serif';
-                ctx.font = `bold 200px ${fontName}`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-
-                // For BLACK pieces: Draw a contrasting outline/stroke for better visibility
-                if (!isWhite) {
-                    ctx.strokeStyle = '#ffffff'; // White outline
-                    ctx.lineWidth = 6;
-                    ctx.lineJoin = 'round';
-                    ctx.strokeText(symbol, size / 2, size / 2 + 12);
-                }
-
-                ctx.fillStyle = isWhite ?
-                    (styleConfig.whiteTextColor || '#1a1a1a') :
-                    (styleConfig.blackTextColor || '#1a1a1a');
-
-                ctx.fillText(symbol, size / 2, size / 2 + 12);
-
-                const texture = new THREE.CanvasTexture(spriteCanvas);
-                texture.needsUpdate = true;
-
-                material = new THREE.SpriteMaterial({
-                    map: texture,
-                    transparent: true,
-                    depthTest: true,
-                    depthWrite: false,
-                });
-            }
-
+            material = create2DPieceMaterial(piece);
             pieceSpritesCache.set(cacheKey, material);
         }
 
-        // Create sprite
         const sprite = new THREE.Sprite(material);
-
-        // Position on board
         sprite.position.set(
             col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
-            0.6, // Float above board
+            0.6,
             row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
         );
-
-        // Scale to fit square nicely
-        sprite.scale.set(0.85, 0.85, 1);
-
+        sprite.scale.set(0.9, 0.9, 1);
         sprite.userData = { piece, row, col };
         piecesGroup.add(sprite);
     } catch (err) {
         console.error('[Renderer3D] Error creating 2D sprite:', err);
+    }
+}
+
+// Async helper to create sprite from sprite sheet
+async function createSpriteSheetPiece(
+    piece: Piece,
+    row: number,
+    col: number,
+    spriteSheetPath: string,
+    cacheKey: string
+): Promise<void> {
+    try {
+        let material = pieceSpritesCache.get(cacheKey);
+
+        if (!material) {
+            const spriteSheet = await loadSpriteSheet(spriteSheetPath);
+            material = createSpriteSheetMaterial(piece, spriteSheet);
+            pieceSpritesCache.set(cacheKey, material);
+        }
+
+        const sprite = new THREE.Sprite(material);
+        sprite.position.set(
+            col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+            0.6,
+            row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+        );
+        sprite.scale.set(0.9, 0.9, 1);
+        sprite.userData = { piece, row, col };
+        piecesGroup.add(sprite);
+    } catch (err) {
+        console.error('[Renderer3D] Error creating sprite sheet piece:', err);
+        // Fallback to canvas-drawn pharaoh style
+        let material = pieceSpritesCache.get(cacheKey + '-fallback');
+        if (!material) {
+            material = create2DPieceMaterial(piece);
+            pieceSpritesCache.set(cacheKey + '-fallback', material);
+        }
+        const sprite = new THREE.Sprite(material);
+        sprite.position.set(
+            col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+            0.6,
+            row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+        );
+        sprite.scale.set(0.9, 0.9, 1);
+        sprite.userData = { piece, row, col };
+        piecesGroup.add(sprite);
     }
 }
 
@@ -2934,22 +3924,23 @@ function startRenderLoop(): void {
         const ribbonSpeed = getRibbonSpeed(currentElo) * motionScale * travelSpeedScale;
         scrollOffset += ribbonSpeed;
 
-        // Animate procedural systems (heavily throttled for performance)
-        if (skyboxEnabled && frameCount % (6 * animQuality) === 0) {
-            proceduralSkybox.animate(deltaTime * 6 * motionScale);
+        // Animate procedural systems - EVERY FRAME for smooth motion
+        // (Performance gained from reduced particle/asset counts instead of frame skipping)
+        if (skyboxEnabled) {
+            proceduralSkybox.animate(deltaTime * motionScale);
         }
         if (wormholeEnabled) {
             wormholeTransition.animate(deltaTime * motionScale);
         }
 
-        // Throttle lighting updates (every 3rd frame)
-        if (lightingEnabled && frameCount % (3 * animQuality) === 0) {
-            dynamicLighting.animate(deltaTime * 3 * motionScale);
+        // Lighting - every frame for smooth transitions
+        if (lightingEnabled) {
+            dynamicLighting.animate(deltaTime * motionScale);
         }
 
-        // Animate environment (every 3rd frame)
-        if (envEnabled && envAnimEnabled && frameCount % (3 * animQuality) === 0) {
-            updateEraEnvironment(environmentGroup, deltaTime * 3 * motionScale, ribbonSpeed);
+        // Environment scrolling - every frame for smooth motion
+        if (envEnabled && envAnimEnabled) {
+            updateEraEnvironment(environmentGroup, deltaTime * motionScale, ribbonSpeed);
         }
 
         // Render scene
@@ -2972,14 +3963,6 @@ export function dispose(): void {
     proceduralSkybox.dispose();
     wormholeTransition.dispose();
     dynamicLighting.dispose();
-
-    // Dispose cached textures to prevent memory leaks
-    spriteTextureCache.forEach((texture) => {
-        if (texture && texture.dispose) {
-            texture.dispose();
-        }
-    });
-    spriteTextureCache.clear();
 
     // Dispose cached sprite materials
     pieceSpritesCache.forEach((material) => {

@@ -9,6 +9,7 @@ import { Chess, Square, Move as ChessMove } from 'chess.js';
 
 interface WorkerMessage {
   type: 'getBestMove';
+  requestId?: number;
   fen: string;
   depth: number;
   maximizing: boolean;
@@ -16,6 +17,7 @@ interface WorkerMessage {
 
 interface WorkerResponse {
   type: 'bestMove';
+  requestId?: number;
   move: {
     from: { row: number; col: number };
     to: { row: number; col: number };
@@ -28,6 +30,8 @@ interface WorkerResponse {
 
 // =============================================================================
 // EVALUATION CONSTANTS
+// NOTE: These values MUST match PIECE_VALUES in constants.ts
+// Web Workers cannot import from main bundle, so we duplicate them here
 // =============================================================================
 
 const PIECE_VALUES: Record<string, number> = {
@@ -209,10 +213,12 @@ function getBestMove(fen: string, depth: number, maximizing: boolean): WorkerRes
 // =============================================================================
 
 self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
-  const { type, fen, depth, maximizing } = event.data;
+  const { type, requestId, fen, depth, maximizing } = event.data;
   
   if (type === 'getBestMove') {
     const response = getBestMove(fen, depth, maximizing);
+    // Echo back the requestId to prevent race conditions
+    response.requestId = requestId;
     self.postMessage(response);
   }
 });
