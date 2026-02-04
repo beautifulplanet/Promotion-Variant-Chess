@@ -177,7 +177,16 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
         });
     } catch (e) {
         console.error('[Renderer3D] WebGL initialization failed:', e);
-        throw e;
+        // Show user-friendly fallback message
+        const fallbackMsg = document.createElement('div');
+        fallbackMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;color:#fff;padding:40px;border-radius:12px;text-align:center;font-family:sans-serif;z-index:9999;';
+        fallbackMsg.innerHTML = `
+            <h2 style="color:#ff6b6b;margin:0 0 16px 0;">WebGL Not Supported</h2>
+            <p style="margin:0 0 12px 0;">Your browser or device doesn't support WebGL, which is required for 3D graphics.</p>
+            <p style="margin:0;color:#888;">Try using Chrome, Firefox, or Edge on a desktop computer.</p>
+        `;
+        document.body.appendChild(fallbackMsg);
+        return; // Exit init gracefully
     }
     console.log('[Renderer3D] WebGL renderer created');
 

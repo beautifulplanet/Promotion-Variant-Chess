@@ -98,6 +98,14 @@ function isValidBoardProfile(profile: unknown): profile is BoardProfile {
 function validateAndSanitizeSaveData(data: unknown): SaveData | null {
   if (!data || typeof data !== 'object') return null;
 
+  // SECURITY: Reject prototype pollution attempts
+  const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+  const keys = Object.keys(data as object);
+  if (keys.some(k => dangerousKeys.includes(k))) {
+    console.warn('[Save] Rejected save with dangerous keys (prototype pollution attempt)');
+    return null;
+  }
+
   const d = data as Record<string, unknown>;
   const defaults = createDefaultSave();
 
