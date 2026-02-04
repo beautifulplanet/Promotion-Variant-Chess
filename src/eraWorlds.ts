@@ -27,6 +27,7 @@ import { addBronzeAgeEnvironment } from './eras/bronzeAge';
 import { addClassicalEnvironment } from './eras/classicalAge';
 import { addMedievalEnvironment } from './eras/medieval';
 import { addRenaissanceEnvironment } from './eras/renaissance';
+import { addCyberpunkEnvironment, addTypeCivilizationEnvironment } from './eras/future';
 import { createEraAsset } from './assetMutator';
 import * as EraBuildings from './eraBuildings';
 
@@ -300,10 +301,10 @@ function addEraSpecialElements(
             addRenaissanceEnvironment(group, offset, progress);
             break;
         case 12: // Cyberpunk - Add holographic ads
-            addHolograms(group, offset, progress);
+            addCyberpunkEnvironment(group, offset, progress);
             break;
         case 17: case 18: case 19: case 20: // Type I-III - Add energy fields
-            addEnergyFields(group, offset, progress, era);
+            addTypeCivilizationEnvironment(group, offset, progress, era);
             break;
     }
 }
@@ -805,84 +806,6 @@ function addUrbanRoadway(group: THREE.Group, offset: number, era: EraConfig): vo
     }
 }
 
-function addLavaPools(group: THREE.Group, offset: number, progress: number): void {
-    const poolCount = 3 + Math.floor(progress * 2);
-
-    for (let i = 0; i < poolCount; i++) {
-        const poolGeo = new THREE.CircleGeometry(1 + Math.random() * 2, 16);
-        const poolMat = new THREE.MeshStandardMaterial({
-            color: 0xff4400,
-            emissive: 0xff2200,
-            emissiveIntensity: 2 + Math.sin(i) * 0.5,
-        });
-        const pool = new THREE.Mesh(poolGeo, poolMat);
-        pool.rotation.x = -Math.PI / 2;
-        pool.position.set(
-            (Math.random() - 0.5) * 60,
-            -1.18, // Slightly above ground
-            (Math.random() - 0.5) * 150 + offset
-        );
-        pool.userData.scrollable = true;
-        pool.userData.isLava = true;
-        group.add(pool);
-    }
-}
-
-function addHolograms(group: THREE.Group, offset: number, progress: number): void {
-    const holoCount = 4 + Math.floor(progress * 4);
-    const holoColors = [0xff00ff, 0x00ffff, 0xff0080, 0x80ff00];
-
-    for (let i = 0; i < holoCount; i++) {
-        const holoGeo = new THREE.PlaneGeometry(2, 3);
-        const holoMat = new THREE.MeshStandardMaterial({
-            color: holoColors[i % holoColors.length],
-            emissive: holoColors[i % holoColors.length],
-            emissiveIntensity: 1.5,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.DoubleSide,
-        });
-        const holo = new THREE.Mesh(holoGeo, holoMat);
-
-        const side = i % 2 === 0 ? 1 : -1;
-        holo.position.set(
-            side * (16 + Math.random() * 20),
-            6 + Math.random() * 12,
-            (Math.random() - 0.5) * 140 + offset
-        );
-        holo.rotation.y = side * Math.PI / 4;
-        holo.userData.scrollable = true;
-        holo.userData.isHologram = true;
-        group.add(holo);
-    }
-}
-
-function addEnergyFields(group: THREE.Group, offset: number, progress: number, era: EraConfig): void {
-    const fieldCount = 2 + Math.floor(progress * 3);
-
-    for (let i = 0; i < fieldCount; i++) {
-        const fieldGeo = new THREE.TorusGeometry(3 + Math.random() * 4, 0.1, 8, 32);
-        const fieldMat = new THREE.MeshStandardMaterial({
-            color: era.accentLightColor,
-            emissive: era.accentLightColor,
-            emissiveIntensity: 2,
-            transparent: true,
-            opacity: 0.4,
-        });
-        const field = new THREE.Mesh(fieldGeo, fieldMat);
-
-        field.position.set(
-            (Math.random() - 0.5) * 60,
-            12 + Math.random() * 22,
-            (Math.random() - 0.5) * 140 + offset
-        );
-        field.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-        field.userData.scrollable = true;
-        field.userData.isEnergyField = true;
-        field.userData.rotationSpeed = 0.5 + Math.random() * 0.5;
-        group.add(field);
-    }
-}
 
 
 
