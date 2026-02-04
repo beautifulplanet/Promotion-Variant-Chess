@@ -68,6 +68,13 @@ export const TIMING = {
   // Win animation
   winScrollDuration: 1200,    // How long the scroll animation takes
   winScrollDistance: 560,     // How far to scroll (1 board height = TILE_SIZE * 8)
+
+  // Stockfish timeouts (ms) - adaptive based on ELO/complexity
+  stockfishTimeout: 5000,     // Standard timeout for Stockfish moves
+  stockfishComplexTimeout: 10000, // Extended timeout for complex positions/endgames
+
+  // Legacy AI Worker timeouts (for custom engine at low ELO)
+  workerTimeoutDepth2: 3000,  // Depth 2 should be fast
 } as const;
 
 // =============================================================================
@@ -80,8 +87,51 @@ export const BALANCE = {
   maximumElo: 10000,
   eloKFactor: 32,  // Standard K-factor for ELO calculation
 
-  // AI performance cap (depth 4+ freezes browser)
-  maxAiDepth: 3,
+  // AI Engine Selection (Hybrid System)
+  // - ELO < 500: Custom engine (fast, easy to beat)
+  // - ELO >= 500: Stockfish.js (calibrated skill levels for chess.com parity)
+  stockfishEloThreshold: 500,  // Use Stockfish for 500+ ELO (matches chess.com bot behavior)
+  maxAiDepth: 4,               // Custom engine max depth (higher = stronger but slower)
+
+  // AI Bonus Pieces System
+  aiBonusThresholdElo: 3000,    // ELO at which AI starts getting bonus pieces
+  aiBonusPointsPer50Elo: 3,    // Material points per 50 ELO above threshold
+  aiBonusMaxMaterial: 54,      // Max material value AI can have as bonus (6 queens)
+  aiBonusPlayerFreePoints: 2,  // Free material advantage player gets before AI compensates
+
+  // AI Behavior thresholds for blunder chance
+  // These define what AI mode is used based on level.aiRandomness
+  beginnerBlunderChance: 0.5,  // 50%+ = beginner AI (mostly random) - only levels 1-2
+  midLevelBlunderChance: 0.15, // 15-50% = intermediate AI (engine with chance of blunder)
+  valuableCaptureThreshold: 3, // Material value to auto-capture (bishop/knight+)
+  beginnerCaptureChance: 0.4,  // 40% chance beginner AI takes any capture
+
+  // Training
+  trainingDepth: 3,            // Depth for self-play training (3 can see tactical patterns)
+  trainingMaxMoves: 150,       // Max moves per training game before draw
+} as const;
+
+// =============================================================================
+// PIECE VALUES (Unified - used by AI, engine, and evaluation)
+// =============================================================================
+
+export const PIECE_VALUES = {
+  P: 100,   // Pawn
+  N: 320,   // Knight
+  B: 330,   // Bishop
+  R: 500,   // Rook
+  Q: 900,   // Queen
+  K: 20000, // King (effectively infinite for evaluation)
+} as const;
+
+// Simple piece values for material counting (not centipawns)
+export const PIECE_POINTS = {
+  P: 1,
+  N: 3,
+  B: 3,
+  R: 5,
+  Q: 9,
+  K: 100,  // King is priceless
 } as const;
 
 // =============================================================================
