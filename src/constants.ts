@@ -101,8 +101,8 @@ export const BALANCE = {
 
   // AI Behavior thresholds for blunder chance
   // These define what AI mode is used based on level.aiRandomness
-  beginnerBlunderChance: 0.5,  // 50%+ = beginner AI (mostly random) - only levels 1-2
-  midLevelBlunderChance: 0.15, // 15-50% = intermediate AI (engine with chance of blunder)
+  beginnerBlunderChance: 0.25,  // 25%+ = beginner AI (mostly random) - levels 1-3
+  midLevelBlunderChance: 0.08,  // 8-25% = intermediate AI (engine with chance of blunder)
   valuableCaptureThreshold: 3, // Material value to auto-capture (bishop/knight+)
   beginnerCaptureChance: 0.4,  // 40% chance beginner AI takes any capture
 

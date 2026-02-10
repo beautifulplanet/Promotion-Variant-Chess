@@ -11,6 +11,8 @@ import { calculateEloChange } from './gameState';
 import { TIMING, BALANCE, PIECE_POINTS } from './constants';
 import type { SaveData, PromotedPiece, BoardProfile, PieceInventory } from './saveSystem';
 import { createDefaultSave, downloadSave, loadSaveFromFile, updateStatsAfterGame, recordPromotion, saveBoardProfile, getBoardProfile, deleteBoardProfile, getBoardProfileNames } from './saveSystem';
+import { resetOpeningTracking, updateOpeningName } from './openingBook';
+import { capturePreMoveAnalysis, analyzePlayerMove, resetMoveQualityTracking, getLastMoveQuality, type MoveQuality } from './moveQualityAnalyzer';
 import type { PieceColor, Piece, PieceType } from './types';
 
 // =============================================================================
@@ -68,10 +70,14 @@ let currentGamePromotions: Array<'Q' | 'R' | 'B' | 'N'> = [];
 let savedPromotedPieces: PromotedPiece[] = [];
 
 // NEW: Simple piece inventory - how many of each piece type player has stored
-let pieceInventory: PieceInventory = { Q: 0, R: 0, B: 0, N: 0 };
+// Includes all pieces except King (P, N, B, R, Q)
+let pieceInventory: PieceInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
 
 // Track how many pieces are currently deployed from inventory (reset each game)
-let deployedFromInventory: PieceInventory = { Q: 0, R: 0, B: 0, N: 0 };
+let deployedFromInventory: PieceInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+
+// Max extra pieces that can be deployed (24 = all 3 rows filled)
+const MAX_EXTRA_PIECES = 24;
 
 // AI vs AI spectator mode
 let aiVsAiMode = false;
@@ -119,8 +125,8 @@ export function initGame(): GameState {
 
   // Load saved promoted pieces (LEGACY) and inventory
   savedPromotedPieces = currentSaveData.promotedPieces || [];
-  pieceInventory = currentSaveData.pieceInventory || { Q: 0, R: 0, B: 0, N: 0 };
-  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  pieceInventory = currentSaveData.pieceInventory || { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+  deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   currentGamePromotions = [];
 
   // Start with standard position
@@ -145,7 +151,13 @@ export function saveProgress(): void {
     playerColor: state.playerColor,  // Save player's preferred color
     promotedPieces: savedPromotedPieces,
     pieceInventory: pieceInventory,
-    highestElo: Math.max(currentSaveData.highestElo, state.elo)
+    highestElo: Math.max(currentSaveData.highestElo, state.elo),
+    // Save current game state for resume
+    currentGameFEN: state.gameStarted && !state.gameOver ? engine.getFEN() : undefined,
+    currentGameStarted: state.gameStarted && !state.gameOver,
+    // Save custom board arrangement (from setup mode)
+    customArrangement: currentArrangement.map(p => ({ row: p.row, col: p.col, type: p.type as string })),
+    deployedFromInventory: { ...deployedFromInventory },
   };
   downloadSave(currentSaveData);
 }
@@ -163,8 +175,15 @@ export async function loadProgress(): Promise<boolean> {
     state.gamesPlayed = data.gamesPlayed;
     state.playerColor = data.playerColor || 'white';  // Restore player color from save
     savedPromotedPieces = data.promotedPieces || [];
-    pieceInventory = data.pieceInventory || { Q: 0, R: 0, B: 0, N: 0 };
-    deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+    pieceInventory = data.pieceInventory || { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+    // Restore custom arrangement and deployed pieces from save
+    deployedFromInventory = data.deployedFromInventory || { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+    currentArrangement = (data.customArrangement || []).map(p => ({
+      row: p.row,
+      col: p.col,
+      type: p.type as PieceType
+    }));
+    console.log('[Game] Restored arrangement:', currentArrangement.length, 'pieces, deployed:', deployedFromInventory);
 
     // Reset current game state
     state.gameOver = false;
@@ -172,8 +191,23 @@ export async function loadProgress(): Promise<boolean> {
     state.legalMovesForSelected = [];
     currentGamePromotions = [];
 
-    // Setup board (no auto-deploy - player uses setup mode)
-    setupBoardWithPromotions();
+    // Check if there was a game in progress
+    if (data.currentGameFEN && data.currentGameStarted) {
+      // Restore the game position
+      try {
+        engine.loadFEN(data.currentGameFEN);
+        state.gameStarted = true;
+        console.log('[Game] Restored game in progress from FEN:', data.currentGameFEN);
+      } catch (e) {
+        console.warn('[Game] Failed to restore game position, starting fresh:', e);
+        setupBoardWithPromotions();
+        state.gameStarted = false;
+      }
+    } else {
+      // Setup board fresh (no auto-deploy - player uses setup mode)
+      setupBoardWithPromotions();
+      state.gameStarted = false;
+    }
 
     notifyStateChange();
     console.log('[Game] Loaded save - ELO:', state.elo, 'Inventory:', pieceInventory);
@@ -282,15 +316,25 @@ export function undoMove(): boolean {
     return false;
   }
 
-  // Undo the player's last move
-  engine.undo();
-
-  // If AI had also moved, undo that too (so player is back to their turn)
-  const newHistory = engine.getMoveHistory();
-  const turnAfterUndo = engine.turn();
-  if (turnAfterUndo !== state.playerColor && newHistory.length > 0) {
-    engine.undo(); // Undo AI's move too
-    console.log('[Game] Also undid AI move');
+  // Get current turn BEFORE undo
+  const currentTurn = engine.turn();
+  
+  // If it's currently the player's turn, AI has moved since player's last move
+  // So we need to undo AI's move first, THEN undo player's move
+  if (currentTurn === state.playerColor) {
+    // It's player's turn - undo AI's move first
+    engine.undo();
+    console.log('[Game] Undid AI move');
+    
+    // Check if there's still a player move to undo
+    if (engine.getMoveHistory().length > 0) {
+      engine.undo();
+      console.log('[Game] Also undid player move');
+    }
+  } else {
+    // It's AI's turn - player just moved, so just undo the player's move
+    engine.undo();
+    console.log('[Game] Undid player move (AI hasnt responded yet)');
   }
 
   // Clear selection
@@ -299,7 +343,7 @@ export function undoMove(): boolean {
   state.pendingPromotion = null;
 
   notifyStateChange();
-  console.log('[Game] Move undone');
+  console.log('[Game] Undo complete, now', engine.turn(), 'to move');
   return true;
 }
 
@@ -343,12 +387,20 @@ export function getLastMove(): { from: { row: number; col: number }; to: { row: 
  */
 export function handleSquareClick(row: number, col: number): boolean {
   if (state.gameOver) return false;
-  if (!state.gameStarted) return false;  // Game not started yet
+  if (!state.gameStarted) {
+    // Auto-start the game on first move
+    startGame();
+  }
   if (row < 0 || row >= 8 || col < 0 || col >= 8) return false;
 
   const currentTurn = engine.turn();
   const board = engine.getBoard();
   const clickedPiece = board[row][col];
+
+  // Capture pre-move analysis when player first selects a piece (not already selected)
+  if (!state.selectedSquare && clickedPiece && clickedPiece.color === currentTurn && currentTurn === state.playerColor) {
+    capturePreMoveAnalysis(3);  // Shallow depth for performance
+  }
 
   // If we have a selection, try to move
   if (state.selectedSquare) {
@@ -377,6 +429,18 @@ export function handleSquareClick(row: number, col: number): boolean {
 
       if (result) {
         console.log('[Game] Move made:', result.san);
+
+        // Analyze the player's move quality
+        const playerMove = state.legalMovesForSelected.find(
+          m => m.to.row === row && m.to.col === col
+        );
+        if (playerMove) {
+          analyzePlayerMove(playerMove);
+        }
+
+        // Update opening name detection after the move
+        updateOpeningName(engine.getFEN());
+
         state.selectedSquare = null;
         state.legalMovesForSelected = [];
         notifyStateChange();
@@ -465,6 +529,12 @@ export function newGame(): void {
   state.pendingPromotion = null;
   currentGamePromotions = [];
 
+  // Reset opening tracking for new game
+  resetOpeningTracking();
+
+  // Reset move quality tracking for new game
+  resetMoveQualityTracking();
+
   // Alternate colors each game
   state.playerColor = state.playerColor === 'white' ? 'black' : 'white';
   console.log('[Game] Player will play as:', state.playerColor);
@@ -529,7 +599,7 @@ export function startAiVsAi(): void {
 
   // Reset to standard board for AI vs AI
   currentArrangement = [];
-  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   setupBoardWithPromotions();
 
   console.log('[Game] AI vs AI mode started!');
@@ -662,21 +732,21 @@ function setupBoardWithPromotions(): void {
   const playerColor = state.playerColor;
   const opponentColor = playerColor === 'white' ? 'black' : 'white';
 
-  // Player's rows: white = 6-7, black = 0-1
-  const playerStartRow = playerColor === 'white' ? 6 : 0;
-  const playerEndRow = playerColor === 'white' ? 7 : 1;
+  // Player's rows: white = 5-7 (3 rows), black = 0-2 (3 rows)
+  const playerStartRow = playerColor === 'white' ? 5 : 0;
+  const playerEndRow = playerColor === 'white' ? 7 : 2;
 
   // Calculate player's total deployed bonus pieces for AI matching
-  const totalDeployed = deployedFromInventory.Q + deployedFromInventory.R +
-    deployedFromInventory.B + deployedFromInventory.N;
+  const totalDeployed = deployedFromInventory.P + deployedFromInventory.N +
+    deployedFromInventory.B + deployedFromInventory.R + deployedFromInventory.Q;
 
   // If we have a custom arrangement from setup mode, use it
   // AND infer the player's color from arrangement row positions (fixes save/load issue)
   if (currentArrangement.length > 0) {
     // Infer player color from where pieces are placed
-    // Rows 0-1 = Black's home, Rows 6-7 = White's home
-    const hasBlackHome = currentArrangement.some(item => item.row <= 1);
-    const hasWhiteHome = currentArrangement.some(item => item.row >= 6);
+    // Rows 0-2 = Black's home (3 rows), Rows 5-7 = White's home (3 rows)
+    const hasBlackHome = currentArrangement.some(item => item.row <= 2);
+    const hasWhiteHome = currentArrangement.some(item => item.row >= 5);
 
     let inferredPlayerColor: PieceColor = state.playerColor;
     if (hasBlackHome && !hasWhiteHome) {
@@ -693,14 +763,15 @@ function setupBoardWithPromotions(): void {
 
     console.log('[Game] Applying custom arrangement with', currentArrangement.length, 'pieces for', inferredPlayerColor);
 
-    // Recalculate rows with corrected player color
-    const correctedPlayerStartRow = inferredPlayerColor === 'white' ? 6 : 0;
-    const correctedPlayerEndRow = inferredPlayerColor === 'white' ? 7 : 1;
+    // Recalculate rows with corrected player color (3 rows each)
+    const correctedPlayerStartRow = inferredPlayerColor === 'white' ? 5 : 0;
+    const correctedPlayerEndRow = inferredPlayerColor === 'white' ? 7 : 2;
 
-    // Clear player's rows first
+    // Clear player's 3 rows first
     for (let col = 0; col < 8; col++) {
-      board[correctedPlayerStartRow][col] = null;
-      board[correctedPlayerEndRow][col] = null;
+      for (let row = correctedPlayerStartRow; row <= correctedPlayerEndRow; row++) {
+        board[row][col] = null;
+      }
     }
 
     // Apply custom arrangement from setup UI - use INFERRED player's color!
@@ -736,9 +807,23 @@ function setupBoardWithPromotions(): void {
   fillOpponentHome(correctedOpponentColor);
 
   // === AI BONUS PIECES ===
-  // AI gets bonus pieces based on player's deployed count
+  // Convert deployed inventory to PromotedPiece array for AI bonus calculation
+  const playerBonusPieces: PromotedPiece[] = [];
+  const pieceTypes: Array<'P' | 'N' | 'B' | 'R' | 'Q'> = ['P', 'N', 'B', 'R', 'Q'];
+  for (const pieceType of pieceTypes) {
+    const count = deployedFromInventory[pieceType];
+    for (let i = 0; i < count; i++) {
+      playerBonusPieces.push({
+        type: pieceType,
+        earnedAtElo: state.elo, // Approximate - we don't track exact earn ELO for deployed pieces
+        gameNumber: 0 // Unknown for deployed pieces
+      });
+    }
+  }
+
   console.log(`[Game] Current ELO: ${state.elo}, Player (${playerColor}) deployed: ${totalDeployed}`);
-  const aiBonusPieces = getAIBonusPiecesFromDeployed(state.elo, deployedFromInventory);
+  // Use getAIBonusPieces which respects the 3000 ELO threshold
+  const aiBonusPieces = getAIBonusPieces(state.elo, playerBonusPieces);
   console.log(`[Game] AI (${opponentColor}) will get ${aiBonusPieces.length} bonus pieces:`, aiBonusPieces);
 
   // Apply AI bonus pieces to opponent's side
@@ -940,6 +1025,9 @@ export function getTotalInventoryCount(): number {
   return pieceInventory.Q + pieceInventory.R + pieceInventory.B + pieceInventory.N;
 }
 
+// Re-export move quality functions for UI access
+export { getLastMoveQuality, getMoveQualityDisplay } from './moveQualityAnalyzer';
+
 /**
  * Get deployed counts (how many pieces deployed from inventory this game)
  */
@@ -951,7 +1039,14 @@ export function getDeployedFromInventory(): PieceInventory {
  * Deploy a piece from inventory to board (called from setup UI)
  * Returns true if successful
  */
-export function deployFromInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
+export function deployFromInventory(pieceType: 'P' | 'N' | 'B' | 'R' | 'Q'): boolean {
+  // Check max extra pieces limit
+  const totalDeployed = deployedFromInventory.P + deployedFromInventory.N + deployedFromInventory.B + deployedFromInventory.R + deployedFromInventory.Q;
+  if (totalDeployed >= MAX_EXTRA_PIECES) {
+    console.log('[Game] Cannot deploy - max extra pieces reached (' + MAX_EXTRA_PIECES + ')');
+    return false;
+  }
+
   if (pieceInventory[pieceType] <= 0) {
     console.log('[Game] Cannot deploy', pieceType, '- none in inventory');
     return false;
@@ -966,7 +1061,7 @@ export function deployFromInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
 /**
  * Retract a piece back to inventory (called from setup UI)
  */
-export function retractToInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
+export function retractToInventory(pieceType: 'P' | 'N' | 'B' | 'R' | 'Q'): boolean {
   if (deployedFromInventory[pieceType] <= 0) {
     console.log('[Game] Cannot retract', pieceType, '- none deployed');
     return false;
@@ -982,11 +1077,12 @@ export function retractToInventory(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
  * Reset deployed pieces (return all to inventory)
  */
 export function resetDeployedPieces(): void {
-  pieceInventory.Q += deployedFromInventory.Q;
-  pieceInventory.R += deployedFromInventory.R;
-  pieceInventory.B += deployedFromInventory.B;
+  pieceInventory.P += deployedFromInventory.P;
   pieceInventory.N += deployedFromInventory.N;
-  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  pieceInventory.B += deployedFromInventory.B;
+  pieceInventory.R += deployedFromInventory.R;
+  pieceInventory.Q += deployedFromInventory.Q;
+  deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   console.log('[Game] Reset deployed pieces. Inventory:', pieceInventory);
 }
 
@@ -1006,6 +1102,37 @@ export function debugSetElo(targetElo: number): void {
   console.log(`[Game] DEBUG: Setting ELO to ${targetElo}`);
   state.elo = targetElo;
   notifyStateChange();
+}
+
+/**
+ * DEBUG: Add pieces to inventory for testing
+ */
+export function debugAddToInventory(type: 'P' | 'N' | 'B' | 'R' | 'Q', count: number = 1): void {
+  pieceInventory[type] += count;
+  console.log(`[Game] DEBUG: Added ${count} ${type} to inventory. Now have:`, pieceInventory);
+}
+
+/**
+ * Add a piece to inventory (for removing pieces from board during setup)
+ * Unlike retract, this doesn't decrement deployed count - it's a fresh add
+ */
+export function addPieceToInventory(pieceType: 'P' | 'N' | 'B' | 'R' | 'Q'): void {
+  pieceInventory[pieceType]++;
+  console.log('[Game] Added', pieceType, 'to inventory. Now have:', pieceInventory[pieceType]);
+}
+
+/**
+ * Get the max extra pieces allowed
+ */
+export function getMaxExtraPieces(): number {
+  return MAX_EXTRA_PIECES;
+}
+
+/**
+ * Get total deployed from inventory
+ */
+export function getTotalDeployed(): number {
+  return deployedFromInventory.P + deployedFromInventory.N + deployedFromInventory.B + deployedFromInventory.R + deployedFromInventory.Q;
 }
 
 /**
@@ -1243,44 +1370,37 @@ async function makeAIMoveAsync(): Promise<void> {
     return;
   }
 
-  // In AI vs AI mode, use ELO 1800 settings (Candidate Master level)
-  // Otherwise use player's current level
-  let depth: number;
-  let blunderChance: number;
+  // =============================================================================
+  // STOCKFISH-ONLY AI SYSTEM
+  // All AI moves use Stockfish Web Worker for non-blocking computation.
+  // Stockfish skill levels 0-20 provide appropriate difficulty scaling.
+  // =============================================================================
+
   let effectiveElo: number; // ELO used for AI strength calculation
 
   if (aiVsAiMode) {
     // AI vs AI mode: ASYMMETRIC STRENGTH
-    // White (player side) = 1800 ELO (Candidate Master - uses Stockfish)  
+    // White (player side) = 1800 ELO (Candidate Master)  
     // Black (opponent side) = Game ELO (weak at start, scales with progression)
-    const currentTurn = engine.turn(); // Returns 'white' or 'black'
+    const currentTurn = engine.turn();
 
     if (currentTurn === 'white') {
-      // WHITE = Player's AI (strong, 1800 ELO)
       effectiveElo = 1800; // Fixed strong rating
-      const level = getLevelForElo(effectiveElo);
-      depth = level.aiDepth;
-      blunderChance = 0; // No blunders for strong player AI
-      console.log(`[AI vs AI] White: 1800 ELO (Candidate Master), Depth ${depth}, No blunders`);
+      console.log(`[AI vs AI] White: 1800 ELO (Candidate Master)`);
     } else {
-      // BLACK = Opponent AI (uses game's current ELO - starts weak)
       effectiveElo = state.elo;
       const level = getLevelForElo(effectiveElo);
-      depth = Math.min(level.aiDepth, BALANCE.maxAiDepth);
-      blunderChance = level.aiRandomness;
-      console.log(`[AI vs AI] Black: ${effectiveElo} ELO (${level.name}), Depth ${depth}, Blunder: ${(blunderChance * 100).toFixed(0)}%`);
+      console.log(`[AI vs AI] Black: ${effectiveElo} ELO (${level.name})`);
     }
   } else {
     const level = getLevelForElo(state.elo);
     effectiveElo = state.elo;
-    depth = Math.min(level.aiDepth, BALANCE.maxAiDepth);
-    blunderChance = level.aiRandomness;
-    console.log(`[AI] Level ${level.level} (${level.name}), Depth ${depth}, Blunder: ${(blunderChance * 100).toFixed(0)}%`);
+    console.log(`[AI] Level ${level.level} (${level.name}), ELO: ${effectiveElo}`);
   }
 
   let move: Move | null = null;
 
-  // Get all legal moves first
+  // Get all legal moves first (for fallback)
   const legalMoves = engine.getLegalMoves();
 
   if (legalMoves.length === 0) {
@@ -1289,156 +1409,48 @@ async function makeAIMoveAsync(): Promise<void> {
     return;
   }
 
-  // For VERY low ELO (high blunder chance), just play fast and random
-  // This makes beginners' games feel more natural and responsive
-  if (blunderChance >= BALANCE.beginnerBlunderChance) {
-    // Beginner AI - mostly random with occasional smart captures
-    const roll = Math.random();
+  // Always use Stockfish (runs in Web Worker, non-blocking)
+  console.log(`[AI] Using Stockfish with ELO ${effectiveElo}`);
 
-    if (roll < BALANCE.beginnerCaptureChance) {
-      // Chance to look for any capture (even bad ones) - beginners love captures
-      const captureMoves = legalMoves.filter(m => m.capture);
-      if (captureMoves.length > 0) {
-        move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
-        console.log('[AI] Beginner capture!');
-      }
-    }
+  try {
+    const fen = engine.getFEN();
+    const timeout = TIMING.stockfishTimeout;
 
-    if (!move) {
-      // Otherwise just random move
-      move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      console.log('[AI] Beginner random move');
-    }
-    // Beginner AI is done - skip the complex AI logic below
-  } else if (blunderChance >= BALANCE.midLevelBlunderChance) {
-    // Mid-level AI: Sometimes random, sometimes smart
-    if (Math.random() < blunderChance) {
-      // Blunder - random move
-      move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      console.log('[AI] Mid-level blunder');
-    } else {
-      // Try to take good captures, else use engine
-      const captureMoves = legalMoves.filter(m => m.capture);
-      const sortedCaptures = captureMoves.sort((a, b) => {
-        const valueA = getPieceValueForCapture(a.capture!.type);
-        const valueB = getPieceValueForCapture(b.capture!.type);
-        return valueB - valueA;
-      });
+    // Get move from Stockfish (returns simplified Move object)
+    // Pass aiVsAiMode as fastMode to reduce thinking time
+    const stockfishMove = await stockfishEngine.getBestMove(fen, effectiveElo, timeout, aiVsAiMode);
 
-      if (sortedCaptures.length > 0 && getPieceValueForCapture(sortedCaptures[0].capture!.type) >= BALANCE.valuableCaptureThreshold) {
-        move = sortedCaptures[0];
-        console.log('[AI] Mid-level taking capture');
+    if (stockfishMove) {
+      // Fill in piece information from current board
+      const board = engine.getBoard();
+      const piece = board[stockfishMove.from.row][stockfishMove.from.col];
+
+      if (piece) {
+        move = {
+          from: stockfishMove.from,
+          to: stockfishMove.to,
+          piece,
+          promotion: stockfishMove.promotion
+        };
+        console.log('[AI] Stockfish move:', move);
       } else {
-        // Use engine but with fallback
-        try {
-          move = engine.getBestMove(depth, false);
-          console.log('[AI] Mid-level engine move');
-        } catch (e) {
-          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-          console.log('[AI] Mid-level fallback random');
-        }
-      }
-    }
-  } else {
-    // =========================================================================
-    // HYBRID AI SYSTEM: Stockfish for high ELO, custom engine for beginners
-    // =========================================================================
-
-    // Decision: Use Stockfish for effectiveElo >= 900, custom engine for beginners
-    // In AI vs AI mode: White (1800) uses Stockfish, Black (game ELO) may use custom engine
-    const useStockfish = effectiveElo >= BALANCE.stockfishEloThreshold;
-
-    if (useStockfish) {
-      // HIGH ELO: Use Stockfish for true chess strength
-      console.log(`[AI] Using Stockfish (ELO ${effectiveElo} >= ${BALANCE.stockfishEloThreshold})`);
-
-      try {
-        const fen = engine.getFEN();
-        const timeout = TIMING.stockfishTimeout;
-
-        // Get move from Stockfish (returns simplified Move object)
-        // Pass aiVsAiMode as fastMode to reduce thinking time and prevent freezes
-        const stockfishMove = await stockfishEngine.getBestMove(fen, effectiveElo, timeout, aiVsAiMode);
-
-        if (stockfishMove) {
-          // Fill in piece information from current board
-          const board = engine.getBoard();
-          const piece = board[stockfishMove.from.row][stockfishMove.from.col];
-
-          if (piece) {
-            move = {
-              from: stockfishMove.from,
-              to: stockfishMove.to,
-              piece,
-              promotion: stockfishMove.promotion
-            };
-            console.log('[AI] Stockfish move:', move);
-          } else {
-            console.error('[AI] Stockfish returned invalid move (no piece)');
-            move = null;
-          }
-        } else {
-          console.error('[AI] Stockfish returned null move');
-          move = null;
-        }
-      } catch (e) {
-        console.error('[AI] Stockfish error:', e);
+        console.error('[AI] Stockfish returned invalid move (no piece at source)');
         move = null;
       }
-
-      // Fallback to custom engine if Stockfish fails
-      if (!move) {
-        console.warn('[AI] Stockfish failed, falling back to custom engine');
-        try {
-          move = engine.getBestMove(depth, false);
-          console.log('[AI] Fallback custom engine move');
-        } catch (e2) {
-          console.error('[AI] Fallback engine also failed, picking random move');
-          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-        }
-      }
-
     } else {
-      // LOW ELO: Use custom engine (fast, deliberately weak)
-      console.log(`[AI] Using custom engine (ELO ${effectiveElo} < ${BALANCE.stockfishEloThreshold})`);
-
-      // Keep existing blunder/capture priority logic for realistic beginner behavior
-      const captureMoves = legalMoves.filter(m => m.capture);
-      const sortedCaptures = captureMoves.sort((a, b) => {
-        const valueA = getPieceValueForCapture(a.capture!.type);
-        const valueB = getPieceValueForCapture(b.capture!.type);
-        return valueB - valueA;
-      });
-
-      // High-value capture priority (even beginners take free pieces sometimes)
-      const bestCapture = sortedCaptures.length > 0 ? sortedCaptures[0] : null;
-      const captureValue = bestCapture ? getPieceValueForCapture(bestCapture.capture!.type) : 0;
-
-      if (bestCapture && captureValue >= BALANCE.valuableCaptureThreshold && Math.random() > blunderChance / 2) {
-        // Sometimes take high-value captures (but beginners still miss them sometimes)
-        move = bestCapture;
-        console.log(`[AI] Custom engine taking capture: ${bestCapture.capture!.type}`);
-      } else if (Math.random() < blunderChance) {
-        // Blunder: pick a suboptimal move
-        const blunderPool = legalMoves.filter(m => !m.capture || getPieceValueForCapture(m.capture.type) < BALANCE.valuableCaptureThreshold);
-        if (blunderPool.length > 0) {
-          move = blunderPool[Math.floor(Math.random() * blunderPool.length)];
-          console.log('[AI] Custom engine blundered');
-        } else {
-          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-          console.log('[AI] Custom engine random (no blunder pool)');
-        }
-      } else {
-        // Use custom engine at low depth (fast)
-        try {
-          move = engine.getBestMove(depth, false);
-          console.log('[AI] Custom engine best move (depth', depth, ')');
-        } catch (e) {
-          move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-          console.log('[AI] Custom engine failed, random move');
-        }
-      }
+      console.error('[AI] Stockfish returned null move');
+      move = null;
     }
+  } catch (e) {
+    console.error('[AI] Stockfish error:', e);
+    move = null;
+  }
+
+  // Fallback: pick a random legal move if Stockfish fails
+  // This is non-blocking (instant) so won't freeze the UI
+  if (!move) {
+    console.warn('[AI] Stockfish failed, falling back to random move');
+    move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
   }
 
   if (move) {
@@ -1446,6 +1458,10 @@ async function makeAIMoveAsync(): Promise<void> {
     if (!result) {
       console.error('[AI] Move was rejected by engine!', move);
     }
+
+    // Update opening name detection after AI move
+    updateOpeningName(engine.getFEN());
+
     notifyStateChange();
     checkGameEnd();
 
@@ -1549,10 +1565,11 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
   // === NEW SIMPLER INVENTORY SYSTEM ===
   if (result === 'win') {
     // Return deployed pieces to inventory (they're safe!)
-    pieceInventory.Q += deployedFromInventory.Q;
-    pieceInventory.R += deployedFromInventory.R;
-    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.P += deployedFromInventory.P;
     pieceInventory.N += deployedFromInventory.N;
+    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.R += deployedFromInventory.R;
+    pieceInventory.Q += deployedFromInventory.Q;
 
     // Add any NEW promotions made this game to inventory
     const newPiecesEarned = currentGamePromotions.length;
@@ -1568,10 +1585,11 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
     console.log('[Game] Inventory after win:', pieceInventory);
   } else {
     // LOSS or DRAW: Return deployed pieces to inventory (no penalty for simplicity)
-    pieceInventory.Q += deployedFromInventory.Q;
-    pieceInventory.R += deployedFromInventory.R;
-    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.P += deployedFromInventory.P;
     pieceInventory.N += deployedFromInventory.N;
+    pieceInventory.B += deployedFromInventory.B;
+    pieceInventory.R += deployedFromInventory.R;
+    pieceInventory.Q += deployedFromInventory.Q;
 
     // Promotions made during a lost game are lost
     if (currentGamePromotions.length > 0) {
@@ -1580,7 +1598,7 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
   }
 
   // Reset deployed tracking
-  deployedFromInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
 
   // Update save data with new inventory
   currentSaveData = { ...currentSaveData, pieceInventory: pieceInventory };

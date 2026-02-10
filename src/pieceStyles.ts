@@ -22,7 +22,7 @@ export interface PieceStyleConfig {
     metalness?: number;
     glowEffect?: boolean;
     // 2D properties - canvas drawing style
-    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh';
+    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh' | 'editorial';
     // Sprite sheet properties (for image-based 2D styles)
     spriteSheet?: string;  // Path to sprite sheet image
     spriteLayout?: 'standard';  // Layout format: 'standard' = 2 rows (white/black) x 6 cols (K,Q,R,B,N,P)
@@ -179,6 +179,13 @@ const STYLES_2D: Record<string, PieceStyleConfig> = {
         description: 'Classic newspaper diagram style',
         type: '2d',
         drawStyle: 'newspaper',
+    },
+    editorial2d: {
+        id: 'editorial2d',
+        name: 'Editorial',
+        description: 'Bold woodcut engraving style',
+        type: '2d',
+        drawStyle: 'editorial',
     },
     outline2d: {
         id: 'outline2d',

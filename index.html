@@ -7,9 +7,17 @@
   <title>The Chess Chronicle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Non-blocking font load: renders immediately with fallback fonts, swaps when ready -->
+  <link rel="preload" as="style"
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap">
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
-    rel="stylesheet">
+    rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet">
+  </noscript>
   <style>
     * {
       margin: 0;
@@ -27,6 +35,21 @@
       --accent-color: #8b4513;
       --button-bg: #5a4a3a;
       --button-text: #f0e0c0;
+      /* Theme-driven sidebar vars (overwritten by themeSystem.ts) */
+      --sidebar-bg: #f5f0e6;
+      --sidebar-text: #2a2420;
+      --sidebar-text-muted: #8a7e6e;
+      --sidebar-border: #d8cebb;
+      --sidebar-accent: #8b4513;
+      --btn-primary: #5a7a4a;
+      --btn-primary-text: #faf6ed;
+      --btn-secondary: #6a5a48;
+      --btn-secondary-text: #f5f0e6;
+      --btn-muted: #4a4238;
+      --btn-muted-text: #ede6d8;
+      --game-area-bg: #f0ead8;
+      --scrollbar-track: #e8dcc8;
+      --scrollbar-thumb: #c0a880;
     }
 
     html,
@@ -114,8 +137,9 @@
       bottom: 0;
       width: 220px;
       min-width: 220px;
-      background: var(--paper-color);
-      border-right: 2px solid var(--border-color);
+      background: var(--sidebar-bg);
+      border-right: 2px solid var(--sidebar-border);
+      color: var(--sidebar-text);
       display: flex;
       flex-direction: column;
       padding: 10px;
@@ -126,8 +150,57 @@
       font-size: 11px;
     }
 
+    /* Sidebar scrollbar theming */
+    .left-sidebar::-webkit-scrollbar { width: 6px; }
+    .left-sidebar::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+    .left-sidebar::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+    /* THEMED SIDEBAR BUTTONS */
+    .btn-primary {
+      width: 100%;
+      margin-bottom: 8px;
+      background: var(--btn-primary) !important;
+      color: var(--btn-primary-text) !important;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: 'Old Standard TT', serif;
+      transition: filter 0.2s;
+    }
+    .btn-primary:hover { filter: brightness(1.15); }
+
+    .btn-secondary {
+      width: 100%;
+      margin-bottom: 8px;
+      background: var(--btn-secondary) !important;
+      color: var(--btn-secondary-text) !important;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: 'Old Standard TT', serif;
+      transition: filter 0.2s;
+    }
+    .btn-secondary:hover { filter: brightness(1.15); }
+
+    .btn-muted {
+      background: var(--btn-muted) !important;
+      color: var(--btn-muted-text) !important;
+      border: none;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: 'Old Standard TT', serif;
+      transition: filter 0.2s;
+    }
+    .btn-muted:hover { filter: brightness(1.25); }
+
     .sidebar-section {
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--sidebar-border);
       padding-bottom: 8px;
     }
 
@@ -142,7 +215,7 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-bottom: 6px;
-      color: var(--accent-color);
+      color: var(--sidebar-accent);
     }
 
     /* GAME AREA - Right Side */
@@ -154,7 +227,7 @@
       padding: 15px;
       gap: 15px;
       overflow-y: auto;
-      background: var(--bg-color);
+      background: var(--game-area-bg);
     }
 
     /* ARTICLE COLUMNS (Horizontal Strips) */
@@ -278,7 +351,7 @@
     }
 
     .stat-label {
-      color: #444;
+      color: var(--sidebar-text-muted);
       font-size: 13px;
     }
 
@@ -288,8 +361,8 @@
       font-weight: 700;
       text-align: center;
       padding: 8px 16px;
-      background: #2a2a2a;
-      color: #faf6ed;
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
       letter-spacing: 1px;
       border-radius: 4px;
     }
@@ -301,39 +374,39 @@
     }
 
     .controls button {
-      background: #2a2a2a;
+      background: var(--btn-muted);
       border: none;
-      color: #faf6ed;
+      color: var(--btn-muted-text);
       padding: 8px 12px;
       font-family: 'Old Standard TT', serif;
       font-size: 13px;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: filter 0.2s;
       text-transform: uppercase;
       letter-spacing: 1px;
       border-radius: 4px;
     }
 
     .controls button:hover {
-      background: #4a4a4a;
+      filter: brightness(1.25);
     }
 
     #elo-bar {
       height: 5px;
-      background: #d0c0a0;
+      background: var(--sidebar-border);
       margin-top: 3px;
     }
 
     #elo-progress {
       height: 100%;
-      background: #2a2a2a;
+      background: var(--sidebar-accent);
       width: 0%;
       transition: width 0.3s ease;
     }
 
     #fps {
       font-size: 11px;
-      color: #888;
+      color: var(--sidebar-text-muted);
       text-align: right;
       font-style: italic;
     }
@@ -464,8 +537,8 @@
       max-width: 520px;
       z-index: 2500;
       flex-wrap: wrap;
-      background: #fffdf6;
-      border: 2px solid #2a2a2a;
+      background: var(--sidebar-bg);
+      border: 2px solid var(--sidebar-border);
       padding: 12px 14px;
       border-radius: 10px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
@@ -476,12 +549,12 @@
       align-items: center;
       gap: 6px;
       font-size: 12px;
-      color: #333;
+      color: var(--sidebar-text);
       white-space: nowrap;
     }
 
     #debug-menu input[type="checkbox"] {
-      accent-color: #2a2a2a;
+      accent-color: var(--sidebar-accent);
     }
 
     /* NOTIFICATION */
@@ -557,7 +630,7 @@
     #setup-board {
       display: grid;
       grid-template-columns: repeat(8, 50px);
-      grid-template-rows: repeat(2, 50px);
+      grid-template-rows: repeat(3, 50px);
       gap: 2px;
       margin: 20px auto;
       background: #2a2a2a;
@@ -574,6 +647,7 @@
       font-size: 32px;
       cursor: pointer;
       user-select: none;
+      position: relative;
     }
 
     .setup-square.light {
@@ -591,6 +665,23 @@
 
     .setup-square.drop-target {
       background: #90d990 !important;
+    }
+
+    /* Visual hint for removable pieces */
+    .setup-square.removable:hover::before {
+      content: '×';
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 16px;
+      height: 16px;
+      background: #ff6b6b;
+      color: white;
+      border-radius: 50%;
+      font-size: 12px;
+      line-height: 16px;
+      text-align: center;
+      pointer-events: none;
     }
 
     #setup-controls {
@@ -694,27 +785,27 @@
     }
 
     #setup-controls button {
-      background: #2a2a2a;
+      background: var(--btn-muted);
       border: none;
-      color: #faf6ed;
+      color: var(--btn-muted-text);
       padding: 12px 20px;
       font-family: 'Old Standard TT', serif;
       font-size: 14px;
       cursor: pointer;
       border-radius: 4px;
-      transition: background 0.2s;
+      transition: filter 0.2s;
     }
 
     #setup-controls button:hover {
-      background: #4a4a4a;
+      filter: brightness(1.25);
     }
 
     #setup-confirm {
-      background: #2a6a2a !important;
+      background: var(--btn-primary) !important;
     }
 
     #setup-confirm:hover {
-      background: #3a8a3a !important;
+      filter: brightness(1.15);
     }
 
     /* BOARD PROFILE CONTROLS */
@@ -728,9 +819,9 @@
 
     #profile-controls button,
     #profile-controls select {
-      background: #1a1a1a;
-      border: 1px solid #3a3a3a;
-      color: #faf6ed;
+      background: var(--btn-muted);
+      border: 1px solid var(--sidebar-border);
+      color: var(--btn-muted-text);
       padding: 8px 12px;
       font-family: 'Old Standard TT', serif;
       font-size: 13px;
@@ -740,8 +831,7 @@
 
     #profile-controls button:hover,
     #profile-controls select:hover {
-      background: #2a2a2a;
-      border-color: #5a5a5a;
+      filter: brightness(1.25);
     }
 
     #profile-select {
@@ -750,11 +840,13 @@
 
     #profile-delete {
       padding: 8px 10px;
-      color: #ff6b6b;
+      color: #e05555;
+      opacity: 0.8;
     }
 
     #profile-delete:hover {
-      background: #3a1a1a !important;
+      opacity: 1;
+      filter: brightness(0.85);
     }
 
     /* PAWN PROMOTION MODAL */
@@ -950,24 +1042,44 @@
       <div class="sidebar-section">
         <h3>Game Status</h3>
         <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: #666; margin-bottom: 2px;">Turn</div>
+          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Turn</div>
           <div id="sidebar-turn" style="font-size: 14px; font-weight: bold;">White</div>
         </div>
         <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: #666; margin-bottom: 2px;">Rating (ELO)</div>
+          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Rating (ELO)</div>
           <div style="font-size: 18px; font-weight: bold;" id="elo">400</div>
         </div>
         <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: #666; margin-bottom: 2px;">Level</div>
+          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Level</div>
           <div style="font-size: 14px; font-weight: bold;"><span id="player-level">1</span></div>
         </div>
         <div>
-          <div style="font-size: 9px; color: #666; margin-bottom: 2px;">Record</div>
+          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Record</div>
           <div style="font-size: 12px;">
-            <span style="color: #2a6a2a; font-weight: bold;">W: <span id="games-won">0</span></span>
+            <span style="color: var(--sidebar-accent); font-weight: bold;">W: <span id="games-won">0</span></span>
             <span style="margin: 0 4px;">|</span>
-            <span style="color: #8a2a2a; font-weight: bold;">L: <span id="games-lost">0</span></span>
+            <span style="opacity: 0.7; font-weight: bold;">L: <span id="games-lost">0</span></span>
           </div>
+        </div>
+      </div>
+
+      <!-- Opening Display -->
+      <div class="sidebar-section" id="opening-section" style="display: none;">
+        <h3>📖 Opening</h3>
+        <div id="opening-name"
+          style="font-size: 13px; font-weight: bold; color: var(--sidebar-accent); padding: 6px 0; font-style: italic;">-</div>
+      </div>
+
+      <!-- Move Quality Indicator -->
+      <div class="sidebar-section" id="move-quality-section" style="display: none;">
+        <h3>🎯 Last Move</h3>
+        <div id="move-quality"
+          style="font-size: 14px; font-weight: bold; padding: 6px 0; display: flex; align-items: center; gap: 6px;">
+          <span id="move-quality-emoji"></span>
+          <span id="move-quality-label"></span>
+        </div>
+        <div id="best-move-hint" style="display: none; font-size: 12px; color: var(--sidebar-text-muted); margin-top: 4px; padding: 4px 8px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+          💡 Best was: <span id="best-move-text" style="font-weight: bold; color: var(--sidebar-accent);"></span>
         </div>
       </div>
 
@@ -976,16 +1088,16 @@
         <h3>Game Time</h3>
         <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
           <div style="text-align:center;">
-            <div style="font-size:8px; color:#666;">White</div>
+            <div style="font-size:8px; color:var(--sidebar-text-muted);">White</div>
             <div id="white-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:8px; color:#666;">Black</div>
+            <div style="font-size:8px; color:var(--sidebar-text-muted);">Black</div>
             <div id="black-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
           </div>
         </div>
         <div id="total-time" style="display:none;">0:00</div>
-        <div style="font-size: 11px; text-align: center; color: #5a4a3a; margin-top: 6px;">
+        <div style="font-size: 11px; text-align: center; color: var(--sidebar-text-muted); margin-top: 6px;">
           Moves: <span id="move-count">0</span>
         </div>
       </div>
@@ -993,28 +1105,22 @@
       <!-- AI Controls -->
       <div class="sidebar-section">
         <h3>AI Controls</h3>
-        <button id="start-game-btn"
-          style="width:100%; margin-bottom:8px; background:#2a6a2a; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">▶️
+        <button id="start-game-btn" class="btn-primary">▶️
           Start Game</button>
-        <button id="watch-ai-btn"
-          style="width:100%; margin-bottom:8px; background:#6a2a6a; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">🤖
+        <button id="watch-ai-btn" class="btn-secondary">🤖
           Watch AI</button>
-        <button id="train-ai-btn"
-          style="width:100%; margin-bottom:8px; background:#a06020; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">🧠
+        <button id="train-ai-btn" class="btn-secondary">🧠
           Train AI</button>
-        <button id="ai-speed-btn"
-          style="width:100%; display:none; background:#2a4a6a; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">⏱️
+        <button id="ai-speed-btn" class="btn-secondary" style="display:none;">⏱️
           Speed: 1x</button>
       </div>
 
       <!-- Game Controls -->
       <div class="sidebar-section">
         <h3>Game Controls</h3>
-        <button id="undo-btn"
-          style="width:100%; margin-bottom:8px; background:#6a4a2a; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">↩️
+        <button id="undo-btn" class="btn-secondary">↩️
           Undo Move</button>
-        <button id="setup-btn"
-          style="width:100%; margin-bottom:8px; background:#2a2a2a; color:#faf6ed; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:14px;">⚙️
+        <button id="setup-btn" class="btn-muted" style="width:100%; margin-bottom:8px; padding:10px; font-size:14px;">⚙️
           Setup Board</button>
       </div>
 
@@ -1022,56 +1128,49 @@
       <div class="sidebar-section">
         <h3>View & Preferences</h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-          <button id="view-mode-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🎥
+          <button id="view-mode-btn" class="btn-muted">🎥
             Pan</button>
-          <button id="style-3d-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🎨
+          <button id="style-3d-btn" class="btn-muted">🎨
             3D</button>
-          <button id="style-2d-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🖼️
+          <button id="style-2d-btn" class="btn-muted">🖼️
             2D</button>
-          <button id="board-style-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🏁
+          <button id="board-style-btn" class="btn-muted">🏁
             Board</button>
-          <button id="sound-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🔊
+          <button id="flip-btn" class="btn-muted">🔄
+            Flip</button>
+          <button id="sound-btn" class="btn-muted">🔊
             Sound</button>
-          <button id="theme-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">🎨
+          <button id="theme-btn" class="btn-muted">🎨
             Theme</button>
-          <button id="stats-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">📊
+          <button id="stats-btn" class="btn-muted">📊
             Stats</button>
-          <button id="save-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">💾
+          <button id="save-btn" class="btn-muted">💾
             Save</button>
-          <button id="load-btn"
-            style="background:#2a2a2a; color:#faf6ed; border:none; padding:8px; border-radius:4px; cursor:pointer; font-size:12px;">📂
+          <button id="load-btn" class="btn-muted">📂
             Load</button>
         </div>
         <span id="streak-display" style="display:block; margin-top:10px; font-weight:bold; text-align:center;"></span>
-        <div style="text-align: center; margin-top: 15px; border-top: 1px solid #c0b090; padding-top: 10px;">
+        <div style="text-align: center; margin-top: 15px; border-top: 1px solid var(--sidebar-border); padding-top: 10px;">
           <a href="privacy.html" target="_blank"
-            style="color: #5a4a3a; text-decoration: none; font-size: 11px; font-family: 'Old Standard TT', serif;">Privacy
+            style="color: var(--sidebar-text-muted); text-decoration: none; font-size: 11px; font-family: 'Old Standard TT', serif;">Privacy
             Policy</a>
         </div>
       </div>
 
       <!-- DEBUG MENU (hidden by default, Shift+D to toggle) -->
       <div id="debug-menu"
-        style="display:none; flex-direction:column; gap:8px; padding:10px; background:#1a1a1a; border-radius:4px; margin-top:10px;">
-        <h3 style="margin:0 0 8px 0; color:#ff6b6b;">🔧 Debug Menu</h3>
+        style="display:none; flex-direction:column; gap:8px; padding:10px; background:var(--sidebar-bg); border-radius:4px; margin-top:10px;">
+        <h3 style="margin:0 0 8px 0; color:var(--sidebar-accent);">🔧 Debug Menu</h3>
 
         <!-- ELO Controls -->
         <div style="display:flex; gap:4px; align-items:center;">
           <input type="number" id="debug-elo-input" value="400" min="100" max="10000" style="width:70px; padding:4px;">
           <button id="debug-elo-btn"
-            style="flex:1; padding:4px; background:#2a6a2a; color:#fff; border:none; border-radius:3px; cursor:pointer;">Set
+            style="flex:1; padding:4px; background:var(--btn-primary); color:var(--btn-primary-text); border:none; border-radius:3px; cursor:pointer;">Set
             ELO</button>
         </div>
         <button id="debug-win-btn"
-          style="padding:6px; background:#6a2a2a; color:#fff; border:none; border-radius:3px; cursor:pointer;">🏆 Force
+          style="padding:6px; background:var(--btn-secondary); color:var(--btn-secondary-text); border:none; border-radius:3px; cursor:pointer;">🏆 Force
           Win</button>
 
         <!-- Visual Toggles -->
@@ -1107,7 +1206,7 @@
         </div>
       </div>
 
-      <div id="fps" style="font-size:11px; color:#888; text-align:center; font-style:italic;">FPS: 60</div>
+      <div id="fps" style="font-size:11px; color:var(--sidebar-text-muted); text-align:center; font-style:italic;">FPS: 60</div>
     </div>
 
     <!-- RIGHT GAME AREA: Canvas & Articles -->
@@ -1169,31 +1268,34 @@
 
       <!-- PIECE INVENTORY -->
       <div id="piece-inventory">
-        <div class="inventory-label">Your Piece Bank:</div>
+        <div class="inventory-label">Your Piece Bank: <span id="deployed-count">(0/8 deployed)</span></div>
         <div id="inventory-pieces">
-          <div class="inventory-item" data-type="Q">
-            <span class="inv-piece">♕</span>
-            <span class="inv-count" id="inv-Q">0</span>
+          <div class="inventory-item" data-type="P">
+            <span class="inv-piece">♙</span>
+            <span class="inv-count" id="inv-P">0</span>
           </div>
-          <div class="inventory-item" data-type="R">
-            <span class="inv-piece">♖</span>
-            <span class="inv-count" id="inv-R">0</span>
+          <div class="inventory-item" data-type="N">
+            <span class="inv-piece">♘</span>
+            <span class="inv-count" id="inv-N">0</span>
           </div>
           <div class="inventory-item" data-type="B">
             <span class="inv-piece">♗</span>
             <span class="inv-count" id="inv-B">0</span>
           </div>
-          <div class="inventory-item" data-type="N">
-            <span class="inv-piece">♘</span>
-            <span class="inv-count" id="inv-N">0</span>
+          <div class="inventory-item" data-type="R">
+            <span class="inv-piece">♖</span>
+            <span class="inv-count" id="inv-R">0</span>
+          </div>
+          <div class="inventory-item" data-type="Q">
+            <span class="inv-piece">♕</span>
+            <span class="inv-count" id="inv-Q">0</span>
           </div>
         </div>
         <div id="inventory-hint">Win games to earn bonus pieces!</div>
       </div>
 
       <div id="setup-board"></div>
-      <div id="retract-hint" style="display: none;">💡 Click a deployed bonus piece to retract it back to inventory
-      </div>
+      <div id="retract-hint">💡 Right-click any piece (except King) to remove it to your bank</div>
 
       <!-- BOARD PROFILES -->
       <div id="profile-controls">

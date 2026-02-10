@@ -85,6 +85,10 @@ describe('Game Controller', () => {
     // SQUARE CLICK HANDLING
     // ==========================================
     describe('handleSquareClick', () => {
+        beforeEach(() => {
+            Game.startGame(); // Must start game before clicks work
+        });
+
         it('should select piece on first click', () => {
             // Click on a white pawn (row 6 = rank 2)
             Game.handleSquareClick(6, 4); // e2
@@ -193,9 +197,10 @@ describe('Game Controller', () => {
                 onStateChange: mockCallback,
             });
 
-            // Make a move to trigger state change
-            Game.handleSquareClick(1, 4);
-            Game.handleSquareClick(3, 4);
+            // Start game and make a move to trigger state change
+            Game.startGame();
+            Game.handleSquareClick(6, 4);
+            Game.handleSquareClick(4, 4);
 
             expect(mockCallback).toHaveBeenCalled();
         });

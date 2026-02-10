@@ -3,7 +3,7 @@
 
 import { Chess, Square, Move as ChessMove, PieceSymbol } from 'chess.js';
 import type { Piece, PieceColor, PieceType } from './types';
-import { getBookMove } from './openingBook';
+import { getBookMove, setCurrentOpeningName } from './openingBook';
 import {
   PIECE_VALUES, PST_PAWN, PST_KNIGHT, PST_BISHOP, PST_ROOK, PST_QUEEN, PST_KING_MID, PST_KING_END, BONUSES
 } from './evaluationConstants';
@@ -310,6 +310,19 @@ export class ChessEngine {
     return this.chess.fen();
   }
 
+  // Load position from FEN string
+  loadFEN(fen: string): boolean {
+    try {
+      this.chess.load(fen);
+      this.boardDirty = true; // Invalidate cache
+      console.log('[ChessEngine] Loaded FEN:', fen);
+      return true;
+    } catch (e) {
+      console.error('[ChessEngine] Failed to load FEN:', fen, e);
+      return false;
+    }
+  }
+
   // Get move history (all moves made in current game)
   getMoveHistory(): string[] {
     return this.chess.history();
@@ -446,6 +459,10 @@ export class ChessEngine {
       const bookMove = getBookMove(currentFen);
       if (bookMove) {
         console.log(`[Engine] Opening Book hit: ${bookMove.name || bookMove.san}`);
+        // Track the opening name for UI display
+        if (bookMove.name) {
+          setCurrentOpeningName(bookMove.name);
+        }
         const legalMoves = this.getLegalMoves();
 
         // Find the matching move in our legal moves list

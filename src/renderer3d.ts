@@ -85,6 +85,7 @@ let cachedSelectedSquare: { row: number; col: number } | null = null;
 let cachedLegalMoves: Move[] = [];
 let cachedTurn: 'white' | 'black' = 'white';
 let cachedInCheck: boolean = false;
+let cachedPlayerColor: 'white' | 'black' = 'white';
 
 // =============================================================================
 // DEBUG TOGGLES (Performance/Asset control)
@@ -104,14 +105,21 @@ const BOARD_UNIT = 1;
 const BOARD_WIDTH = 8 * BOARD_UNIT;
 const BOARD_LENGTH = 8 * BOARD_UNIT;
 
-// Colors for 3D materials
-const COLORS_3D = {
+// Colors for 3D materials (mutable for theme switching)
+let COLORS_3D = {
     lightSquare: 0xf0e6d3,
     darkSquare: 0x5d8a66,
     selectedSquare: 0x8bc99b,
     legalMoveHighlight: 0x6db87d,
     boardEdge: 0x2a2a2a,
 };
+
+// Helper function to get visual color based on player perspective
+function getVisualColor(pieceColor: 'white' | 'black'): 'white' | 'black' {
+    // If player is white, show pieces as their logical color
+    // If player is black, invert colors so player's pieces appear white
+    return cachedPlayerColor === 'white' ? pieceColor : (pieceColor === 'white' ? 'black' : 'white');
+}
 
 // Callbacks
 let onWorldChangeCallback: ((eraName: string) => void) | null = null;
@@ -982,16 +990,39 @@ export function updateState(
     selectedSquare: { row: number; col: number } | null,
     legalMoves: Move[],
     turn: 'white' | 'black',
-    inCheck: boolean
+    inCheck: boolean,
+    playerColor?: 'white' | 'black'
 ): void {
     cachedBoard = board;
     cachedSelectedSquare = selectedSquare;
     cachedLegalMoves = legalMoves;
     cachedTurn = turn;
     cachedInCheck = inCheck;
+    cachedPlayerColor = playerColor || 'white';
 
     updatePieces();
     updateSquareHighlights();
+}
+
+/**
+ * Set player color (perspective) and refresh pieces
+ */
+export function setPlayerColor(color: 'white' | 'black'): void {
+    cachedPlayerColor = color;
+    // Clear material caches since colors change
+    pieceMaterialCache.clear();
+    pieceSpritesCache.clear();
+    _prevBoardHash = '';
+    if (cachedBoard.length > 0) {
+        updatePieces();
+    }
+}
+
+/**
+ * Get current player color
+ */
+export function getPlayerColor(): 'white' | 'black' {
+    return cachedPlayerColor;
 }
 
 /**
@@ -1838,6 +1869,226 @@ function drawNewspaperPiece(ctx: CanvasRenderingContext2D, type: string, isWhite
         ctx.arc(cx - s * 0.04, s * 0.28, s * 0.025, 0, Math.PI * 2);
         ctx.fillStyle = '#000000';
         ctx.fill();
+    }
+}
+
+// Draw editorial woodcut-style pieces (bold silhouettes, stipple/crosshatch for black)
+function drawEditorialPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+
+    // Helper to draw bold piece silhouettes (woodcut proportions)
+    const drawShape = () => {
+        ctx.beginPath();
+        switch (type) {
+            case 'K': // King - heavy crown cross
+                ctx.moveTo(cx - s * 0.28, s * 0.9);
+                ctx.lineTo(cx + s * 0.28, s * 0.9);  // wide base
+                ctx.lineTo(cx + s * 0.28, s * 0.82);
+                ctx.lineTo(cx + s * 0.2, s * 0.78);
+                ctx.lineTo(cx + s * 0.16, s * 0.48);
+                ctx.lineTo(cx + s * 0.16, s * 0.34);
+                ctx.lineTo(cx + s * 0.08, s * 0.34);
+                ctx.lineTo(cx + s * 0.08, s * 0.2);
+                ctx.lineTo(cx + s * 0.16, s * 0.2);
+                ctx.lineTo(cx + s * 0.16, s * 0.1);
+                ctx.lineTo(cx - s * 0.16, s * 0.1);
+                ctx.lineTo(cx - s * 0.16, s * 0.2);
+                ctx.lineTo(cx - s * 0.08, s * 0.2);
+                ctx.lineTo(cx - s * 0.08, s * 0.34);
+                ctx.lineTo(cx - s * 0.16, s * 0.34);
+                ctx.lineTo(cx - s * 0.16, s * 0.48);
+                ctx.lineTo(cx - s * 0.2, s * 0.78);
+                ctx.lineTo(cx - s * 0.28, s * 0.82);
+                ctx.closePath();
+                break;
+
+            case 'Q': // Queen - pointed crown with orbs
+                ctx.moveTo(cx - s * 0.28, s * 0.9);
+                ctx.lineTo(cx + s * 0.28, s * 0.9);
+                ctx.lineTo(cx + s * 0.22, s * 0.76);
+                ctx.lineTo(cx + s * 0.16, s * 0.45);
+                ctx.lineTo(cx + s * 0.3, s * 0.14);
+                ctx.lineTo(cx + s * 0.16, s * 0.3);
+                ctx.lineTo(cx + s * 0.12, s * 0.08);
+                ctx.lineTo(cx, s * 0.26);
+                ctx.lineTo(cx - s * 0.12, s * 0.08);
+                ctx.lineTo(cx - s * 0.16, s * 0.3);
+                ctx.lineTo(cx - s * 0.3, s * 0.14);
+                ctx.lineTo(cx - s * 0.16, s * 0.45);
+                ctx.lineTo(cx - s * 0.22, s * 0.76);
+                ctx.closePath();
+                break;
+
+            case 'R': // Rook - fortress battlements
+                ctx.moveTo(cx - s * 0.26, s * 0.9);
+                ctx.lineTo(cx + s * 0.26, s * 0.9);
+                ctx.lineTo(cx + s * 0.22, s * 0.78);
+                ctx.lineTo(cx + s * 0.16, s * 0.38);
+                ctx.lineTo(cx + s * 0.26, s * 0.35);
+                ctx.lineTo(cx + s * 0.26, s * 0.12);
+                ctx.lineTo(cx + s * 0.18, s * 0.12);
+                ctx.lineTo(cx + s * 0.18, s * 0.22);
+                ctx.lineTo(cx + s * 0.08, s * 0.22);
+                ctx.lineTo(cx + s * 0.08, s * 0.12);
+                ctx.lineTo(cx - s * 0.08, s * 0.12);
+                ctx.lineTo(cx - s * 0.08, s * 0.22);
+                ctx.lineTo(cx - s * 0.18, s * 0.22);
+                ctx.lineTo(cx - s * 0.18, s * 0.12);
+                ctx.lineTo(cx - s * 0.26, s * 0.12);
+                ctx.lineTo(cx - s * 0.26, s * 0.35);
+                ctx.lineTo(cx - s * 0.16, s * 0.38);
+                ctx.lineTo(cx - s * 0.22, s * 0.78);
+                ctx.closePath();
+                break;
+
+            case 'B': // Bishop - elongated mitre
+                ctx.moveTo(cx - s * 0.24, s * 0.9);
+                ctx.lineTo(cx + s * 0.24, s * 0.9);
+                ctx.lineTo(cx + s * 0.18, s * 0.78);
+                ctx.lineTo(cx + s * 0.14, s * 0.5);
+                ctx.quadraticCurveTo(cx + s * 0.22, s * 0.36, cx + s * 0.12, s * 0.22);
+                ctx.lineTo(cx, s * 0.08);
+                ctx.lineTo(cx - s * 0.12, s * 0.22);
+                ctx.quadraticCurveTo(cx - s * 0.22, s * 0.36, cx - s * 0.14, s * 0.5);
+                ctx.lineTo(cx - s * 0.18, s * 0.78);
+                ctx.closePath();
+                break;
+
+            case 'N': // Knight - bold horse head
+                ctx.moveTo(cx - s * 0.2, s * 0.9);
+                ctx.lineTo(cx + s * 0.24, s * 0.9);
+                ctx.lineTo(cx + s * 0.2, s * 0.72);
+                ctx.lineTo(cx + s * 0.14, s * 0.52);
+                ctx.quadraticCurveTo(cx + s * 0.26, s * 0.38, cx + s * 0.2, s * 0.26);
+                ctx.quadraticCurveTo(cx + s * 0.14, s * 0.14, cx + s * 0.02, s * 0.14);
+                ctx.lineTo(cx + s * 0.08, s * 0.08);
+                ctx.quadraticCurveTo(cx + s * 0.02, s * 0.04, cx - s * 0.12, s * 0.1);
+                ctx.quadraticCurveTo(cx - s * 0.26, s * 0.16, cx - s * 0.32, s * 0.28);
+                ctx.lineTo(cx - s * 0.36, s * 0.32);
+                ctx.lineTo(cx - s * 0.26, s * 0.36);
+                ctx.quadraticCurveTo(cx - s * 0.18, s * 0.42, cx - s * 0.14, s * 0.48);
+                ctx.quadraticCurveTo(cx - s * 0.2, s * 0.6, cx - s * 0.16, s * 0.72);
+                ctx.closePath();
+                break;
+
+            case 'P': // Pawn - stout ball on cone
+                ctx.moveTo(cx - s * 0.2, s * 0.9);
+                ctx.lineTo(cx + s * 0.2, s * 0.9);
+                ctx.lineTo(cx + s * 0.16, s * 0.78);
+                ctx.lineTo(cx + s * 0.1, s * 0.56);
+                ctx.quadraticCurveTo(cx + s * 0.2, s * 0.42, cx + s * 0.16, s * 0.32);
+                ctx.arc(cx, s * 0.24, s * 0.16, Math.PI * 0.2, Math.PI * 2.8);
+                ctx.quadraticCurveTo(cx - s * 0.2, s * 0.42, cx - s * 0.1, s * 0.56);
+                ctx.lineTo(cx - s * 0.16, s * 0.78);
+                ctx.closePath();
+                break;
+        }
+    };
+
+    if (isWhite) {
+        // WHITE: bold outline, clean white fill, double-line border
+        ctx.fillStyle = '#ffffff';
+        drawShape();
+        ctx.fill();
+
+        // Inner line for engraving effect
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.035;
+        drawShape();
+        ctx.stroke();
+
+        // Second inner outline for woodcut depth
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.015;
+        ctx.setLineDash([s * 0.02, s * 0.015]);
+        const inset = s * 0.06;
+        ctx.save();
+        ctx.translate(0, 0);
+        ctx.scale((s - inset * 2) / s, (s - inset * 2) / s);
+        ctx.translate(inset * s / (s - inset * 2), inset * s / (s - inset * 2));
+        drawShape();
+        ctx.stroke();
+        ctx.restore();
+        ctx.setLineDash([]);
+    } else {
+        // BLACK: solid black fill with white stipple dots - woodcut negative
+        ctx.fillStyle = '#000000';
+        drawShape();
+        ctx.fill();
+
+        // Bold white outline
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = s * 0.03;
+        drawShape();
+        ctx.stroke();
+
+        // Stipple dots for texture (woodcut engraving effect)
+        ctx.save();
+        drawShape();
+        ctx.clip();
+
+        ctx.fillStyle = '#ffffff';
+        const dotSize = s * 0.012;
+        const spacing = s * 0.04;
+        for (let y = 0; y < s; y += spacing) {
+            const offset = (Math.floor(y / spacing) % 2) * spacing * 0.5;
+            for (let x = offset; x < s; x += spacing) {
+                ctx.beginPath();
+                ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+
+        // Re-stroke for clean edge
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = s * 0.02;
+        drawShape();
+        ctx.stroke();
+    }
+
+    // Bishop diagonal slash
+    if (type === 'B') {
+        ctx.strokeStyle = isWhite ? '#000000' : '#ffffff';
+        ctx.lineWidth = s * 0.025;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.06, s * 0.42);
+        ctx.lineTo(cx + s * 0.06, s * 0.3);
+        ctx.stroke();
+        // Tip ball
+        ctx.beginPath();
+        ctx.arc(cx, s * 0.065, s * 0.05, 0, Math.PI * 2);
+        ctx.fillStyle = isWhite ? '#000000' : '#ffffff';
+        ctx.fill();
+    }
+
+    // Knight eye
+    if (type === 'N') {
+        ctx.beginPath();
+        ctx.arc(cx - s * 0.06, s * 0.28, s * 0.03, 0, Math.PI * 2);
+        ctx.fillStyle = isWhite ? '#000000' : '#ffffff';
+        ctx.fill();
+    }
+
+    // Queen crown orbs
+    if (type === 'Q') {
+        const orbs = [
+            [cx + s * 0.3, s * 0.1],
+            [cx + s * 0.12, s * 0.04],
+            [cx, s * 0.22],
+            [cx - s * 0.12, s * 0.04],
+            [cx - s * 0.3, s * 0.1],
+        ];
+        for (const [ox, oy] of orbs) {
+            ctx.beginPath();
+            ctx.arc(ox, oy, s * 0.04, 0, Math.PI * 2);
+            ctx.fillStyle = isWhite ? '#000000' : '#ffffff';
+            ctx.fill();
+        }
     }
 }
 
@@ -3103,7 +3354,7 @@ function createSpriteSheetMaterial(piece: Piece, spriteSheet: HTMLImageElement):
     const canvas = extractPieceFromSpriteSheet(
         spriteSheet,
         piece.type,
-        piece.color === 'white',
+        getVisualColor(piece.color) === 'white',
         size
     );
 
@@ -3125,7 +3376,7 @@ function create2DPieceMaterial(piece: Piece): THREE.SpriteMaterial {
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    const isWhite = piece.color === 'white';
+    const isWhite = getVisualColor(piece.color) === 'white';
     const drawStyle = currentPieceStyleConfig.drawStyle || 'classic';
 
     // Clear canvas
@@ -3144,6 +3395,9 @@ function create2DPieceMaterial(piece: Piece): THREE.SpriteMaterial {
             break;
         case 'newspaper':
             drawNewspaperPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'editorial':
+            drawEditorialPiece(ctx, piece.type, isWhite, size);
             break;
         case 'outline':
             drawOutlinePiece(ctx, piece.type, isWhite, size);
@@ -3283,7 +3537,7 @@ function getPieceMaterials(piece: Piece): {
     team: THREE.Material;
 } {
     const styleConfig = currentPieceStyleConfig;
-    const isWhite = piece.color === 'white';
+    const isWhite = getVisualColor(piece.color) === 'white';
     const cacheKey = `${piece.color}-${currentPieceStyle}`;
 
     // Return cached materials if available
@@ -3390,7 +3644,7 @@ function createPieceMesh(piece: Piece, row: number, col: number): void {
     }
 
     // 3D Piece rendering using cached materials
-    const isWhite = piece.color === 'white';
+    const isWhite = getVisualColor(piece.color) === 'white';
 
     // Get cached materials (or create if first time)
     const materials = getPieceMaterials(piece);

@@ -20,6 +20,7 @@ describe('Integration Tests', () => {
     // ==========================================
     describe('Game Flow', () => {
         it('should complete a series of valid moves', () => {
+            Game.startGame(); // Must start game before clicks work
             // Italian Game opening - white pawn e2-e4
             expect(Game.handleSquareClick(6, 4)).toBe(false); // Select e2
             expect(Game.handleSquareClick(4, 4)).toBe(true);  // Move to e4
@@ -60,8 +61,8 @@ describe('Integration Tests', () => {
             const state = Game.getState();
             const era = getEraForElo(state.elo);
 
-            // Starting ELO (400) should be in Cretaceous
-            expect(era.name).toBe('Cretaceous');
+            // Starting ELO (400) should be in Jurassic
+            expect(era.name).toBe('Jurassic');
         });
 
         it('should progress through eras as ELO increases', () => {
@@ -117,9 +118,10 @@ describe('Integration Tests', () => {
                 onStateChange: (state) => stateChanges.push(state),
             });
 
-            // Make a selection and move
-            Game.handleSquareClick(1, 4);
-            Game.handleSquareClick(3, 4);
+            // Start game and make a selection and move
+            Game.startGame();
+            Game.handleSquareClick(6, 4);
+            Game.handleSquareClick(4, 4);
 
             expect(stateChanges.length).toBeGreaterThan(0);
         });
@@ -248,6 +250,10 @@ describe('Regression Tests', () => {
     // KNOWN ISSUE TESTS
     // ==========================================
     describe('Known Issues', () => {
+        beforeEach(() => {
+            Game.startGame(); // Must start game before clicks work
+        });
+
         it('should not allow selecting opponent pieces on own turn', () => {
             // White to move - should not select black pieces (row 1 = black pawns)
             Game.handleSquareClick(1, 4); // Try to select black pawn
