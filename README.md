@@ -1,6 +1,6 @@
-# Promotion Variant Chess
+# The Chess Chronicle ♟️
 
-A stunning 3D chess game where you journey through the ages of human history. Win games, gain ELO, and travel through 20 unique eras—from the age of dinosaurs to transcendent cosmic realms.
+A 3D chess game where you journey through the ages of human history. Win games, gain ELO, and travel through 20 unique eras—from the age of dinosaurs to transcendent cosmic realms.
 
 ![Chess Through Time](Gemini_Generated_Image_htj81khtj81khtj8.png)
 

@@ -103,14 +103,14 @@ describe('Era System', () => {
     // ERA SELECTION BY ELO
     // ==========================================
     describe('getEraForElo', () => {
-        it('should return Cretaceous for ELO 0', () => {
+        it('should return Jurassic for ELO 0', () => {
             const era = getEraForElo(0);
-            expect(era.name).toBe('Cretaceous');
+            expect(era.name).toBe('Jurassic');
         });
 
-        it('should return Cretaceous for ELO 100', () => {
+        it('should return Jurassic for ELO 100', () => {
             const era = getEraForElo(100);
-            expect(era.name).toBe('Cretaceous');
+            expect(era.name).toBe('Jurassic');
         });
 
         it('should return Ice Age for ELO 500', () => {
@@ -134,8 +134,8 @@ describe('Era System', () => {
 
         // Test specific ELO boundaries
         const eloBoundaries = [
-            [0, 'Cretaceous'],
-            [450, 'Cretaceous'],
+            [0, 'Jurassic'],
+            [450, 'Jurassic'],
             [500, 'Ice Age'],
             [600, 'Stone Age'],
             [800, 'Bronze Age'],
@@ -204,7 +204,7 @@ describe('Era System', () => {
         it('should detect forward transition', () => {
             const transition = checkEraTransition(400, 500);
             if (transition) {
-                expect(transition.fromEra.name).toBe('Cretaceous');
+                expect(transition.fromEra.name).toBe('Jurassic');
                 expect(transition.toEra.name).toBe('Ice Age');
             }
         });
@@ -213,7 +213,7 @@ describe('Era System', () => {
             const transition = checkEraTransition(500, 400);
             if (transition) {
                 expect(transition.fromEra.name).toBe('Ice Age');
-                expect(transition.toEra.name).toBe('Cretaceous');
+                expect(transition.toEra.name).toBe('Jurassic');
             }
         });
     });
@@ -286,12 +286,12 @@ describe('Era System', () => {
             expect(era.secondaryAssets.length).toBeGreaterThanOrEqual(2);
         });
 
-        it('Cretaceous should have dinosaurs', () => {
-            const cretaceous = ERAS.find(e => e.name === 'Cretaceous')!;
-            const hasDinos = cretaceous.primaryAssets.some(a =>
-                a.includes('rex') || a.includes('brachio') || a.includes('ptero')
+        it('Jurassic should have prehistoric vegetation', () => {
+            const jurassic = ERAS.find(e => e.name === 'Jurassic')!;
+            const hasPrehistoricAssets = jurassic.primaryAssets.some(a =>
+                a.includes('fern') || a.includes('conifer') || a.includes('cycad') || a.includes('jurassic')
             );
-            expect(hasDinos).toBe(true);
+            expect(hasPrehistoricAssets).toBe(true);
         });
 
         it('Space Age should have space-themed assets', () => {

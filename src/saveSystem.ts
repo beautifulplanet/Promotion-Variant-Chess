@@ -19,16 +19,36 @@ export interface SaveData {
   pieceStyle3D?: string;   // 3D piece style preference
   pieceStyle2D?: string;   // 2D piece style preference
   boardStyle?: string;     // Board style preference
+  // Current game state (for resuming mid-game)
+  currentGameFEN?: string;  // FEN string of board position
+  currentGameStarted?: boolean;  // Was a game in progress?
+  // Custom board arrangement (from setup mode)
+  customArrangement?: Array<{ row: number; col: number; type: string }>;  // Player's custom piece placement
+  deployedFromInventory?: PieceInventory;  // Pieces deployed from inventory in setup mode
+  // Move quality tracking (optional - defaults to zeros for old saves)
+  moveQualityStats?: MoveQualityStats;
   saveVersion: number;  // For future compatibility
   savedAt: string;  // ISO timestamp
 }
 
+// Track move quality statistics
+export interface MoveQualityStats {
+  goodMoves: number;       // Moves rated as "good"
+  bestMoves: number;       // Moves that matched engine's best
+  inaccuracies: number;    // Minor mistakes
+  mistakes: number;        // Significant errors
+  blunders: number;        // Major errors
+  totalMovesAnalyzed: number;  // Total moves with quality analysis
+}
+
 // Simple inventory tracking how many of each piece type player has stored
+// Includes all pieces except King
 export interface PieceInventory {
-  Q: number;  // Queens
-  R: number;  // Rooks
-  B: number;  // Bishops
+  P: number;  // Pawns
   N: number;  // Knights
+  B: number;  // Bishops
+  R: number;  // Rooks
+  Q: number;  // Queens
 }
 
 // Board arrangement profile (saved setup)
@@ -39,7 +59,7 @@ export interface BoardProfile {
 }
 
 export interface PromotedPiece {
-  type: 'Q' | 'R' | 'B' | 'N';
+  type: 'P' | 'N' | 'B' | 'R' | 'Q';  // All piece types except King
   earnedAtElo: number;
   gameNumber: number;
 }
@@ -134,10 +154,11 @@ function validateAndSanitizeSaveData(data: unknown): SaveData | null {
       : [],
     pieceInventory: (d.pieceInventory && typeof d.pieceInventory === 'object')
       ? {
-        Q: isPositiveInt((d.pieceInventory as Record<string, unknown>).Q) ? (d.pieceInventory as Record<string, number>).Q : 0,
-        R: isPositiveInt((d.pieceInventory as Record<string, unknown>).R) ? (d.pieceInventory as Record<string, number>).R : 0,
-        B: isPositiveInt((d.pieceInventory as Record<string, unknown>).B) ? (d.pieceInventory as Record<string, number>).B : 0,
+        P: isPositiveInt((d.pieceInventory as Record<string, unknown>).P) ? (d.pieceInventory as Record<string, number>).P : 0,
         N: isPositiveInt((d.pieceInventory as Record<string, unknown>).N) ? (d.pieceInventory as Record<string, number>).N : 0,
+        B: isPositiveInt((d.pieceInventory as Record<string, unknown>).B) ? (d.pieceInventory as Record<string, number>).B : 0,
+        R: isPositiveInt((d.pieceInventory as Record<string, unknown>).R) ? (d.pieceInventory as Record<string, number>).R : 0,
+        Q: isPositiveInt((d.pieceInventory as Record<string, unknown>).Q) ? (d.pieceInventory as Record<string, number>).Q : 0,
       }
       : migratePromotedPiecesToInventory(d.promotedPieces),
     totalPromotions: (d.totalPromotions && typeof d.totalPromotions === 'object')
@@ -176,7 +197,7 @@ function validateAndSanitizeSaveData(data: unknown): SaveData | null {
  */
 // Migrate old promotedPieces array to new inventory format
 function migratePromotedPiecesToInventory(promotedPieces: unknown): PieceInventory {
-  const inventory: PieceInventory = { Q: 0, R: 0, B: 0, N: 0 };
+  const inventory: PieceInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   if (Array.isArray(promotedPieces)) {
     for (const piece of promotedPieces) {
       if (piece && typeof piece === 'object' && 'type' in piece) {
@@ -201,7 +222,7 @@ export function createDefaultSave(): SaveData {
     currentWinStreak: 0,
     bestWinStreak: 0,
     promotedPieces: [],
-    pieceInventory: { Q: 0, R: 0, B: 0, N: 0 },
+    pieceInventory: { P: 0, N: 0, B: 0, R: 0, Q: 0 },
     totalPromotions: { Q: 0, R: 0, B: 0, N: 0 },
     boardProfiles: [],
     pieceStyle3D: 'staunton3d',

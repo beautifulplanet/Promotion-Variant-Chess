@@ -23,7 +23,7 @@ export default defineConfig({
         pool: 'threads',
 
         // Reporter
-        reporters: ['default', 'hanging-process'],
+        reporters: ['default'],
 
         // Setup files
         setupFiles: ['./tests/setup.ts'],

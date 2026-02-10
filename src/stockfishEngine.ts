@@ -1,6 +1,6 @@
 // src/stockfishEngine.ts
-// Stockfish.js wrapper for strong chess AI (ELO 900+)
-// Uses Web Worker for non-blocking computation
+// Stockfish.js wrapper for ALL chess AI (non-blocking via Web Worker)
+// Skill levels 0-20 provide appropriate difficulty for all ELO ranges
 
 import type { Move } from './chessEngine';
 import type { PieceType, Piece } from './types';
@@ -12,42 +12,46 @@ import type { PieceType, Piece } from './types';
 /**
  * Convert player ELO to Stockfish skill level (0-20)
  * Calibrated for chess.com parity:
- * - Skill 0 = ~400-500 Elo (chess.com Martin-level)
+ * - Skill 0 = ~100-400 Elo (complete beginner, makes many mistakes)
+ * - Skill 3 = ~600 Elo (novice)
  * - Skill 5 = ~1000 Elo (chess.com Nelson-level)
  * - Skill 10 = ~1500 Elo (club player)
  * - Skill 15 = ~2000 Elo (expert)
  * - Skill 20 = ~2850+ Elo (super GM)
  */
 function eloToSkillLevel(elo: number): number {
-    if (elo <= 400) return 0;
+    if (elo <= 100) return 0;
     if (elo >= 2850) return 20;
 
-    // Approximately 120 Elo per skill level, starting from 400
-    const skill = Math.floor((elo - 400) / 122.5);
+    // Linear mapping: 100 ELO = skill 0, 2850 ELO = skill 20
+    // This gives approximately 137 Elo per skill level
+    const skill = Math.floor((elo - 100) / 137.5);
     return Math.max(0, Math.min(20, skill));
 }
 
 /**
  * Get move time in milliseconds based on ELO
- * Higher ELO gets more thinking time for complex positions
+ * Lower ELO = faster response (beginner opponents shouldn't make you wait)
+ * Higher ELO = more thinking time for stronger play
  * @param elo - Player ELO rating
  * @param fastMode - If true, use reduced thinking time (for AI vs AI mode)
  */
 function getMoveTime(elo: number, fastMode: boolean = false): number {
     // In fast mode (AI vs AI), use reduced but still reasonable thinking time
-    // Must be long enough to avoid hanging pieces!
     if (fastMode) {
+        if (elo < 600) return 200;    // Very weak: 200ms (instant feel)
         if (elo < 1000) return 300;   // Beginner: 300ms
-        if (elo < 1500) return 600;   // Intermediate: 600ms
-        if (elo < 2000) return 1000;  // Advanced: 1s
-        return 1500;                  // Master+: 1.5s (was 500ms - too short!)
+        if (elo < 1500) return 500;   // Intermediate: 500ms
+        if (elo < 2000) return 800;   // Advanced: 800ms
+        return 1200;                  // Master+: 1.2s
     }
 
-    // Normal mode (player vs AI)
+    // Normal mode (player vs AI) - give humans time to process
+    if (elo < 600) return 300;    // Very weak: 0.3s (feels responsive)
     if (elo < 1000) return 500;   // Beginner: 0.5s
     if (elo < 1500) return 1000;  // Intermediate: 1s
-    if (elo < 2000) return 2000;  // Advanced: 2s
-    return 3000;                  // Master+: 3s
+    if (elo < 2000) return 1500;  // Advanced: 1.5s
+    return 2500;                  // Master+: 2.5s
 }
 
 // =============================================================================

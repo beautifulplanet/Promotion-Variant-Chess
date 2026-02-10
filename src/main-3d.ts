@@ -23,6 +23,8 @@ import * as Sound from './soundSystem';
 import * as Stats from './statsSystem';
 import * as Theme from './themeSystem';
 import * as Overlay from './overlayRenderer';
+import { getCurrentOpeningName } from './openingBook';
+import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
 import type { PieceType } from './types';
 
 // =============================================================================
@@ -55,6 +57,7 @@ const viewModeBtn = document.getElementById('view-mode-btn');
 const style3dBtn = document.getElementById('style-3d-btn');
 const style2dBtn = document.getElementById('style-2d-btn');
 const boardStyleBtn = document.getElementById('board-style-btn');
+const flipBtn = document.getElementById('flip-btn');
 const saveBtn = document.getElementById('save-btn');
 const loadBtn = document.getElementById('load-btn');
 const setupBtn = document.getElementById('setup-btn') as HTMLButtonElement;
@@ -168,6 +171,48 @@ function updateSidebar(state: Game.GameState): void {
   if (eloMinElem) eloMinElem.textContent = String(level.minElo);
   if (eloMaxElem) eloMaxElem.textContent = String(level.maxElo);
 
+  // Update opening display
+  const openingSection = document.getElementById('opening-section');
+  const openingNameElem = document.getElementById('opening-name');
+  const openingName = getCurrentOpeningName();
+  if (openingSection && openingNameElem) {
+    if (openingName) {
+      openingSection.style.display = 'block';
+      openingNameElem.textContent = openingName;
+    } else {
+      openingSection.style.display = 'none';
+    }
+  }
+
+  // Update move quality indicator
+  const moveQualitySection = document.getElementById('move-quality-section');
+  const moveQualityEmoji = document.getElementById('move-quality-emoji');
+  const moveQualityLabel = document.getElementById('move-quality-label');
+  const bestMoveHint = document.getElementById('best-move-hint');
+  const bestMoveText = document.getElementById('best-move-text');
+  const lastMoveQuality = getLastMoveQuality();
+  const qualityDisplay = getMoveQualityDisplay(lastMoveQuality);
+  const lastBestMove = getLastBestMove();
+  
+  if (moveQualitySection && moveQualityEmoji && moveQualityLabel) {
+    if (qualityDisplay) {
+      moveQualitySection.style.display = 'block';
+      moveQualityEmoji.textContent = qualityDisplay.emoji;
+      moveQualityLabel.textContent = qualityDisplay.label;
+      moveQualityLabel.style.color = qualityDisplay.color;
+      
+      // Show best move hint if player didn't find the best move
+      if (bestMoveHint && bestMoveText && lastBestMove) {
+        bestMoveHint.style.display = 'block';
+        bestMoveText.textContent = moveToAlgebraic(lastBestMove);
+      } else if (bestMoveHint) {
+        bestMoveHint.style.display = 'none';
+      }
+    } else {
+      moveQualitySection.style.display = 'none';
+    }
+  }
+
   // Update FPS counter
   if (fpsElem) fpsElem.textContent = String(Renderer.getFPS());
 }
@@ -199,7 +244,8 @@ function syncRendererState(): void {
     state.selectedSquare,
     state.legalMovesForSelected,
     Game.getCurrentTurn(),
-    Game.isInCheck()
+    Game.isInCheck(),
+    state.playerColor
   );
 
   // Update ELO-based era system
@@ -268,6 +314,18 @@ if (boardStyleBtn) {
     const newStyle = Renderer.getBoardStyle();
     boardStyleBtn.textContent = `🏁 ${newStyle}`;
     Game.updateStylePreferences(undefined, undefined, newStyle);
+  });
+}
+
+// Flip perspective button (swap piece colors without rotating board)
+if (flipBtn) {
+  flipBtn.addEventListener('click', () => {
+    const current = Renderer.getPlayerColor();
+    const next = current === 'white' ? 'black' : 'white';
+    Renderer.setPlayerColor(next);
+    flipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
+    Sound.play('move');
+    console.log('[Flip] Perspective:', next);
   });
 }
 
@@ -651,8 +709,8 @@ inventoryItems.forEach(item => {
 function updateInventoryUI(): void {
   const inventory = Game.getPieceInventory();
 
-  // Update counts
-  ['Q', 'R', 'B', 'N'].forEach(type => {
+  // Update counts for all piece types including Pawns
+  ['P', 'N', 'B', 'R', 'Q'].forEach(type => {
     const countElem = document.getElementById(`inv-${type}`);
     if (countElem) {
       const count = inventory[type as keyof typeof inventory];
@@ -668,18 +726,25 @@ function updateInventoryUI(): void {
     }
   });
 
-  // Show/hide hint
+  // Update deployed count and hints
   const hintElem = document.getElementById('inventory-hint');
   const retractHint = document.getElementById('retract-hint');
-  const total = inventory.Q + inventory.R + inventory.B + inventory.N;
-  const deployed = Game.getDeployedFromInventory();
-  const totalDeployed = deployed.Q + deployed.R + deployed.B + deployed.N;
+  const deployedCountElem = document.getElementById('deployed-count');
+  const total = inventory.P + inventory.N + inventory.B + inventory.R + inventory.Q;
+  const totalDeployed = Game.getTotalDeployed();
+  const maxExtra = Game.getMaxExtraPieces();
+
+  if (deployedCountElem) {
+    deployedCountElem.textContent = `(${totalDeployed}/${maxExtra} deployed)`;
+    deployedCountElem.style.color = totalDeployed >= maxExtra ? '#ff6b6b' : '#aaa';
+  }
 
   if (hintElem) {
     hintElem.style.display = total === 0 && totalDeployed === 0 ? 'block' : 'none';
   }
   if (retractHint) {
-    retractHint.style.display = totalDeployed > 0 ? 'block' : 'none';
+    // Always show the hint in setup mode
+    retractHint.style.display = 'block';
   }
 }
 
@@ -716,7 +781,7 @@ function openSetupMode(): void {
   selectedInventoryPiece = null;
 
   // Build setup arrangement from current board
-  // Player's rows: white = 6-7, black = 0-1
+  // Player's rows: white = 5-7 (3 rows), black = 0-2 (3 rows)
   // Track which pieces are "bonus" (deployed from inventory)
   setupArrangement = [];
 
@@ -724,9 +789,9 @@ function openSetupMode(): void {
   const baseCounts: Record<string, number> = { K: 1, Q: 1, R: 2, B: 2, N: 2, P: 8 };
   const foundCounts: Record<string, number> = { K: 0, Q: 0, R: 0, B: 0, N: 0, P: 0 };
 
-  // Use player's starting rows
-  const startRow = isWhite ? 6 : 0;
-  const endRow = isWhite ? 7 : 1;
+  // Use player's 3 starting rows (expanded from 2)
+  const startRow = isWhite ? 5 : 0;
+  const endRow = isWhite ? 7 : 2;
 
   for (let row = startRow; row <= endRow; row++) {
     for (let col = 0; col < 8; col++) {
@@ -764,11 +829,9 @@ function renderSetupBoard(): void {
   const playerColor = Game.getState().playerColor;
   const isWhite = playerColor === 'white';
 
-  // Show player's starting rows (white: 6-7, black: 0-1)
-  const startRow = isWhite ? 6 : 0;
-
-  // For black, show rows in reverse order so row 1 is at top (like looking from black's perspective)
-  const rowOrder = isWhite ? [6, 7] : [1, 0];
+  // Show player's 3 starting rows (white: 5-7, black: 0-2)
+  // For black, show rows in reverse order so row 2 is at top (like looking from black's perspective)
+  const rowOrder = isWhite ? [5, 6, 7] : [2, 1, 0];
 
   for (let rowIdx = 0; rowIdx < rowOrder.length; rowIdx++) {
     const row = rowOrder[rowIdx];
@@ -786,9 +849,13 @@ function renderSetupBoard(): void {
         if (pieceHere.isBonus) {
           square.classList.add('bonus-piece');
         }
+        // Allow removing any non-King piece - add visual hint
+        if (pieceHere.type !== 'K') {
+          square.classList.add('removable');
+        }
       }
 
-      // idx encodes: which row in our display (0 or 1) and which column in display (0-7)
+      // idx encodes: which row in our display (0, 1, or 2) and which column in display (0-7)
       // This is then decoded in handleSetupSquareClick using the same logic
       const idx = rowIdx * 8 + col;
       if (selectedSetupSquare === idx) {
@@ -800,10 +867,50 @@ function renderSetupBoard(): void {
         square.classList.add('drop-target');
       }
 
+      // Left click for move/select, right click for remove to bank
       square.addEventListener('click', () => handleSetupSquareClick(row, actualCol, idx));
+      square.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        handleSetupSquareRightClick(row, actualCol, pieceHere);
+      });
       setupBoard.appendChild(square);
     }
   }
+}
+
+// Handle right-click to remove piece to bank
+function handleSetupSquareRightClick(row: number, col: number, piece: typeof setupArrangement[0] | undefined): void {
+  if (!piece) return;
+  
+  // Can't remove King
+  if (piece.type === 'K') {
+    console.log('[Setup] Cannot remove King to bank');
+    return;
+  }
+
+  const type = piece.type as 'P' | 'N' | 'B' | 'R' | 'Q';
+  
+  // If it was a bonus piece (deployed from inventory), just retract it
+  if (piece.isBonus) {
+    if (Game.retractToInventory(type)) {
+      const pieceIdx = setupArrangement.indexOf(piece);
+      if (pieceIdx >= 0) {
+        setupArrangement.splice(pieceIdx, 1);
+      }
+      console.log('[Setup] Retracted bonus', type, 'from', row, col);
+    }
+  } else {
+    // It's a standard piece - add to bank and remove from board
+    Game.addPieceToInventory(type);
+    const pieceIdx = setupArrangement.indexOf(piece);
+    if (pieceIdx >= 0) {
+      setupArrangement.splice(pieceIdx, 1);
+    }
+    console.log('[Setup] Removed standard', type, 'to bank from', row, col);
+  }
+  
+  updateInventoryUI();
+  renderSetupBoard();
 }
 
 function handleSetupSquareClick(row: number, col: number, idx: number): void {
@@ -811,7 +918,7 @@ function handleSetupSquareClick(row: number, col: number, idx: number): void {
 
   // If we have an inventory piece selected and clicking empty square, deploy it
   if (selectedInventoryPiece && !clickedPiece) {
-    if (Game.deployFromInventory(selectedInventoryPiece as 'Q' | 'R' | 'B' | 'N')) {
+    if (Game.deployFromInventory(selectedInventoryPiece as 'P' | 'N' | 'B' | 'R' | 'Q')) {
       // Add piece to arrangement
       setupArrangement.push({
         row,
@@ -833,23 +940,7 @@ function handleSetupSquareClick(row: number, col: number, idx: number): void {
     return;
   }
 
-  // If clicking a bonus piece, offer to retract it
-  if (clickedPiece && clickedPiece.isBonus && !selectedSetupSquare) {
-    const type = clickedPiece.type as 'Q' | 'R' | 'B' | 'N';
-    if (Game.retractToInventory(type)) {
-      // Remove from arrangement
-      const pieceIdx = setupArrangement.indexOf(clickedPiece);
-      if (pieceIdx >= 0) {
-        setupArrangement.splice(pieceIdx, 1);
-      }
-      console.log('[Setup] Retracted', type, 'from', row, col);
-    }
-    updateInventoryUI();
-    renderSetupBoard();
-    return;
-  }
-
-  // Regular piece movement logic
+  // Regular piece movement logic (right-click handles removal to bank)
   if (selectedSetupSquare === null) {
     // Select a piece (including King - user can move any piece)
     if (clickedPiece) {
@@ -861,10 +952,10 @@ function handleSetupSquareClick(row: number, col: number, idx: number): void {
   } else {
     // Try to swap/move
     // Decode the idx back to row/col
-    // idx = rowIdx * 8 + displayCol where rowIdx is 0 or 1, displayCol is 0-7
+    // idx = rowIdx * 8 + displayCol where rowIdx is 0, 1, or 2, displayCol is 0-7
     const playerColor = Game.getState().playerColor;
     const isWhite = playerColor === 'white';
-    const rowOrder = isWhite ? [6, 7] : [1, 0];
+    const rowOrder = isWhite ? [5, 6, 7] : [2, 1, 0];
 
     const rowIdx = Math.floor(selectedSetupSquare / 8);
     const displayCol = selectedSetupSquare % 8;
@@ -1297,8 +1388,12 @@ if (soundBtn) {
 
 // Theme cycle button
 if (themeBtn) {
+  // Initialize button text
+  themeBtn.textContent = `🎨 ${Theme.getCurrentDisplayName()}`;
+
   themeBtn.addEventListener('click', () => {
     const newTheme = Theme.cycle();
+    themeBtn.textContent = `🎨 ${Theme.getThemeDisplayName(newTheme)}`;
     console.log('[Theme] Changed to:', Theme.getThemeDisplayName(newTheme));
     Sound.play('move');
   });
