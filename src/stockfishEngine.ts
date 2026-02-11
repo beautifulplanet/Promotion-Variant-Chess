@@ -255,9 +255,15 @@ export class StockfishEngine {
     }
 
     /**
-     * Stop current search
+     * Stop current search and discard any pending result.
+     * Resolves the outstanding promise with null so a stale bestmove
+     * response from the worker can't confuse a future request.
      */
     stop(): void {
+        if (this.currentMoveResolver) {
+            this.currentMoveResolver(null);
+            this.currentMoveResolver = null;
+        }
         this.sendCommand('stop');
     }
 

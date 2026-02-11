@@ -210,6 +210,16 @@ export function refreshMoveList(): void {
     updateMoveList(moves);
 }
 
+/**
+ * Force-refresh move list bypassing throttle and count guards.
+ * Used after undo to guarantee the UI reflects the new history.
+ */
+export function forceRefreshMoveList(): void {
+    lastRefreshTime = 0;
+    lastMoveCount = -1;
+    refreshMoveList();
+}
+
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
