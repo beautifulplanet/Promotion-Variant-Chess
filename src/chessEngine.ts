@@ -255,10 +255,14 @@ export class ChessEngine {
     }
   }
 
-  // Undo last move
-  undo(): void {
-    this.chess.undo();
-    this.boardDirty = true; // Invalidate cache
+  // Undo last move — returns true if a move was actually undone
+  undo(): boolean {
+    const undone = this.chess.undo();
+    if (undone) {
+      this.boardDirty = true; // Invalidate cache
+      return true;
+    }
+    return false;
   }
 
   // Game state checks

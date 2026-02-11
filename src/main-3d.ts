@@ -1327,7 +1327,6 @@ Stats.startSession();
 // Initial sync
 syncRendererState();
 updateStartButton();
-updateStreakDisplay();
 
 console.log('[Main-3D] Current Era:', Renderer.getCurrentWorldName());
 console.log('[Main-3D] Ready to play!');
@@ -1354,27 +1353,73 @@ function updateSoundButton(): void {
   }
 }
 
-// Undo button
+updateStreakDisplay();
+
+// Shared undo logic (used by button click AND Ctrl+Z)
+let undoCooldown = false;
+function performUndo(): void {
+  console.log('[UNDO] performUndo called, cooldown:', undoCooldown);
+  if (undoCooldown) return;
+
+  if (Game.isAiVsAiMode()) {
+    console.log('[UNDO] Disabled during AI vs AI mode');
+    return;
+  }
+
+  const state = Game.getState();
+  if (!state.gameStarted || state.gameOver) {
+    console.log('[UNDO] No moves to undo (started=' + state.gameStarted + ', over=' + state.gameOver + ')');
+    return;
+  }
+
+  const moveCountBefore = Game.getMoveCount();
+  const turnBefore = Game.getCurrentTurn();
+  console.log('[UNDO] Before: moves=' + moveCountBefore + ', turn=' + turnBefore + ', playerColor=' + state.playerColor);
+
+  const result = Game.undoMove();
+  console.log('[UNDO] undoMove() returned:', result);
+
+  if (result) {
+    const moveCountAfter = Game.getMoveCount();
+    console.log('[UNDO] After: moves=' + moveCountAfter + ', undid ' + (moveCountBefore - moveCountAfter) + ' half-moves');
+
+    undoCooldown = true;
+    if (undoBtn) undoBtn.setAttribute('disabled', 'true');
+    Sound.play('move');
+    syncRendererState();
+    MoveListUI.forceRefreshMoveList();
+    setTimeout(() => {
+      undoCooldown = false;
+      if (undoBtn) undoBtn.removeAttribute('disabled');
+    }, 300);
+  } else {
+    console.log('[UNDO] Nothing undone');
+  }
+}
+
+// Undo button click handler
+console.log('[UNDO] undoBtn element:', undoBtn ? 'FOUND' : 'NULL');
 if (undoBtn) {
   undoBtn.addEventListener('click', () => {
-    if (Game.isAiVsAiMode()) {
-      console.log('[Undo] Disabled during AI vs AI mode');
-      return;
-    }
-
-    const state = Game.getState();
-    if (!state.gameStarted || state.gameOver) {
-      console.log('[Undo] No moves to undo');
-      return;
-    }
-
-    // Call the actual undo function
-    if (Game.undoMove()) {
-      Sound.play('move');
-      syncRendererState();
-    }
+    console.log('[UNDO] Button click event fired');
+    performUndo();
   });
+  console.log('[UNDO] Click handler registered on button');
+} else {
+  console.error('[UNDO] WARNING: undo-btn element not found in DOM!');
 }
+
+// Ctrl+Z keyboard shortcut for undo (works even if button has issues)
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    // Don't trigger if user is typing in an input/textarea
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    console.log('[UNDO] Ctrl+Z pressed');
+    performUndo();
+  }
+});
 
 // Sound toggle button
 if (soundBtn) {

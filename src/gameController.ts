@@ -316,25 +316,58 @@ export function undoMove(): boolean {
     return false;
   }
 
-  // Get current turn BEFORE undo
+  // CRITICAL: Cancel any pending or in-progress AI move FIRST.
+  // This bumps moveGeneration so any in-flight Stockfish result is discarded,
+  // clears the scheduled timeout, sends 'stop' to Stockfish, and resets
+  // the AI-thinking UI state.
+  cancelPendingAIMove();
+
+  // Always undo moves in pairs (player + AI) so the player gets their turn back.
+  // Scenario 1: It's the player's turn (AI already responded) → undo AI move, then player move.
+  // Scenario 2: It's the AI's turn (player just moved, AI was in-flight/pending) → undo player move.
+  //             BUT this leaves it on the AI's turn, so also undo the PREVIOUS AI move
+  //             to give the player back their previous turn. Otherwise the AI just
+  //             re-fires and the undo appears to do nothing.
   const currentTurn = engine.turn();
-  
-  // If it's currently the player's turn, AI has moved since player's last move
-  // So we need to undo AI's move first, THEN undo player's move
+
   if (currentTurn === state.playerColor) {
-    // It's player's turn - undo AI's move first
-    engine.undo();
-    console.log('[Game] Undid AI move');
+    // Player's turn — AI already moved. Undo AI move first.
+    if (engine.undo()) {
+      console.log('[Game] Undid AI move');
+    } else {
+      console.warn('[Game] Failed to undo AI move (no move to undo)');
+      return false;
+    }
     
-    // Check if there's still a player move to undo
+    // Now undo the player's move
     if (engine.getMoveHistory().length > 0) {
-      engine.undo();
-      console.log('[Game] Also undid player move');
+      const history = engine.getMoveHistory();
+      const lastMove = history[history.length - 1];
+      if (lastMove && lastMove.includes('=')) {
+        currentGamePromotions.pop();
+        console.log('[Game] Rolled back promotion credit');
+      }
+      if (engine.undo()) {
+        console.log('[Game] Also undid player move');
+      }
     }
   } else {
-    // It's AI's turn - player just moved, so just undo the player's move
-    engine.undo();
-    console.log('[Game] Undid player move (AI hasnt responded yet)');
+    // AI's turn — player just moved, AI hasn't responded yet (was cancelled).
+    // Just undo the player's move. This puts the player back to the same
+    // position they were in before making that move, ready to choose differently.
+    const history1 = engine.getMoveHistory();
+    const lastMove1 = history1[history1.length - 1];
+    if (lastMove1 && lastMove1.includes('=')) {
+      currentGamePromotions.pop();
+      console.log('[Game] Rolled back promotion credit');
+    }
+    if (engine.undo()) {
+      console.log('[Game] Undid player move (AI was cancelled)');
+    } else {
+      console.warn('[Game] Failed to undo player move');
+      return false;
+    }
+    // Player is now back to where they were before their move. Their turn.
   }
 
   // Clear selection
@@ -344,6 +377,13 @@ export function undoMove(): boolean {
 
   notifyStateChange();
   console.log('[Game] Undo complete, now', engine.turn(), 'to move');
+
+  // T2: After undo, if it's now the AI's turn, reschedule the AI move
+  // (e.g., player is black and undid to the start — white/AI must move)
+  if (!state.gameOver && engine.turn() !== state.playerColor) {
+    scheduleAIMove();
+  }
+
   return true;
 }
 
@@ -394,6 +434,10 @@ export function handleSquareClick(row: number, col: number): boolean {
   if (row < 0 || row >= 8 || col < 0 || col >= 8) return false;
 
   const currentTurn = engine.turn();
+
+  // T8: Explicit turn guard — reject all clicks when it's not the player's turn
+  if (currentTurn !== state.playerColor && !aiVsAiMode) return false;
+
   const board = engine.getBoard();
   const clickedPiece = board[row][col];
 
@@ -522,6 +566,9 @@ export function cancelPromotion(): void {
  * Prepare a new game (player can arrange pieces before starting)
  */
 export function newGame(): void {
+  // Cancel any pending/in-flight AI moves from previous game
+  cancelPendingAIMove();
+
   state.gameOver = false;
   state.gameStarted = false;  // Wait for player to click Start
   state.selectedSquare = null;
@@ -1342,6 +1389,9 @@ function getAIElo(): number {
 // PERFORMANCE: Track pending AI move timeout to prevent stacking
 let pendingAIMoveTimeout: number | null = null;
 
+// Move generation counter - incremented on undo/new game to invalidate stale AI moves
+let moveGeneration = 0;
+
 function scheduleAIMove(): void {
   console.log('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
   if (onAIThinking) onAIThinking(true);
@@ -1358,14 +1408,37 @@ function scheduleAIMove(): void {
   const delay = Math.round(baseDelay * aiMoveSpeedMultiplier);
   console.log('[AI] Scheduling AI move in', delay, 'ms');
 
+  const generation = moveGeneration;
   pendingAIMoveTimeout = window.setTimeout(() => {
     pendingAIMoveTimeout = null;
-    makeAIMoveAsync();
+    // Discard if undo/new game happened since we were scheduled
+    if (generation !== moveGeneration) {
+      console.log('[AI] Stale scheduled move discarded (generation mismatch)');
+      if (onAIThinking) onAIThinking(false);
+      return;
+    }
+    makeAIMoveAsync(generation);
   }, delay);
 }
 
-async function makeAIMoveAsync(): Promise<void> {
-  if (state.gameOver) {
+/**
+ * Cancel any pending or in-progress AI move.
+ * Called on undo, new game, etc.
+ */
+function cancelPendingAIMove(): void {
+  moveGeneration++;
+  if (pendingAIMoveTimeout !== null) {
+    clearTimeout(pendingAIMoveTimeout);
+    pendingAIMoveTimeout = null;
+    console.log('[AI] Cancelled pending AI timeout');
+  }
+  // Stop Stockfish if it's currently computing
+  stockfishEngine.stop();
+  if (onAIThinking) onAIThinking(false);
+}
+
+async function makeAIMoveAsync(generation: number): Promise<void> {
+  if (state.gameOver || generation !== moveGeneration) {
     if (onAIThinking) onAIThinking(false);
     return;
   }
@@ -1416,9 +1489,23 @@ async function makeAIMoveAsync(): Promise<void> {
     const fen = engine.getFEN();
     const timeout = TIMING.stockfishTimeout;
 
+    // Check generation before the async call
+    if (generation !== moveGeneration) {
+      console.log('[AI] Stale AI move discarded before Stockfish call');
+      if (onAIThinking) onAIThinking(false);
+      return;
+    }
+
     // Get move from Stockfish (returns simplified Move object)
     // Pass aiVsAiMode as fastMode to reduce thinking time
     const stockfishMove = await stockfishEngine.getBestMove(fen, effectiveElo, timeout, aiVsAiMode);
+
+    // Check generation after the async Stockfish call — undo may have happened while waiting
+    if (generation !== moveGeneration) {
+      console.log('[AI] Stale AI move discarded after Stockfish returned (undo happened)');
+      if (onAIThinking) onAIThinking(false);
+      return;
+    }
 
     if (stockfishMove) {
       // Fill in piece information from current board
@@ -1453,6 +1540,13 @@ async function makeAIMoveAsync(): Promise<void> {
     move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
   }
 
+  // Final generation check right before applying the move
+  if (generation !== moveGeneration) {
+    console.log('[AI] Stale AI move discarded before applying (undo happened)');
+    if (onAIThinking) onAIThinking(false);
+    return;
+  }
+
   if (move) {
     const result = engine.makeMove(move.from, move.to, move.promotion);
     if (!result) {
@@ -1479,7 +1573,9 @@ async function makeAIMoveAsync(): Promise<void> {
     }
   }
 
-  if (onAIThinking) onAIThinking(false);
+  // T7: Only reset thinking state if this is still the current generation.
+  // If undo bumped the generation, cancelPendingAIMove() already handled it.
+  if (generation === moveGeneration && onAIThinking) onAIThinking(false);
 }
 
 function checkGameEnd(): void {
