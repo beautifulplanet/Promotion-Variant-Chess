@@ -318,6 +318,8 @@ pub fn game_status(pos: &Position) -> String {
 pub struct GameState {
     position: Position,
     hash_history: Vec<u64>,
+    move_history: Vec<(types::Move, position::UndoInfo)>,
+    uci_history: Vec<String>,
 }
 
 #[wasm_bindgen]
@@ -330,6 +332,8 @@ impl GameState {
         Self {
             position: pos,
             hash_history: vec![hash],
+            move_history: Vec::new(),
+            uci_history: Vec::new(),
         }
     }
 
@@ -340,6 +344,8 @@ impl GameState {
         Ok(Self {
             position: pos,
             hash_history: vec![hash],
+            move_history: Vec::new(),
+            uci_history: Vec::new(),
         })
     }
 
@@ -360,52 +366,67 @@ impl GameState {
             None => return false,
         };
 
-        // Check for en passant
-        if let Some((_, piece_type)) = self.position.piece_on(from) {
+        // Determine the correct move type
+        let m = if let Some((_, piece_type)) = self.position.piece_on(from) {
             if piece_type == PieceType::Pawn {
                 if let Some(ep_sq) = self.position.en_passant_square() {
                     if to == ep_sq {
-                        let result = self.position.make_move(Move::new_en_passant(from, to)).is_some();
-                        if result {
-                            self.hash_history.push(self.position.hash());
-                        }
-                        return result;
+                        Move::new_en_passant(from, to)
+                    } else if uci.len() >= 5 {
+                        let promo_piece = Self::parse_promo(uci.chars().nth(4).unwrap());
+                        Move::new_promotion(from, to, promo_piece)
+                    } else {
+                        Move::new(from, to)
                     }
+                } else if uci.len() >= 5 {
+                    let promo_piece = Self::parse_promo(uci.chars().nth(4).unwrap());
+                    Move::new_promotion(from, to, promo_piece)
+                } else {
+                    Move::new(from, to)
                 }
-            }
-
-            // Check for castling
-            if piece_type == PieceType::King {
+            } else if piece_type == PieceType::King {
                 let diff = (to.file() as i8 - from.file() as i8).abs();
                 if diff == 2 {
-                    let result = self.position.make_move(Move::new_castling(from, to)).is_some();
-                    if result {
-                        self.hash_history.push(self.position.hash());
-                    }
-                    return result;
+                    Move::new_castling(from, to)
+                } else {
+                    Move::new(from, to)
                 }
+            } else {
+                Move::new(from, to)
             }
-        }
-
-        let m = if uci.len() >= 5 {
-            let promo_char = uci.chars().nth(4).unwrap();
-            let promo_piece = match promo_char {
-                'q' | 'Q' => PieceType::Queen,
-                'r' | 'R' => PieceType::Rook,
-                'b' | 'B' => PieceType::Bishop,
-                'n' | 'N' => PieceType::Knight,
-                _ => PieceType::Queen,
-            };
-            Move::new_promotion(from, to, promo_piece)
         } else {
-            Move::new(from, to)
+            return false; // No piece on from square
         };
 
-        let result = self.position.make_move(m).is_some();
-        if result {
+        if let Some(undo) = self.position.make_move(m) {
             self.hash_history.push(self.position.hash());
+            self.move_history.push((m, undo));
+            self.uci_history.push(uci.to_string());
+            true
+        } else {
+            false
         }
-        result
+    }
+
+    fn parse_promo(ch: char) -> types::PieceType {
+        match ch {
+            'q' | 'Q' => types::PieceType::Queen,
+            'r' | 'R' => types::PieceType::Rook,
+            'b' | 'B' => types::PieceType::Bishop,
+            'n' | 'N' => types::PieceType::Knight,
+            _ => types::PieceType::Queen,
+        }
+    }
+
+    /// Undo the last move. Returns the UCI string of the undone move, or empty string if nothing to undo.
+    pub fn undo(&mut self) -> String {
+        if let Some((m, undo)) = self.move_history.pop() {
+            self.position.unmake_move(m, &undo);
+            self.hash_history.pop();
+            self.uci_history.pop().unwrap_or_default()
+        } else {
+            String::new()
+        }
     }
 
     /// Get the FEN of the current position
@@ -416,6 +437,115 @@ impl GameState {
     /// Get the Zobrist hash
     pub fn hash(&self) -> u64 {
         self.position.hash()
+    }
+
+    /// Get current turn: "w" or "b"
+    pub fn turn(&self) -> String {
+        match self.position.side_to_move() {
+            types::Color::White => "w".to_string(),
+            types::Color::Black => "b".to_string(),
+        }
+    }
+
+    /// Reset to starting position
+    pub fn reset(&mut self) {
+        self.position = Position::starting_position();
+        let hash = self.position.hash();
+        self.hash_history = vec![hash];
+        self.move_history.clear();
+        self.uci_history.clear();
+    }
+
+    /// Load a position from FEN, clearing history
+    pub fn load_fen(&mut self, fen: &str) -> bool {
+        match Position::from_fen(fen) {
+            Ok(pos) => {
+                let hash = pos.hash();
+                self.position = pos;
+                self.hash_history = vec![hash];
+                self.move_history.clear();
+                self.uci_history.clear();
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Get move history as UCI strings (JSON array)
+    pub fn history(&self) -> String {
+        use std::fmt::Write;
+        let mut result = String::from("[");
+        for (i, uci) in self.uci_history.iter().enumerate() {
+            if i > 0 {
+                result.push(',');
+            }
+            write!(result, "\"{}\"", uci).unwrap();
+        }
+        result.push(']');
+        result
+    }
+
+    /// Get the board as a JSON string representing 8x8 array
+    /// Each cell is null or {\"type\":\"P\",\"color\":\"w\"} etc.
+    pub fn get_board_json(&self) -> String {
+        let mut result = String::from("[");
+        for rank in (0..8u8).rev() {  // rank 7 (row 0) down to rank 0 (row 7)
+            if rank < 7 {
+                result.push(',');
+            }
+            result.push('[');
+            for file in 0..8u8 {
+                if file > 0 {
+                    result.push(',');
+                }
+                let sq = types::Square::from_file_rank(file, rank);
+                match self.position.piece_on(sq) {
+                    Some((color, piece_type)) => {
+                        let c = match color {
+                            types::Color::White => "w",
+                            types::Color::Black => "b",
+                        };
+                        let p = match piece_type {
+                            types::PieceType::Pawn => "P",
+                            types::PieceType::Knight => "N",
+                            types::PieceType::Bishop => "B",
+                            types::PieceType::Rook => "R",
+                            types::PieceType::Queen => "Q",
+                            types::PieceType::King => "K",
+                        };
+                        result.push_str(&format!("{{\"type\":\"{}\",\"color\":\"{}\"}}", p, c));
+                    }
+                    None => result.push_str("null"),
+                }
+            }
+            result.push(']');
+        }
+        result.push(']');
+        result
+    }
+
+    /// Get piece at a specific square (file 0-7, rank 0-7 where rank 0 = row 7 in display)
+    /// Returns empty string if no piece, or "wP", "bN", etc.
+    pub fn piece_at(&self, file: u8, rank: u8) -> String {
+        let sq = types::Square::from_file_rank(file, rank);
+        match self.position.piece_on(sq) {
+            Some((color, piece_type)) => {
+                let c = match color {
+                    types::Color::White => 'w',
+                    types::Color::Black => 'b',
+                };
+                let p = match piece_type {
+                    types::PieceType::Pawn => 'P',
+                    types::PieceType::Knight => 'N',
+                    types::PieceType::Bishop => 'B',
+                    types::PieceType::Rook => 'R',
+                    types::PieceType::Queen => 'Q',
+                    types::PieceType::King => 'K',
+                };
+                format!("{}{}", c, p)
+            }
+            None => String::new(),
+        }
     }
 
     /// Check if current side is in check
@@ -665,5 +795,198 @@ mod tests {
         let mut gs = GameState::from_fen("4k3/P7/8/8/8/8/8/4K3 w - - 0 1").unwrap();
         assert!(gs.make_move_uci("a7a8q")); // Promote to queen
         assert!(gs.move_count() == 1);
+    }
+
+    // =========================================================================
+    // NEW GAMESTATE METHODS TESTS (Task 2.2)
+    // =========================================================================
+
+    #[test]
+    fn test_gamestate_undo() {
+        let mut gs = GameState::new();
+        let orig_fen = gs.fen();
+        gs.make_move_uci("e2e4");
+        assert_eq!(gs.move_count(), 1);
+
+        let undone = gs.undo();
+        assert_eq!(undone, "e2e4");
+        assert_eq!(gs.move_count(), 0);
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_undo_empty() {
+        let mut gs = GameState::new();
+        let undone = gs.undo();
+        assert_eq!(undone, "");
+        assert_eq!(gs.move_count(), 0);
+    }
+
+    #[test]
+    fn test_gamestate_undo_multiple() {
+        let mut gs = GameState::new();
+        let fen0 = gs.fen();
+        gs.make_move_uci("e2e4");
+        let fen1 = gs.fen();
+        gs.make_move_uci("e7e5");
+        let fen2 = gs.fen();
+        gs.make_move_uci("g1f3");
+
+        assert_eq!(gs.undo(), "g1f3");
+        assert_eq!(gs.fen(), fen2);
+        assert_eq!(gs.undo(), "e7e5");
+        assert_eq!(gs.fen(), fen1);
+        assert_eq!(gs.undo(), "e2e4");
+        assert_eq!(gs.fen(), fen0);
+    }
+
+    #[test]
+    fn test_gamestate_undo_capture() {
+        // Set up position where e4 pawn can capture d5 pawn
+        let mut gs = GameState::from_fen("4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1").unwrap();
+        let orig_fen = gs.fen();
+        gs.make_move_uci("e4d5");  // capture
+        assert_ne!(gs.fen(), orig_fen);
+        gs.undo();
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_undo_en_passant() {
+        let mut gs = GameState::from_fen("4k3/8/8/3Pp3/8/8/8/4K3 w - e6 0 1").unwrap();
+        let orig_fen = gs.fen();
+        gs.make_move_uci("d5e6");
+        gs.undo();
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_undo_castling() {
+        let mut gs = GameState::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
+        let orig_fen = gs.fen();
+        gs.make_move_uci("e1g1");  // kingside castle
+        gs.undo();
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_undo_promotion() {
+        let mut gs = GameState::from_fen("4k3/P7/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let orig_fen = gs.fen();
+        gs.make_move_uci("a7a8q");
+        gs.undo();
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_turn() {
+        let mut gs = GameState::new();
+        assert_eq!(gs.turn(), "w");
+        gs.make_move_uci("e2e4");
+        assert_eq!(gs.turn(), "b");
+        gs.make_move_uci("e7e5");
+        assert_eq!(gs.turn(), "w");
+        gs.undo();
+        assert_eq!(gs.turn(), "b");
+    }
+
+    #[test]
+    fn test_gamestate_reset() {
+        let mut gs = GameState::new();
+        gs.make_move_uci("e2e4");
+        gs.make_move_uci("e7e5");
+        gs.make_move_uci("g1f3");
+        assert_eq!(gs.move_count(), 3);
+
+        gs.reset();
+        assert_eq!(gs.move_count(), 0);
+        assert_eq!(gs.turn(), "w");
+        assert_eq!(gs.fen(), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    }
+
+    #[test]
+    fn test_gamestate_load_fen() {
+        let mut gs = GameState::new();
+        gs.make_move_uci("e2e4");
+        let target_fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+        assert!(gs.load_fen(target_fen));
+        assert_eq!(gs.fen(), target_fen);
+        assert_eq!(gs.move_count(), 0);
+        assert_eq!(gs.turn(), "w");
+    }
+
+    #[test]
+    fn test_gamestate_load_fen_invalid() {
+        let mut gs = GameState::new();
+        let orig_fen = gs.fen();
+        assert!(!gs.load_fen("invalid fen"));
+        assert_eq!(gs.fen(), orig_fen);
+    }
+
+    #[test]
+    fn test_gamestate_history() {
+        let mut gs = GameState::new();
+        assert_eq!(gs.history(), "[]");
+        gs.make_move_uci("e2e4");
+        assert_eq!(gs.history(), "[\"e2e4\"]");
+        gs.make_move_uci("e7e5");
+        assert_eq!(gs.history(), "[\"e2e4\",\"e7e5\"]");
+        gs.undo();
+        assert_eq!(gs.history(), "[\"e2e4\"]");
+    }
+
+    #[test]
+    fn test_gamestate_piece_at() {
+        let gs = GameState::new();
+        // a1 (file=0, rank=0) should be white rook
+        assert_eq!(gs.piece_at(0, 0), "wR");
+        // e1 (file=4, rank=0) should be white king
+        assert_eq!(gs.piece_at(4, 0), "wK");
+        // e8 (file=4, rank=7) should be black king
+        assert_eq!(gs.piece_at(4, 7), "bK");
+        // e4 (file=4, rank=3) should be empty
+        assert_eq!(gs.piece_at(4, 3), "");
+        // a7 (file=0, rank=6) should be black pawn
+        assert_eq!(gs.piece_at(0, 6), "bP");
+        // b1 (file=1, rank=0) should be white knight
+        assert_eq!(gs.piece_at(1, 0), "wN");
+    }
+
+    #[test]
+    fn test_gamestate_get_board_json() {
+        let gs = GameState::new();
+        let json = gs.get_board_json();
+        // Should be valid JSON array of 8 rows
+        assert!(json.starts_with("[["));
+        assert!(json.ends_with("]]"));
+        // Should contain our piece representations
+        assert!(json.contains(r#"{"type":"R","color":"w"}"#));
+        assert!(json.contains(r#"{"type":"K","color":"b"}"#));
+        assert!(json.contains("null"));
+    }
+
+    #[test]
+    fn test_gamestate_undo_restores_hash_history() {
+        let mut gs = GameState::new();
+        let h0 = gs.hash();
+        gs.make_move_uci("e2e4");
+        let h1 = gs.hash();
+        gs.make_move_uci("e7e5");
+        gs.undo();
+        assert_eq!(gs.hash(), h1);
+        gs.undo();
+        assert_eq!(gs.hash(), h0);
+    }
+
+    #[test]
+    fn test_gamestate_threefold_with_undo() {
+        let mut gs = GameState::new();
+        // Make and undo moves shouldn't create false threefold
+        for _ in 0..5 {
+            gs.make_move_uci("g1f3");
+            gs.undo();
+        }
+        // Hash history should only have 1 entry (starting pos)
+        assert!(!gs.is_threefold_repetition());
     }
 }

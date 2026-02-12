@@ -13,6 +13,118 @@ export enum Color {
     Black = 1,
 }
 
+/**
+ * A full game state that tracks position + hash history for repetition detection.
+ */
+export class GameState {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Get best move via search
+     */
+    best_move(depth: number): string | undefined;
+    /**
+     * Evaluate current position
+     */
+    eval(): number;
+    /**
+     * Get the FEN of the current position
+     */
+    fen(): string;
+    /**
+     * Create from FEN string
+     */
+    static from_fen(fen: string): GameState;
+    /**
+     * Get the board as a JSON string representing 8x8 array
+     * Each cell is null or {\"type\":\"P\",\"color\":\"w\"} etc.
+     */
+    get_board_json(): string;
+    /**
+     * Get the Zobrist hash
+     */
+    hash(): bigint;
+    /**
+     * Get move history as UCI strings (JSON array)
+     */
+    history(): string;
+    /**
+     * Check if current side is in checkmate
+     */
+    is_checkmate(): boolean;
+    /**
+     * Check if the game is drawn (any draw condition including repetition)
+     */
+    is_draw(): boolean;
+    /**
+     * Check 50-move rule
+     */
+    is_fifty_move_draw(): boolean;
+    /**
+     * Check if the game is over (checkmate or any draw)
+     */
+    is_game_over(): boolean;
+    /**
+     * Check if current side is in check
+     */
+    is_in_check(): boolean;
+    /**
+     * Check for insufficient material
+     */
+    is_insufficient_material(): boolean;
+    /**
+     * Check if current side is in stalemate
+     */
+    is_stalemate(): boolean;
+    /**
+     * Check threefold repetition using hash history
+     */
+    is_threefold_repetition(): boolean;
+    /**
+     * Get legal moves as UCI strings
+     */
+    legal_moves(): any[];
+    /**
+     * Load a position from FEN, clearing history
+     */
+    load_fen(fen: string): boolean;
+    /**
+     * Make a move in UCI notation. Returns true if legal.
+     */
+    make_move_uci(uci: string): boolean;
+    /**
+     * Get the number of moves played (hash history length - 1)
+     */
+    move_count(): number;
+    /**
+     * Create a new game from starting position
+     */
+    constructor();
+    /**
+     * Get piece at a specific square (file 0-7, rank 0-7 where rank 0 = row 7 in display)
+     * Returns empty string if no piece, or "wP", "bN", etc.
+     */
+    piece_at(file: number, rank: number): string;
+    /**
+     * Reset to starting position
+     */
+    reset(): void;
+    /**
+     * Get full game status including repetition detection
+     * Returns: "checkmate", "stalemate", "insufficient_material", "fifty_move",
+     *          "threefold_repetition", or "playing"
+     */
+    status(): string;
+    /**
+     * Get current turn: "w" or "b"
+     */
+    turn(): string;
+    /**
+     * Undo the last move. Returns the UCI string of the undone move, or empty string if nothing to undo.
+     */
+    undo(): string;
+}
+
 export class Move {
     private constructor();
     free(): void;
@@ -37,10 +149,39 @@ export class Position {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Get game status string
+     * Returns "checkmate", "stalemate", "draw", or "playing"
+     * Note: Does not detect threefold repetition (needs history).
+     */
+    game_status(): string;
+    /**
      * Get piece character at square (for display)
      * Returns empty string if no piece
      */
     get_piece_at(file: number, rank: number): string;
+    /**
+     * Check if current side is in checkmate (in check AND no legal moves)
+     */
+    is_checkmate(): boolean;
+    /**
+     * Check if position is a draw (stalemate, insufficient material, or 50-move rule)
+     * Note: Threefold repetition is NOT checked here — it requires move history,
+     * which is tracked by GameState in lib.rs.
+     */
+    is_draw(): boolean;
+    /**
+     * Check if the 50-move rule has been reached (halfmove clock >= 100)
+     */
+    is_fifty_move_draw(): boolean;
+    /**
+     * Check if the position has insufficient material for either side to checkmate
+     * Returns true for: K vs K, K+N vs K, K+B vs K, K+B vs K+B (same color bishops)
+     */
+    is_insufficient_material(): boolean;
+    /**
+     * Check if current side is in stalemate (NOT in check AND no legal moves)
+     */
+    is_stalemate(): boolean;
     /**
      * Check if it's white's turn
      */
@@ -92,6 +233,12 @@ export function eval_position(pos: Position): number;
 export function from_fen(fen: string): Position;
 
 /**
+ * Get game status: "playing", "checkmate", "stalemate", or "draw"
+ * Note: Does not include threefold repetition. Use GameState for full detection.
+ */
+export function game_status(pos: Position): string;
+
+/**
  * Get best move for the current position
  * Returns move in UCI format (e.g., "e2e4")
  */
@@ -101,6 +248,11 @@ export function get_best_move(pos: Position, depth: number): string | undefined;
  * Get best move with iterative deepening (better for time management)
  */
 export function get_best_move_iterative(pos: Position, max_depth: number): string | undefined;
+
+/**
+ * Get Zobrist hash of the position (for transposition tables / repetition detection)
+ */
+export function get_hash(pos: Position): bigint;
 
 /**
  * Get all legal moves for a position as a JSON array of move strings (UCI format)
@@ -115,9 +267,35 @@ export function get_pseudo_legal_moves(pos: Position): any[];
 export function init(): void;
 
 /**
+ * Check if the current side is in checkmate
+ */
+export function is_checkmate(pos: Position): boolean;
+
+/**
+ * Check if the game is drawn (stalemate, insufficient material, or 50-move)
+ * Note: For threefold repetition, use GameState which tracks hash history.
+ */
+export function is_draw(pos: Position): boolean;
+
+/**
+ * Check if the 50-move rule draw has been reached
+ */
+export function is_fifty_move_draw(pos: Position): boolean;
+
+/**
  * Check if the current side is in check
  */
 export function is_in_check(pos: Position): boolean;
+
+/**
+ * Check if the position has insufficient material for checkmate
+ */
+export function is_insufficient_material(pos: Position): boolean;
+
+/**
+ * Check if the current side is in stalemate
+ */
+export function is_stalemate(pos: Position): boolean;
 
 /**
  * Make a move on the position (modifies in place)
@@ -160,20 +338,46 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_position_free: (a: number, b: number) => void;
-    readonly position_get_piece_at: (a: number, b: number, c: number) => [number, number];
-    readonly position_is_white_turn: (a: number) => number;
-    readonly position_piece_count: (a: number) => number;
+    readonly __wbg_gamestate_free: (a: number, b: number) => void;
     readonly __wbg_searchresult_free: (a: number, b: number) => void;
     readonly count_legal_moves: (a: number) => number;
     readonly engine_info: () => [number, number];
     readonly eval_position: (a: number) => number;
     readonly from_fen: (a: number, b: number) => [number, number, number];
+    readonly game_status: (a: number) => [number, number];
+    readonly gamestate_best_move: (a: number, b: number) => [number, number];
+    readonly gamestate_eval: (a: number) => number;
+    readonly gamestate_fen: (a: number) => [number, number];
+    readonly gamestate_from_fen: (a: number, b: number) => [number, number, number];
+    readonly gamestate_get_board_json: (a: number) => [number, number];
+    readonly gamestate_hash: (a: number) => bigint;
+    readonly gamestate_history: (a: number) => [number, number];
+    readonly gamestate_is_checkmate: (a: number) => number;
+    readonly gamestate_is_draw: (a: number) => number;
+    readonly gamestate_is_fifty_move_draw: (a: number) => number;
+    readonly gamestate_is_game_over: (a: number) => number;
+    readonly gamestate_is_in_check: (a: number) => number;
+    readonly gamestate_is_insufficient_material: (a: number) => number;
+    readonly gamestate_is_stalemate: (a: number) => number;
+    readonly gamestate_is_threefold_repetition: (a: number) => number;
+    readonly gamestate_legal_moves: (a: number) => [number, number];
+    readonly gamestate_load_fen: (a: number, b: number, c: number) => number;
+    readonly gamestate_make_move_uci: (a: number, b: number, c: number) => number;
+    readonly gamestate_move_count: (a: number) => number;
+    readonly gamestate_new: () => number;
+    readonly gamestate_piece_at: (a: number, b: number, c: number) => [number, number];
+    readonly gamestate_reset: (a: number) => void;
+    readonly gamestate_status: (a: number) => [number, number];
+    readonly gamestate_turn: (a: number) => [number, number];
+    readonly gamestate_undo: (a: number) => [number, number];
     readonly get_best_move: (a: number, b: number) => [number, number];
     readonly get_best_move_iterative: (a: number, b: number) => [number, number];
     readonly get_legal_moves: (a: number) => [number, number];
     readonly get_pseudo_legal_moves: (a: number) => [number, number];
+    readonly is_checkmate: (a: number) => number;
+    readonly is_draw: (a: number) => number;
     readonly is_in_check: (a: number) => number;
+    readonly is_stalemate: (a: number) => number;
     readonly make_move: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly make_move_uci: (a: number, b: number, c: number) => number;
     readonly new_game: () => number;
@@ -185,7 +389,20 @@ export interface InitOutput {
     readonly searchresult_nodes: (a: number) => bigint;
     readonly searchresult_score: (a: number) => number;
     readonly to_fen: (a: number) => [number, number];
+    readonly is_insufficient_material: (a: number) => number;
     readonly init: () => void;
+    readonly is_fifty_move_draw: (a: number) => number;
+    readonly get_hash: (a: number) => bigint;
+    readonly __wbg_position_free: (a: number, b: number) => void;
+    readonly position_game_status: (a: number) => [number, number];
+    readonly position_get_piece_at: (a: number, b: number, c: number) => [number, number];
+    readonly position_is_checkmate: (a: number) => number;
+    readonly position_is_draw: (a: number) => number;
+    readonly position_is_fifty_move_draw: (a: number) => number;
+    readonly position_is_insufficient_material: (a: number) => number;
+    readonly position_is_stalemate: (a: number) => number;
+    readonly position_is_white_turn: (a: number) => number;
+    readonly position_piece_count: (a: number) => number;
     readonly __wbg_castlingrights_free: (a: number, b: number) => void;
     readonly __wbg_get_castlingrights_0: (a: number) => number;
     readonly __wbg_get_move_0: (a: number) => number;

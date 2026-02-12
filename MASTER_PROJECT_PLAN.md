@@ -1225,10 +1225,10 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 | 1 | 1.5 Zobrist hashing | ✅ DONE | — |
 | 1 | 1.6 Implement unmake_move | ✅ DONE | 1.5 |
 | 1 | 1.7 Expand test coverage | ✅ DONE (128 tests) | 1.1, 1.2 |
-| 2 | 2.1 Draw detection | ✅ DONE (174 tests) | 1.6 |
-| 2 | 2.2 Transposition table | NOT STARTED | 1.5 |
-| 2 | 2.3 TypeScript bridge | NOT STARTED | 1.4 |
-| 2 | 2.4 Feature parity validation | NOT STARTED | 2.3 |
+| 2 | 2.1 Game-state API | ✅ DONE (174→190 Rust tests) | 1.6 |
+| 2 | 2.2 RustGameState TS wrapper | ✅ DONE (330 total tests) | 2.1 |
+| 2 | 2.3 Wire RustGameState into gameController | NOT STARTED | 2.2 |
+| 2 | 2.4 Remove chess.js dependency | NOT STARTED | 2.3 |
 
 ---
 
@@ -1243,5 +1243,5 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 
 ---
 
-*Last updated: 2026-02-14*
-*Phase 1 COMPLETE — Next: Phase 2 Task 2.1 — Draw detection*
+*Last updated: 2026-02-15*
+*Phase 2 in progress — Next: Task 2.3 — Wire RustGameState into gameController*
