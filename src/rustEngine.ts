@@ -71,8 +71,11 @@ export async function initEngine(): Promise<boolean> {
     try {
       console.log('[RustEngine] Loading WASM module...');
       
+      // Use Vite's BASE_URL so paths work in both dev (/) and production (/Promotion-Variant-Chess/)
+      const base = import.meta.env.BASE_URL ?? '/';
+      
       // Fetch the JS glue code and eval it (Vite doesn't allow import from /public)
-      const jsResponse = await fetch('/wasm/chess_engine.js');
+      const jsResponse = await fetch(`${base}wasm/chess_engine.js`);
       if (!jsResponse.ok) throw new Error('Failed to fetch WASM JS');
       const jsCode = await jsResponse.text();
       
@@ -83,7 +86,7 @@ export async function initEngine(): Promise<boolean> {
       URL.revokeObjectURL(blobUrl);
       
       // Initialize WASM
-      await wasm.default('/wasm/chess_engine_bg.wasm');
+      await wasm.default(`${base}wasm/chess_engine_bg.wasm`);
       
       wasmModule = wasm;
       isInitialized = true;
