@@ -1218,13 +1218,17 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 
 | Phase | Task | Status | Blocked By |
 |-------|------|--------|------------|
-| 1 | 1.1 Fix castling-through-check | NOT STARTED | — |
-| 1 | 1.2 Fix halfmove clock | NOT STARTED | — |
-| 1 | 1.3 Perft validation | NOT STARTED | — |
-| 1 | 1.4 Build WASM binary | NOT STARTED | — |
-| 1 | 1.5 Zobrist hashing | NOT STARTED | — |
-| 1 | 1.6 Implement unmake_move | NOT STARTED | 1.5 |
-| 1 | 1.7 Expand test coverage | NOT STARTED | 1.1, 1.2 |
+| 1 | 1.1 Fix castling-through-check | ✅ DONE | — |
+| 1 | 1.2 Fix halfmove clock | ✅ DONE | — |
+| 1 | 1.3 Perft validation | ✅ DONE | — |
+| 1 | 1.4 Build WASM binary | ✅ DONE | — |
+| 1 | 1.5 Zobrist hashing | ✅ DONE | — |
+| 1 | 1.6 Implement unmake_move | ✅ DONE | 1.5 |
+| 1 | 1.7 Expand test coverage | ✅ DONE (128 tests) | 1.1, 1.2 |
+| 2 | 2.1 Draw detection | NOT STARTED | 1.6 |
+| 2 | 2.2 Transposition table | NOT STARTED | 1.5 |
+| 2 | 2.3 TypeScript bridge | NOT STARTED | 1.4 |
+| 2 | 2.4 Feature parity validation | NOT STARTED | 2.3 |
 
 ---
 
@@ -1239,5 +1243,5 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 
 ---
 
-*Last updated: 2026-02-12*
-*Next action: Task 1.1 — Fix castling-through-check bug*
+*Last updated: 2026-02-14*
+*Phase 1 COMPLETE — Next: Phase 2 Task 2.1 — Draw detection*
