@@ -83,6 +83,11 @@ export function setVisible(visible: boolean): void {
     draw();
 }
 
+export function handleResize(): void {
+    resize();
+    draw();
+}
+
 // =============================================================================
 // DRAWING
 // =============================================================================

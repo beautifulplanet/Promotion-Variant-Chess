@@ -1258,6 +1258,24 @@ Overlay.init(overlayCanvas);
 Overlay.setVisible(true);
 console.log('[Main-3D] 3D Renderer initialized');
 
+// Setup window resize handler for responsive canvas
+let resizeTimeout: number | null = null;
+const handleWindowResize = () => {
+  // Debounce resize events
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = window.setTimeout(() => {
+    Renderer.handleResize();
+    Overlay.handleResize?.(); // Call if it exists
+  }, 100);
+};
+
+window.addEventListener('resize', handleWindowResize);
+
+// Initial resize to set canvas to correct size
+Renderer.handleResize();
+
+console.log('[Main-3D] Resize handler installed');
+
 // Apply debug toggles now that renderer is ready
 applyDebugToggles();
 if (debugRenderScale) {

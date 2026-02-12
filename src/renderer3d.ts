@@ -271,6 +271,39 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
 }
 
 // =============================================================================
+// CANVAS RESIZE HANDLER
+// =============================================================================
+
+/**
+ * Handle canvas resize - updates renderer and camera aspect ratio
+ * Called when window is resized or canvas dimensions change
+ */
+export function handleResize(): void {
+    if (!canvas || !renderer || !camera) {
+        return;
+    }
+
+    // Get the actual display size of the canvas (CSS size)
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    // Update canvas internal resolution to match display size
+    canvas.width = width;
+    canvas.height = height;
+
+    // Update camera aspect ratio
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    // Update renderer size
+    renderer.setSize(width, height, false); // false = don't update style
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, basePixelRatio));
+
+    console.log('[Renderer3D] Resized to:', width, 'x', height);
+}
+
+// =============================================================================
 // PBR ENVIRONMENT MAP
 // =============================================================================
 

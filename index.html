@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>The Chess Chronicle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -296,10 +296,24 @@
       border: 3px solid #2a2a2a;
       background: #000;
       flex-shrink: 0;
+      width: 100%;
+      max-width: 1150px;
+      position: relative;
     }
 
-    #game-canvas {
+    #game-canvas,
+    #overlay-canvas {
       display: block;
+      width: 100% !important;
+      height: auto !important;
+      aspect-ratio: 1150 / 550;
+    }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
     }
 
     /* BOTTOM MENU BAR */
@@ -1016,6 +1030,281 @@
         border-bottom: 1px solid #d0c0a0;
         padding-right: 0;
         padding-bottom: 8px;
+      }
+    }
+
+    /* ========================================================================
+       MOBILE RESPONSIVENESS - Comprehensive Breakpoints
+       ======================================================================== */
+
+    /* Tablets and below: Start adjusting layout (768px and below) */
+    @media (max-width: 768px) {
+      /* Remove absolute positioning from sidebar, stack vertically */
+      .content-row {
+        flex-direction: column;
+        margin-left: 0;
+      }
+
+      .left-sidebar {
+        position: relative;
+        width: 100%;
+        min-width: unset;
+        max-height: none;
+        border-right: none;
+        border-bottom: 2px solid var(--sidebar-border);
+        z-index: 1;
+      }
+
+      /* Make newspaper header more compact */
+      #newspaper-header {
+        padding: 15px 20px 12px;
+      }
+
+      #newspaper-header h1 {
+        font-size: 32px;
+        letter-spacing: 4px;
+      }
+
+      #newspaper-header .tagline {
+        font-size: 14px;
+      }
+
+      #newspaper-header .date {
+        font-size: 12px;
+      }
+
+      /* Adjust game area padding */
+      .game-area {
+        padding: 10px;
+        gap: 10px;
+      }
+
+      /* Bottom stats bar - better wrapping */
+      #sidebar {
+        padding: 12px 20px;
+        gap: 15px;
+        font-size: 13px;
+      }
+
+      .stat-group {
+        padding: 0 15px;
+        gap: 8px;
+      }
+
+      .stat-group h3 {
+        font-size: 11px;
+      }
+
+      .stat-value {
+        font-size: 18px;
+      }
+
+      /* Make buttons touch-friendly (44x44px minimum) */
+      .controls button {
+        padding: 12px 16px;
+        font-size: 14px;
+        min-height: 44px;
+        min-width: 44px;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        padding: 14px;
+        font-size: 15px;
+        min-height: 44px;
+      }
+
+      .btn-muted {
+        padding: 12px;
+        font-size: 13px;
+        min-height: 44px;
+      }
+
+      /* Hide or collapse articles on tablet */
+      .article-column {
+        display: none;
+      }
+
+      /* Move list panel - adjust for mobile */
+      #move-list-panel {
+        right: 10px;
+        top: 80px;
+        width: 250px;
+        max-height: 400px;
+      }
+    }
+
+    /* Standard phones: 480px - 768px */
+    @media (max-width: 480px) {
+      /* Further compact header */
+      #newspaper-header {
+        padding: 10px 15px 8px;
+      }
+
+      #newspaper-header h1 {
+        font-size: 24px;
+        letter-spacing: 3px;
+      }
+
+      #newspaper-header .tagline {
+        font-size: 12px;
+      }
+
+      #newspaper-header .date {
+        font-size: 11px;
+      }
+
+      /* Tighter spacing on game area */
+      .game-area {
+        padding: 8px;
+        gap: 8px;
+      }
+
+      /* Canvas wrapper adjustments */
+      #canvas-wrapper {
+        border-width: 2px;
+      }
+
+      /* Bottom stats bar - stack vertically or 2x2 grid */
+      #sidebar {
+        flex-direction: column;
+        padding: 10px 15px;
+        gap: 10px;
+      }
+
+      .stat-group {
+        width: 100%;
+        padding: 8px 0;
+        border-right: none;
+        border-bottom: 1px solid #c0b090;
+        justify-content: space-between;
+      }
+
+      .stat-group:last-of-type {
+        border-bottom: none;
+      }
+
+      /* Sidebar sections - full width on mobile */
+      .sidebar-section h3 {
+        font-size: 12px;
+      }
+
+      /* Setup overlay - make responsive */
+      #setup-grid {
+        gap: 4px;
+      }
+
+      .setup-square {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 28px !important;
+      }
+
+      /* Promotion modal */
+      .promotion-choice {
+        width: 60px;
+        height: 60px;
+        font-size: 40px;
+      }
+
+      /* Inventory items */
+      .inventory-item {
+        padding: 6px 10px;
+        min-width: 45px;
+      }
+
+      .inv-piece {
+        font-size: 28px;
+      }
+
+      /* Move list panel - full width or near-full */
+      #move-list-panel {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        top: 60px;
+        max-height: 300px;
+      }
+
+      /* World name badge */
+      #world-name {
+        font-size: 13px;
+        padding: 6px 12px;
+      }
+    }
+
+    /* Small phones: < 480px (very compact) */
+    @media (max-width: 375px) {
+      /* Ultra compact header */
+      #newspaper-header h1 {
+        font-size: 20px;
+        letter-spacing: 2px;
+      }
+
+      #newspaper-header .tagline {
+        font-size: 11px;
+      }
+
+      /* Tightest spacing */
+      .game-area {
+        padding: 5px;
+        gap: 5px;
+      }
+
+      #canvas-wrapper {
+        border-width: 1px;
+      }
+
+      /* Setup squares even smaller */
+      .setup-square {
+        width: 35px !important;
+        height: 35px !important;
+        font-size: 24px !important;
+      }
+
+      /* Stats - smaller text */
+      .stat-value {
+        font-size: 16px;
+      }
+
+      .stat-group h3 {
+        font-size: 10px;
+      }
+
+      /* Buttons - maintain tap targets but adjust text */
+      .controls button {
+        padding: 12px;
+        font-size: 12px;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        font-size: 14px;
+      }
+    }
+
+    /* Landscape orientation on mobile - optimize horizontal space */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .content-row {
+        flex-direction: row;
+      }
+
+      .left-sidebar {
+        width: 200px;
+        min-width: 200px;
+        border-right: 2px solid var(--sidebar-border);
+        border-bottom: none;
+        max-height: 100vh;
+        overflow-y: auto;
+      }
+
+      .game-area {
+        flex: 1;
+      }
+
+      #move-list-panel {
+        width: 220px;
+        max-height: 80vh;
       }
     }
   </style>
