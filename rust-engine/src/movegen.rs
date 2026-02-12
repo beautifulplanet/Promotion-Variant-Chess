@@ -96,6 +96,48 @@ pub fn generate_legal_moves(pos: &Position) -> MoveList {
 }
 
 // =============================================================================
+// PERFT - Standard chess engine correctness test
+// =============================================================================
+
+/// Count all leaf nodes at a given depth (Performance Test)
+/// Used to validate move generation correctness against known values.
+pub fn perft(pos: &Position, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+
+    let moves = generate_legal_moves(pos);
+
+    if depth == 1 {
+        return moves.len() as u64;
+    }
+
+    let mut nodes: u64 = 0;
+    for m in moves.iter() {
+        let mut new_pos = pos.clone();
+        new_pos.make_move(*m);
+        nodes += perft(&new_pos, depth - 1);
+    }
+    nodes
+}
+
+/// Perft with divide: shows node count per root move (useful for debugging)
+pub fn perft_divide(pos: &Position, depth: u32) -> Vec<(String, u64)> {
+    let moves = generate_legal_moves(pos);
+    let mut results = Vec::new();
+
+    for m in moves.iter() {
+        let mut new_pos = pos.clone();
+        new_pos.make_move(*m);
+        let nodes = if depth <= 1 { 1 } else { perft(&new_pos, depth - 1) };
+        results.push((m.to_uci(), nodes));
+    }
+
+    results.sort_by(|a, b| a.0.cmp(&b.0));
+    results
+}
+
+// =============================================================================
 // PAWN MOVE GENERATION
 // =============================================================================
 
@@ -513,5 +555,105 @@ mod tests {
         let moves = generate_pseudo_legal_moves(&pos);
         let castle_moves: Vec<_> = moves.iter().filter(|m| m.is_castling()).collect();
         assert_eq!(castle_moves.len(), 2);
+    }
+
+    // =========================================================================
+    // PERFT TESTS — standard correctness validation
+    // Known values from https://www.chessprogramming.org/Perft_Results
+    // =========================================================================
+
+    #[test]
+    fn test_perft_starting_position_depth1() {
+        let pos = Position::starting_position();
+        assert_eq!(perft(&pos, 1), 20);
+    }
+
+    #[test]
+    fn test_perft_starting_position_depth2() {
+        let pos = Position::starting_position();
+        assert_eq!(perft(&pos, 2), 400);
+    }
+
+    #[test]
+    fn test_perft_starting_position_depth3() {
+        let pos = Position::starting_position();
+        assert_eq!(perft(&pos, 3), 8_902);
+    }
+
+    #[test]
+    fn test_perft_starting_position_depth4() {
+        let pos = Position::starting_position();
+        assert_eq!(perft(&pos, 4), 197_281);
+    }
+
+    #[test]
+    fn test_perft_position4_depth1() {
+        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 1), 6);
+    }
+
+    #[test]
+    fn test_perft_position4_depth2() {
+        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 2), 264);
+    }
+
+    #[test]
+    fn test_perft_position4_depth3() {
+        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 3), 9_467);
+    }
+
+    #[test]
+    fn test_perft_position5_depth3() {
+        let pos = Position::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8").unwrap();
+        assert_eq!(perft(&pos, 3), 62_379);
+    }
+
+    #[test]
+    fn test_perft_position6_depth4() {
+        let pos = Position::from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10").unwrap();
+        assert_eq!(perft(&pos, 4), 3_894_594);
+    }
+
+    // Kiwipete — the most popular perft debugging position
+    // Rich in en passant, castling, promotions, and discovered checks
+    // FEN: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -
+    #[test]
+    fn test_perft_kiwipete_depth1() {
+        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 1), 48);
+    }
+
+    #[test]
+    fn test_perft_kiwipete_depth2() {
+        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 2), 2_039);
+    }
+
+    #[test]
+    fn test_perft_kiwipete_depth3() {
+        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&pos, 3), 97_862);
+    }
+
+    // Position 3 — en passant and promotion heavy
+    // FEN: 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -
+    #[test]
+    fn test_perft_position3_depth1() {
+        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&pos, 1), 14);
+    }
+
+    #[test]
+    fn test_perft_position3_depth2() {
+        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&pos, 2), 191);
+    }
+
+    #[test]
+    fn test_perft_position3_depth3() {
+        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&pos, 3), 2_812);
     }
 }

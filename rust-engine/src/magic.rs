@@ -29,7 +29,7 @@ static ROOK_MAGICS: [u64; 64] = [
     0x101002200408200, 0x40802000401080, 0x4008142004410100, 0x2060820c0120200,
     0x1001004080100, 0x20c020080040080, 0x2935610830022400, 0x44440041009200,
     0x280001040802101, 0x2100190040002085, 0x80c0084100102001, 0x4024081001000421,
-    0x20030a0244872, 0x12001008414402, 0x2006104900a0804, 0x1004a002104582,
+    0x20030a0244872, 0x12001008414402, 0x2006104900a0804, 0x0002040301214486,
 ];
 
 /// Magic numbers for bishop attacks
@@ -412,5 +412,114 @@ mod tests {
         
         // Rook on a1 attacks 14 squares (7 up + 7 right)
         assert_eq!(attacks.count(), 14);
+    }
+    
+    #[test]
+    fn test_rook_h8_blocked_by_h3() {
+        let h8 = Square::from_file_rank(7, 7);
+        let h3 = Square::from_file_rank(7, 2);
+        let h2 = Square::from_file_rank(7, 1);
+        let h1 = Square::from_file_rank(7, 0);
+        
+        let occupied = Bitboard::from_square(h3);
+        let attacks = rook_attacks(h8, occupied);
+        
+        // Rook on h8, blocker on h3: ray should stop at h3
+        assert!(attacks.has(Square::from_file_rank(7, 6)), "h7 should be attacked");
+        assert!(attacks.has(Square::from_file_rank(7, 5)), "h6 should be attacked");
+        assert!(attacks.has(Square::from_file_rank(7, 4)), "h5 should be attacked");
+        assert!(attacks.has(Square::from_file_rank(7, 3)), "h4 should be attacked");
+        assert!(attacks.has(h3), "h3 should be in attack set (blocker square)");
+        assert!(!attacks.has(h2), "h2 should NOT be in attack set (blocked by h3)");
+        assert!(!attacks.has(h1), "h1 should NOT be in attack set (blocked by h3)");
+    }
+    
+    #[test]
+    fn test_validate_all_rook_magics() {
+        // Validate every rook magic number: no two different attack patterns
+        // should hash to the same index for the same square
+        let mut bad_squares = Vec::new();
+        
+        for sq_idx in 0u8..64 {
+            let sq = Square::new(sq_idx);
+            let mask = rook_mask(sq);
+            let bits = ROOK_BITS[sq_idx as usize];
+            let magic = ROOK_MAGICS[sq_idx as usize];
+            let table_size = 1usize << bits;
+            
+            // Build table and check for destructive collisions
+            let mut table: Vec<Option<Bitboard>> = vec![None; table_size];
+            let mut collision = false;
+            
+            let mut blockers = Bitboard::EMPTY;
+            loop {
+                let attacks = rook_attacks_slow(sq, blockers);
+                let index = magic_index(blockers, magic, bits);
+                
+                match table[index] {
+                    None => { table[index] = Some(attacks); }
+                    Some(existing) => {
+                        if existing.0 != attacks.0 {
+                            collision = true;
+                            break;
+                        }
+                    }
+                }
+                
+                blockers = Bitboard((blockers.0.wrapping_sub(mask.0)) & mask.0);
+                if blockers.is_empty() { break; }
+            }
+            
+            if collision {
+                bad_squares.push(sq_idx);
+            }
+        }
+        
+        if !bad_squares.is_empty() {
+            panic!("Rook magic collisions found for squares: {:?}", bad_squares);
+        }
+    }
+    
+    #[test]
+    fn test_validate_all_bishop_magics() {
+        let mut bad_squares = Vec::new();
+        
+        for sq_idx in 0u8..64 {
+            let sq = Square::new(sq_idx);
+            let mask = bishop_mask(sq);
+            let bits = BISHOP_BITS[sq_idx as usize];
+            let magic = BISHOP_MAGICS[sq_idx as usize];
+            let table_size = 1usize << bits;
+            
+            let mut table: Vec<Option<Bitboard>> = vec![None; table_size];
+            let mut collision = false;
+            
+            let mut blockers = Bitboard::EMPTY;
+            loop {
+                let attacks = bishop_attacks_slow(sq, blockers);
+                let index = magic_index(blockers, magic, bits);
+                
+                match table[index] {
+                    None => { table[index] = Some(attacks); }
+                    Some(existing) => {
+                        if existing.0 != attacks.0 {
+                            collision = true;
+                            break;
+                        }
+                    }
+                }
+                
+                blockers = Bitboard((blockers.0.wrapping_sub(mask.0)) & mask.0);
+                if blockers.is_empty() { break; }
+            }
+            
+            if collision {
+                bad_squares.push(sq_idx);
+            }
+        }
+        
+        if !bad_squares.is_empty() {
+            panic!("Bishop magic collisions found for squares: {:?}", bad_squares);
+        }
     }
 }

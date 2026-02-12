@@ -12,7 +12,7 @@ mod types;
 
 use wasm_bindgen::prelude::*;
 use position::Position;
-use movegen::{generate_legal_moves, generate_pseudo_legal_moves};
+use movegen::{generate_legal_moves, generate_pseudo_legal_moves, perft};
 use search::{search, search_iterative};
 use eval::evaluate;
 
@@ -240,4 +240,15 @@ pub fn make_move_uci(pos: &mut Position, uci: &str) -> bool {
 #[wasm_bindgen]
 pub fn is_in_check(pos: &Position) -> bool {
     pos.is_in_check(pos.side_to_move())
+}
+
+// =============================================================================
+// PERFT API - Standard chess engine correctness benchmark
+// =============================================================================
+
+/// Run perft (performance test) — count all leaf nodes at given depth
+/// Used to validate move generation and compare engine speed
+#[wasm_bindgen]
+pub fn run_perft(pos: &Position, depth: u32) -> u64 {
+    perft(pos, depth)
 }
