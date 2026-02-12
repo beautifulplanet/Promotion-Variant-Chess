@@ -9,6 +9,7 @@ mod movegen;
 mod position;
 mod search;
 mod types;
+mod zobrist;
 
 use wasm_bindgen::prelude::*;
 use position::Position;
@@ -251,4 +252,10 @@ pub fn is_in_check(pos: &Position) -> bool {
 #[wasm_bindgen]
 pub fn run_perft(pos: &Position, depth: u32) -> u64 {
     perft(pos, depth)
+}
+
+/// Get Zobrist hash of the position (for transposition tables / repetition detection)
+#[wasm_bindgen]
+pub fn get_hash(pos: &Position) -> u64 {
+    pos.hash()
 }
