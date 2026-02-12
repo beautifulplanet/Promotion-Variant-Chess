@@ -1262,11 +1262,14 @@ console.log('[Main-3D] 3D Renderer initialized');
 let resizeTimeout: number | null = null;
 const handleWindowResize = () => {
   // Debounce resize events
-  if (resizeTimeout) clearTimeout(resizeTimeout);
+  if (resizeTimeout !== null) clearTimeout(resizeTimeout);
   resizeTimeout = window.setTimeout(() => {
     Renderer.handleResize();
-    Overlay.handleResize?.(); // Call if it exists
-  }, 100);
+    // Call overlay resize if the function exists
+    if (Overlay.handleResize) {
+      Overlay.handleResize();
+    }
+  }, 100) as unknown as number;
 };
 
 window.addEventListener('resize', handleWindowResize);
