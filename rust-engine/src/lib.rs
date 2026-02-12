@@ -68,14 +68,16 @@ pub fn engine_info() -> String {
 /// Returns move in UCI format (e.g., "e2e4")
 #[wasm_bindgen]
 pub fn get_best_move(pos: &Position, depth: u8) -> Option<String> {
-    let (best_move, _, _) = search(pos, depth);
+    let mut pos = pos.clone();
+    let (best_move, _, _) = search(&mut pos, depth);
     best_move.map(|m| m.to_uci())
 }
 
 /// Get best move with iterative deepening (better for time management)
 #[wasm_bindgen]
 pub fn get_best_move_iterative(pos: &Position, max_depth: u8) -> Option<String> {
-    let (best_move, _, _) = search_iterative(pos, max_depth);
+    let mut pos = pos.clone();
+    let (best_move, _, _) = search_iterative(&mut pos, max_depth);
     best_move.map(|m| m.to_uci())
 }
 
@@ -120,7 +122,8 @@ impl SearchResult {
 /// Search with full stats
 #[wasm_bindgen]
 pub fn search_position(pos: &Position, depth: u8) -> SearchResult {
-    let (best_move, score, stats) = search(pos, depth);
+    let mut pos = pos.clone();
+    let (best_move, score, stats) = search(&mut pos, depth);
     
     SearchResult {
         best_move: best_move.map(|m| m.to_uci()).unwrap_or_default(),
@@ -137,7 +140,8 @@ pub fn search_position(pos: &Position, depth: u8) -> SearchResult {
 /// Get all legal moves for a position as a JSON array of move strings (UCI format)
 #[wasm_bindgen]
 pub fn get_legal_moves(pos: &Position) -> Vec<JsValue> {
-    let moves = generate_legal_moves(pos);
+    let mut pos = pos.clone();
+    let moves = generate_legal_moves(&mut pos);
     moves.iter()
         .map(|m| JsValue::from_str(&m.to_uci()))
         .collect()
@@ -146,7 +150,8 @@ pub fn get_legal_moves(pos: &Position) -> Vec<JsValue> {
 /// Get number of legal moves in position
 #[wasm_bindgen]
 pub fn count_legal_moves(pos: &Position) -> usize {
-    generate_legal_moves(pos).len()
+    let mut pos = pos.clone();
+    generate_legal_moves(&mut pos).len()
 }
 
 /// Get all pseudo-legal moves (may leave king in check)
@@ -180,7 +185,7 @@ pub fn make_move(pos: &mut Position, from_file: u8, from_rank: u8, to_file: u8, 
         Move::new(from, to)
     };
     
-    pos.make_move(m)
+    pos.make_move(m).is_some()
 }
 
 /// Make a move using UCI notation (e.g., "e2e4", "e7e8q")
@@ -206,7 +211,7 @@ pub fn make_move_uci(pos: &mut Position, uci: &str) -> bool {
         if piece_type == PieceType::Pawn {
             if let Some(ep_sq) = pos.en_passant_square() {
                 if to == ep_sq {
-                    return pos.make_move(Move::new_en_passant(from, to));
+                    return pos.make_move(Move::new_en_passant(from, to)).is_some();
                 }
             }
         }
@@ -215,7 +220,7 @@ pub fn make_move_uci(pos: &mut Position, uci: &str) -> bool {
         if piece_type == PieceType::King {
             let diff = (to.file() as i8 - from.file() as i8).abs();
             if diff == 2 {
-                return pos.make_move(Move::new_castling(from, to));
+                return pos.make_move(Move::new_castling(from, to)).is_some();
             }
         }
     }
@@ -234,7 +239,7 @@ pub fn make_move_uci(pos: &mut Position, uci: &str) -> bool {
         Move::new(from, to)
     };
     
-    pos.make_move(m)
+    pos.make_move(m).is_some()
 }
 
 /// Check if the current side is in check
@@ -251,7 +256,8 @@ pub fn is_in_check(pos: &Position) -> bool {
 /// Used to validate move generation and compare engine speed
 #[wasm_bindgen]
 pub fn run_perft(pos: &Position, depth: u32) -> u64 {
-    perft(pos, depth)
+    let mut pos = pos.clone();
+    perft(&mut pos, depth)
 }
 
 /// Get Zobrist hash of the position (for transposition tables / repetition detection)

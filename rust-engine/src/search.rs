@@ -28,7 +28,7 @@ pub struct SearchStats {
 
 /// Find the best move for the current position
 /// Returns (best_move, score, stats)
-pub fn search(pos: &Position, depth: u8) -> (Option<Move>, Score, SearchStats) {
+pub fn search(pos: &mut Position, depth: u8) -> (Option<Move>, Score, SearchStats) {
     let mut stats = SearchStats::default();
     stats.depth = depth;
     
@@ -48,7 +48,7 @@ pub fn search(pos: &Position, depth: u8) -> (Option<Move>, Score, SearchStats) {
 
 /// Iterative deepening search - searches progressively deeper
 /// Better for time management and move ordering
-pub fn search_iterative(pos: &Position, max_depth: u8) -> (Option<Move>, Score, SearchStats) {
+pub fn search_iterative(pos: &mut Position, max_depth: u8) -> (Option<Move>, Score, SearchStats) {
     let mut best_move = None;
     let mut best_score = -MATE_SCORE;
     let mut total_stats = SearchStats::default();
@@ -80,7 +80,7 @@ pub fn search_iterative(pos: &Position, max_depth: u8) -> (Option<Move>, Score, 
 /// - beta: best score for minimizing player (opponent)
 /// Returns (score, best_move)
 fn alpha_beta(
-    pos: &Position,
+    pos: &mut Position,
     depth: u8,
     mut alpha: Score,
     beta: Score,
@@ -99,11 +99,8 @@ fn alpha_beta(
     // Check for checkmate or stalemate
     if moves.is_empty() {
         if pos.is_in_check(pos.side_to_move()) {
-            // Checkmate - return negative mate score (we lost)
-            // Subtract depth so closer mates are preferred
             return (-MATE_SCORE + (MAX_DEPTH - depth) as Score, None);
         } else {
-            // Stalemate
             return (DRAW_SCORE, None);
         }
     }
@@ -115,14 +112,17 @@ fn alpha_beta(
     
     for mv in ordered_moves.iter() {
         // Make the move
-        let mut new_pos = pos.clone();
-        if !new_pos.make_move(*mv) {
-            continue; // Illegal move (shouldn't happen with legal move gen)
-        }
+        let undo = match pos.make_move(*mv) {
+            Some(u) => u,
+            None => continue,
+        };
         
         // Recurse
-        let (score, _) = alpha_beta(&new_pos, depth - 1, -beta, -alpha, stats);
+        let (score, _) = alpha_beta(pos, depth - 1, -beta, -alpha, stats);
         let score = -score; // Negamax: negate score for opponent
+        
+        // Unmake
+        pos.unmake_move(*mv, &undo);
         
         // Update best
         if score > alpha {
@@ -146,7 +146,7 @@ fn alpha_beta(
 
 /// Quiescence search - only looks at captures to get a stable evaluation
 fn quiescence(
-    pos: &Position,
+    pos: &mut Position,
     mut alpha: Score,
     beta: Score,
     stats: &mut SearchStats,
@@ -185,12 +185,14 @@ fn quiescence(
             continue;
         }
         
-        let mut new_pos = pos.clone();
-        if !new_pos.make_move(*mv) {
-            continue;
-        }
+        let undo = match pos.make_move(*mv) {
+            Some(u) => u,
+            None => continue,
+        };
         
-        let score = -quiescence(&new_pos, -beta, -alpha, stats);
+        let score = -quiescence(pos, -beta, -alpha, stats);
+        
+        pos.unmake_move(*mv, &undo);
         
         if score >= beta {
             return beta;
@@ -265,8 +267,8 @@ mod tests {
     
     #[test]
     fn test_search_starting_position() {
-        let pos = Position::starting_position();
-        let (best_move, score, stats) = search(&pos, 3);
+        let mut pos = Position::starting_position();
+        let (best_move, score, stats) = search(&mut pos, 3);
         
         // Should find a valid move
         assert!(best_move.is_some());
@@ -279,8 +281,8 @@ mod tests {
     #[test]
     fn test_finds_mate_in_one() {
         // Back rank mate: Qe8# is checkmate
-        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K2Q w - - 0 1").unwrap();
-        let (best_move, score, _) = search(&pos, 4);
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/4K2Q w - - 0 1").unwrap();
+        let (best_move, score, _) = search(&mut pos, 4);
         
         // Should find a move
         assert!(best_move.is_some());
@@ -291,8 +293,8 @@ mod tests {
     #[test]
     fn test_finds_free_piece() {
         // White rook on e2 can capture undefended black queen on e4
-        let pos = Position::from_fen("7k/8/8/8/4q3/8/4R3/4K3 w - - 0 1").unwrap();
-        let (best_move, score, _) = search(&pos, 3);
+        let mut pos = Position::from_fen("7k/8/8/8/4q3/8/4R3/4K3 w - - 0 1").unwrap();
+        let (best_move, score, _) = search(&mut pos, 3);
         
         // Should find Rxe4
         assert!(best_move.is_some());
@@ -305,8 +307,8 @@ mod tests {
     
     #[test]
     fn test_iterative_deepening() {
-        let pos = Position::starting_position();
-        let (best_move, _, stats) = search_iterative(&pos, 4);
+        let mut pos = Position::starting_position();
+        let (best_move, _, stats) = search_iterative(&mut pos, 4);
         
         assert!(best_move.is_some());
         assert_eq!(stats.depth, 4);
