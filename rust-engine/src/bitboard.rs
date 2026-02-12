@@ -42,6 +42,10 @@ impl Bitboard {
     pub const NOT_FILE_AB: Bitboard = Bitboard(!(Self::FILE_A.0 | Self::FILE_B.0));
     pub const NOT_FILE_GH: Bitboard = Bitboard(!(Self::FILE_G.0 | Self::FILE_H.0));
 
+    // Square color masks (for insufficient material: same-colored bishops)
+    pub const LIGHT_SQUARES: Bitboard = Bitboard(0x55AA_55AA_55AA_55AA);
+    pub const DARK_SQUARES: Bitboard = Bitboard(0xAA55_AA55_AA55_AA55);
+
     // ==========================================================================
     // CONSTRUCTORS
     // ==========================================================================

@@ -740,6 +740,112 @@ impl Position {
     pub fn piece_count(&self) -> u32 {
         self.occupied_all.count()
     }
+
+    // =========================================================================
+    // GAME-STATE DETECTION (Task 2.1)
+    // =========================================================================
+
+    /// Check if current side is in checkmate (in check AND no legal moves)
+    pub fn is_checkmate(&self) -> bool {
+        if !self.is_in_check(self.side_to_move) {
+            return false;
+        }
+        let mut clone = self.clone();
+        crate::movegen::generate_legal_moves(&mut clone).is_empty()
+    }
+
+    /// Check if current side is in stalemate (NOT in check AND no legal moves)
+    pub fn is_stalemate(&self) -> bool {
+        if self.is_in_check(self.side_to_move) {
+            return false;
+        }
+        let mut clone = self.clone();
+        crate::movegen::generate_legal_moves(&mut clone).is_empty()
+    }
+
+    /// Check if the position has insufficient material for either side to checkmate
+    /// Returns true for: K vs K, K+N vs K, K+B vs K, K+B vs K+B (same color bishops)
+    pub fn is_insufficient_material(&self) -> bool {
+        use crate::bitboard::Bitboard;
+
+        let white_pawns = self.pieces[Color::White as usize][PieceType::Pawn as usize];
+        let black_pawns = self.pieces[Color::Black as usize][PieceType::Pawn as usize];
+        let white_rooks = self.pieces[Color::White as usize][PieceType::Rook as usize];
+        let black_rooks = self.pieces[Color::Black as usize][PieceType::Rook as usize];
+        let white_queens = self.pieces[Color::White as usize][PieceType::Queen as usize];
+        let black_queens = self.pieces[Color::Black as usize][PieceType::Queen as usize];
+        let white_knights = self.pieces[Color::White as usize][PieceType::Knight as usize];
+        let black_knights = self.pieces[Color::Black as usize][PieceType::Knight as usize];
+        let white_bishops = self.pieces[Color::White as usize][PieceType::Bishop as usize];
+        let black_bishops = self.pieces[Color::Black as usize][PieceType::Bishop as usize];
+
+        // Any pawns, rooks, or queens → sufficient material
+        if white_pawns.is_not_empty() || black_pawns.is_not_empty()
+            || white_rooks.is_not_empty() || black_rooks.is_not_empty()
+            || white_queens.is_not_empty() || black_queens.is_not_empty()
+        {
+            return false;
+        }
+
+        let wn = white_knights.count();
+        let bn = black_knights.count();
+        let wb = white_bishops.count();
+        let bb = black_bishops.count();
+
+        let white_minors = wn + wb;
+        let black_minors = bn + bb;
+
+        // K vs K
+        if white_minors == 0 && black_minors == 0 {
+            return true;
+        }
+
+        // K+minor vs K
+        if (white_minors == 1 && black_minors == 0)
+            || (white_minors == 0 && black_minors == 1)
+        {
+            return true;
+        }
+
+        // K+B vs K+B with bishops on same color squares
+        if wn == 0 && bn == 0 && wb == 1 && bb == 1 {
+            let w_on_light = (white_bishops & Bitboard::LIGHT_SQUARES).is_not_empty();
+            let b_on_light = (black_bishops & Bitboard::LIGHT_SQUARES).is_not_empty();
+            if w_on_light == b_on_light {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Check if the 50-move rule has been reached (halfmove clock >= 100)
+    pub fn is_fifty_move_draw(&self) -> bool {
+        self.halfmove_clock >= 100
+    }
+
+    /// Check if position is a draw (stalemate, insufficient material, or 50-move rule)
+    /// Note: Threefold repetition is NOT checked here — it requires move history,
+    /// which is tracked by GameState in lib.rs.
+    pub fn is_draw(&self) -> bool {
+        self.is_stalemate() || self.is_insufficient_material() || self.is_fifty_move_draw()
+    }
+
+    /// Get game status string
+    /// Returns "checkmate", "stalemate", "draw", or "playing"
+    /// Note: Does not detect threefold repetition (needs history).
+    pub fn game_status(&self) -> String {
+        if self.is_checkmate() {
+            return "checkmate".to_string();
+        }
+        if self.is_stalemate() {
+            return "stalemate".to_string();
+        }
+        if self.is_insufficient_material() || self.is_fifty_move_draw() {
+            return "draw".to_string();
+        }
+        "playing".to_string()
+    }
 }
 
 // =============================================================================
@@ -1304,5 +1410,221 @@ mod tests {
         let fen2 = pos.to_fen();
         let parts: Vec<&str> = fen2.split(' ').collect();
         assert_eq!(parts[5], "2");
+    }
+
+    // =========================================================================
+    // GAME-STATE DETECTION TESTS (Task 2.1)
+    // =========================================================================
+
+    #[test]
+    fn test_is_checkmate_scholars_mate() {
+        let pos = Position::from_fen("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4").unwrap();
+        assert!(pos.is_checkmate());
+        assert!(!pos.is_stalemate());
+        assert_eq!(pos.game_status(), "checkmate");
+    }
+
+    #[test]
+    fn test_is_checkmate_fools_mate() {
+        let pos = Position::from_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3").unwrap();
+        assert!(pos.is_checkmate());
+        assert!(!pos.is_stalemate());
+        assert_eq!(pos.game_status(), "checkmate");
+    }
+
+    #[test]
+    fn test_is_checkmate_back_rank() {
+        // Black king on g8, white rook on e8, pawns block escape
+        let pos = Position::from_fen("4R1k1/5ppp/8/8/8/8/8/4K3 b - - 0 1").unwrap();
+        assert!(pos.is_checkmate());
+    }
+
+    #[test]
+    fn test_not_checkmate_starting_position() {
+        let pos = Position::starting_position();
+        assert!(!pos.is_checkmate());
+        assert!(!pos.is_stalemate());
+        assert_eq!(pos.game_status(), "playing");
+    }
+
+    #[test]
+    fn test_is_stalemate_king_cornered() {
+        let pos = Position::from_fen("k7/8/1Q1K4/8/8/8/8/8 b - - 0 1").unwrap();
+        assert!(pos.is_stalemate());
+        assert!(!pos.is_checkmate());
+        assert_eq!(pos.game_status(), "stalemate");
+    }
+
+    #[test]
+    fn test_is_stalemate_king_h8() {
+        let pos = Position::from_fen("7k/5K2/6Q1/8/8/8/8/8 b - - 0 1").unwrap();
+        assert!(pos.is_stalemate());
+        assert!(!pos.is_checkmate());
+    }
+
+    #[test]
+    fn test_not_stalemate_when_in_check() {
+        // In check but not stalemate (it's checkmate)
+        let pos = Position::from_fen("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4").unwrap();
+        assert!(!pos.is_stalemate());
+    }
+
+    // --- Insufficient Material ---
+
+    #[test]
+    fn test_insufficient_material_k_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert!(pos.is_insufficient_material());
+        assert_eq!(pos.game_status(), "draw");
+    }
+
+    #[test]
+    fn test_insufficient_material_kb_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1B1 w - - 0 1").unwrap();
+        assert!(pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_insufficient_material_kn_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1").unwrap();
+        assert!(pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_insufficient_material_k_vs_kb() {
+        let pos = Position::from_fen("4kb2/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert!(pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_insufficient_material_k_vs_kn() {
+        let pos = Position::from_fen("4kn2/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert!(pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_insufficient_material_kb_vs_kb_same_color() {
+        // Both bishops on light squares
+        let pos = Position::from_fen("4k3/8/5b2/8/8/2B5/8/4K3 w - - 0 1").unwrap();
+        // c3 = light, f6 = light → same color → insufficient
+        assert!(pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_kb_vs_kb_diff_color() {
+        // Bishops on different colored squares → sufficient material (mate possible)
+        let pos = Position::from_fen("4k3/8/4b3/8/8/2B5/8/4K3 w - - 0 1").unwrap();
+        // c3 = light, e6 = dark → different colors → sufficient
+        assert!(!pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_kr_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
+        assert!(!pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_kq_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1Q1 w - - 0 1").unwrap();
+        assert!(!pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_kp_vs_k() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1").unwrap();
+        assert!(!pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_knn_vs_k() {
+        // Two knights — technically can't force mate but convention says sufficient
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/3NKN2 w - - 0 1").unwrap();
+        assert!(!pos.is_insufficient_material());
+    }
+
+    #[test]
+    fn test_sufficient_material_starting_position() {
+        let pos = Position::starting_position();
+        assert!(!pos.is_insufficient_material());
+    }
+
+    // --- 50-move rule ---
+
+    #[test]
+    fn test_fifty_move_draw_at_100() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 100 50").unwrap();
+        assert!(pos.is_fifty_move_draw());
+        assert!(pos.is_draw());
+    }
+
+    #[test]
+    fn test_fifty_move_not_draw_at_99() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 99 50").unwrap();
+        assert!(!pos.is_fifty_move_draw());
+    }
+
+    #[test]
+    fn test_fifty_move_draw_at_200() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 200 100").unwrap();
+        assert!(pos.is_fifty_move_draw());
+    }
+
+    // --- is_draw composite ---
+
+    #[test]
+    fn test_is_draw_stalemate() {
+        let pos = Position::from_fen("k7/8/1Q1K4/8/8/8/8/8 b - - 0 1").unwrap();
+        assert!(pos.is_draw());
+    }
+
+    #[test]
+    fn test_is_draw_insufficient() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert!(pos.is_draw());
+    }
+
+    #[test]
+    fn test_is_draw_fifty_move() {
+        let pos = Position::from_fen("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 100 50").unwrap();
+        assert!(pos.is_draw());
+    }
+
+    #[test]
+    fn test_not_draw_normal_game() {
+        let pos = Position::starting_position();
+        assert!(!pos.is_draw());
+    }
+
+    // --- game_status ---
+
+    #[test]
+    fn test_game_status_checkmate() {
+        let pos = Position::from_fen("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4").unwrap();
+        assert_eq!(pos.game_status(), "checkmate");
+    }
+
+    #[test]
+    fn test_game_status_stalemate() {
+        let pos = Position::from_fen("k7/8/1Q1K4/8/8/8/8/8 b - - 0 1").unwrap();
+        assert_eq!(pos.game_status(), "stalemate");
+    }
+
+    #[test]
+    fn test_game_status_draw_insufficient() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert_eq!(pos.game_status(), "draw");
+    }
+
+    #[test]
+    fn test_game_status_draw_fifty_move() {
+        let pos = Position::from_fen("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 100 50").unwrap();
+        assert_eq!(pos.game_status(), "draw");
+    }
+
+    #[test]
+    fn test_game_status_playing() {
+        let pos = Position::starting_position();
+        assert_eq!(pos.game_status(), "playing");
     }
 }
