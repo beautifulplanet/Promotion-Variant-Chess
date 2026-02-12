@@ -79,16 +79,14 @@ pub fn generate_pseudo_legal_moves(pos: &Position) -> MoveList {
 }
 
 /// Generate all legal moves (filters out moves that leave king in check)
-pub fn generate_legal_moves(pos: &Position) -> MoveList {
+pub fn generate_legal_moves(pos: &mut Position) -> MoveList {
     let pseudo_legal = generate_pseudo_legal_moves(pos);
     let mut legal = MoveList::new();
     
     for m in pseudo_legal.iter() {
-        // Make the move on a copy
-        let mut new_pos = pos.clone();
-        if new_pos.make_move(*m) {
-            // Move was legal (king not in check)
+        if let Some(undo) = pos.make_move(*m) {
             legal.push(*m);
+            pos.unmake_move(*m, &undo);
         }
     }
     
@@ -101,7 +99,7 @@ pub fn generate_legal_moves(pos: &Position) -> MoveList {
 
 /// Count all leaf nodes at a given depth (Performance Test)
 /// Used to validate move generation correctness against known values.
-pub fn perft(pos: &Position, depth: u32) -> u64 {
+pub fn perft(pos: &mut Position, depth: u32) -> u64 {
     if depth == 0 {
         return 1;
     }
@@ -114,23 +112,25 @@ pub fn perft(pos: &Position, depth: u32) -> u64 {
 
     let mut nodes: u64 = 0;
     for m in moves.iter() {
-        let mut new_pos = pos.clone();
-        new_pos.make_move(*m);
-        nodes += perft(&new_pos, depth - 1);
+        if let Some(undo) = pos.make_move(*m) {
+            nodes += perft(pos, depth - 1);
+            pos.unmake_move(*m, &undo);
+        }
     }
     nodes
 }
 
 /// Perft with divide: shows node count per root move (useful for debugging)
-pub fn perft_divide(pos: &Position, depth: u32) -> Vec<(String, u64)> {
+pub fn perft_divide(pos: &mut Position, depth: u32) -> Vec<(String, u64)> {
     let moves = generate_legal_moves(pos);
     let mut results = Vec::new();
 
     for m in moves.iter() {
-        let mut new_pos = pos.clone();
-        new_pos.make_move(*m);
-        let nodes = if depth <= 1 { 1 } else { perft(&new_pos, depth - 1) };
-        results.push((m.to_uci(), nodes));
+        if let Some(undo) = pos.make_move(*m) {
+            let nodes = if depth <= 1 { 1 } else { perft(pos, depth - 1) };
+            pos.unmake_move(*m, &undo);
+            results.push((m.to_uci(), nodes));
+        }
     }
 
     results.sort_by(|a, b| a.0.cmp(&b.0));
@@ -496,8 +496,8 @@ mod tests {
     #[test]
     fn test_legal_moves_filters_check() {
         // King on e1 with enemy rook on e8 - many moves are illegal
-        let pos = Position::from_fen("4r3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
-        let legal = generate_legal_moves(&pos);
+        let mut pos = Position::from_fen("4r3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let legal = generate_legal_moves(&mut pos);
         
         // King can only move to d1, d2, f1, f2 (e-file blocked by rook)
         assert_eq!(legal.len(), 4);
@@ -505,8 +505,8 @@ mod tests {
     
     #[test]
     fn test_starting_position_legal_moves() {
-        let pos = Position::starting_position();
-        let moves = generate_legal_moves(&pos);
+        let mut pos = Position::starting_position();
+        let moves = generate_legal_moves(&mut pos);
         
         // Starting position has 20 legal moves
         assert_eq!(moves.len(), 20);
@@ -530,8 +530,8 @@ mod tests {
     fn test_no_castling_while_in_check() {
         // White king on e1 in check from black rook on e8
         // No castling should be allowed
-        let pos = Position::from_fen("4k3/8/8/8/8/8/8/R3K2r w KQ - 0 1").unwrap();
-        let legal = generate_legal_moves(&pos);
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/R3K2r w KQ - 0 1").unwrap();
+        let legal = generate_legal_moves(&mut pos);
         let castle_moves: Vec<_> = legal.iter().filter(|m| m.is_castling()).collect();
         assert_eq!(castle_moves.len(), 0);
     }
@@ -564,56 +564,56 @@ mod tests {
 
     #[test]
     fn test_perft_starting_position_depth1() {
-        let pos = Position::starting_position();
-        assert_eq!(perft(&pos, 1), 20);
+        let mut pos = Position::starting_position();
+        assert_eq!(perft(&mut pos, 1), 20);
     }
 
     #[test]
     fn test_perft_starting_position_depth2() {
-        let pos = Position::starting_position();
-        assert_eq!(perft(&pos, 2), 400);
+        let mut pos = Position::starting_position();
+        assert_eq!(perft(&mut pos, 2), 400);
     }
 
     #[test]
     fn test_perft_starting_position_depth3() {
-        let pos = Position::starting_position();
-        assert_eq!(perft(&pos, 3), 8_902);
+        let mut pos = Position::starting_position();
+        assert_eq!(perft(&mut pos, 3), 8_902);
     }
 
     #[test]
     fn test_perft_starting_position_depth4() {
-        let pos = Position::starting_position();
-        assert_eq!(perft(&pos, 4), 197_281);
+        let mut pos = Position::starting_position();
+        assert_eq!(perft(&mut pos, 4), 197_281);
     }
 
     #[test]
     fn test_perft_position4_depth1() {
-        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 1), 6);
+        let mut pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 1), 6);
     }
 
     #[test]
     fn test_perft_position4_depth2() {
-        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 2), 264);
+        let mut pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 2), 264);
     }
 
     #[test]
     fn test_perft_position4_depth3() {
-        let pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 3), 9_467);
+        let mut pos = Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 3), 9_467);
     }
 
     #[test]
     fn test_perft_position5_depth3() {
-        let pos = Position::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8").unwrap();
-        assert_eq!(perft(&pos, 3), 62_379);
+        let mut pos = Position::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8").unwrap();
+        assert_eq!(perft(&mut pos, 3), 62_379);
     }
 
     #[test]
     fn test_perft_position6_depth4() {
-        let pos = Position::from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10").unwrap();
-        assert_eq!(perft(&pos, 4), 3_894_594);
+        let mut pos = Position::from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10").unwrap();
+        assert_eq!(perft(&mut pos, 4), 3_894_594);
     }
 
     // Kiwipete — the most popular perft debugging position
@@ -621,39 +621,39 @@ mod tests {
     // FEN: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -
     #[test]
     fn test_perft_kiwipete_depth1() {
-        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 1), 48);
+        let mut pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 1), 48);
     }
 
     #[test]
     fn test_perft_kiwipete_depth2() {
-        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 2), 2_039);
+        let mut pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 2), 2_039);
     }
 
     #[test]
     fn test_perft_kiwipete_depth3() {
-        let pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
-        assert_eq!(perft(&pos, 3), 97_862);
+        let mut pos = Position::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 3), 97_862);
     }
 
     // Position 3 — en passant and promotion heavy
     // FEN: 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -
     #[test]
     fn test_perft_position3_depth1() {
-        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
-        assert_eq!(perft(&pos, 1), 14);
+        let mut pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 1), 14);
     }
 
     #[test]
     fn test_perft_position3_depth2() {
-        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
-        assert_eq!(perft(&pos, 2), 191);
+        let mut pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 2), 191);
     }
 
     #[test]
     fn test_perft_position3_depth3() {
-        let pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
-        assert_eq!(perft(&pos, 3), 2_812);
+        let mut pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        assert_eq!(perft(&mut pos, 3), 2_812);
     }
 }
