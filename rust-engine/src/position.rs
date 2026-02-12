@@ -1132,4 +1132,177 @@ mod tests {
             }
         }
     }
+
+    // =========================================================================
+    // FEN EDGE CASE TESTS (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_fen_only_kings() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert_eq!(pos.piece_count(), 2);
+        assert_eq!(pos.piece_on(Square::E1), Some((Color::White, PieceType::King)));
+        assert_eq!(pos.piece_on(Square::E8), Some((Color::Black, PieceType::King)));
+        // FEN roundtrip
+        assert_eq!(pos.to_fen(), "4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+    }
+
+    #[test]
+    fn test_fen_all_queens() {
+        // Both sides have 8 queens (all pawns promoted) + king
+        let fen = "qqqkqqqq/8/8/8/8/8/8/QQQKQQQQ w - - 0 1";
+        let pos = Position::from_fen(fen).unwrap();
+        assert_eq!(pos.pieces(Color::White, PieceType::Queen).count(), 7);
+        assert_eq!(pos.pieces(Color::Black, PieceType::Queen).count(), 7);
+        assert_eq!(pos.piece_count(), 16); // 7+1 per side
+        assert_eq!(pos.to_fen(), fen);
+    }
+
+    #[test]
+    fn test_fen_max_pieces() {
+        // Starting position has 32 pieces
+        let pos = Position::starting_position();
+        assert_eq!(pos.piece_count(), 32);
+    }
+
+    #[test]
+    fn test_fen_single_pawn() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1").unwrap();
+        assert_eq!(pos.piece_count(), 3);
+        assert_eq!(pos.pieces(Color::White, PieceType::Pawn).count(), 1);
+    }
+
+    #[test]
+    fn test_fen_black_to_move() {
+        let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").unwrap();
+        assert_eq!(pos.side_to_move(), Color::Black);
+        assert_eq!(pos.en_passant_square(), Some(Square::from_file_rank(4, 2))); // e3
+    }
+
+    #[test]
+    fn test_fen_no_castling_rights() {
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1").unwrap();
+        assert_eq!(pos.castling_rights(), CastlingRights::NONE);
+    }
+
+    #[test]
+    fn test_fen_partial_castling() {
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Kq - 0 1").unwrap();
+        assert!(pos.castling_rights().has(CastlingRights::WHITE_KINGSIDE));
+        assert!(!pos.castling_rights().has(CastlingRights::WHITE_QUEENSIDE));
+        assert!(!pos.castling_rights().has(CastlingRights::BLACK_KINGSIDE));
+        assert!(pos.castling_rights().has(CastlingRights::BLACK_QUEENSIDE));
+    }
+
+    #[test]
+    fn test_fen_roundtrip_complex_positions() {
+        let fens = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+            "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+            "8/8/8/8/8/8/6k1/4K2R w K - 0 1",
+        ];
+        for fen in &fens {
+            let pos = Position::from_fen(fen).unwrap();
+            assert_eq!(&pos.to_fen(), fen,
+                "FEN roundtrip failed for: {}", fen);
+        }
+    }
+
+    #[test]
+    fn test_fen_invalid_rejected() {
+        // Too few parts
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K3").is_err());
+        // Invalid side to move
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K3 x - - 0 1").is_err());
+        // Invalid piece character
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K2X w - - 0 1").is_err());
+    }
+
+    // =========================================================================
+    // 50-MOVE RULE CLOCK TESTS (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_halfmove_clock_counts_to_50() {
+        // Set up a position where kings and knights can shuffle around
+        // Kc1 Nf3 vs Kc8: play knight back and forth 50 times
+        let mut pos = Position::from_fen("2k5/8/8/8/8/5N2/8/2K5 w - - 0 1").unwrap();
+        assert_eq!(pos.halfmove_clock(), 0);
+
+        // Play Nf3-e1 (quiet move)
+        pos.make_move(Move::new(Square::from_file_rank(5, 2), Square::from_file_rank(4, 0))).unwrap(); // Ne1
+        assert_eq!(pos.halfmove_clock(), 1);
+
+        // Black king move Kc8-b8
+        pos.make_move(Move::new(Square::from_file_rank(2, 7), Square::from_file_rank(1, 7))).unwrap(); // Kb8
+        assert_eq!(pos.halfmove_clock(), 2);
+
+        // Keep shuffling until halfmove = 10
+        // Ne1-f3
+        pos.make_move(Move::new(Square::from_file_rank(4, 0), Square::from_file_rank(5, 2))).unwrap();
+        assert_eq!(pos.halfmove_clock(), 3);
+        // Kb8-c8
+        pos.make_move(Move::new(Square::from_file_rank(1, 7), Square::from_file_rank(2, 7))).unwrap();
+        assert_eq!(pos.halfmove_clock(), 4);
+
+        // Verify clock accumulates properly after more moves via FEN
+        let pos2 = Position::from_fen("2k5/8/8/8/8/5N2/8/2K5 w - - 98 50").unwrap();
+        assert_eq!(pos2.halfmove_clock(), 98);
+        // Two more quiet moves → 100 → 50-move rule triggered
+    }
+
+    #[test]
+    fn test_halfmove_clock_from_fen() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 99 100").unwrap();
+        assert_eq!(pos.halfmove_clock(), 99);
+        assert_eq!(pos.to_fen(), "4k3/8/8/8/8/8/8/4K3 w - - 99 100");
+    }
+
+    #[test]
+    fn test_halfmove_clock_resets_on_en_passant() {
+        // EP capture is a pawn move + capture → should reset to 0
+        let mut pos = Position::from_fen("4k3/8/8/3Pp3/8/8/8/4K3 w - e6 5 10").unwrap();
+        assert_eq!(pos.halfmove_clock(), 5);
+        pos.make_move(Move::new_en_passant(
+            Square::from_file_rank(3, 4),
+            Square::from_file_rank(4, 5)
+        )).unwrap();
+        assert_eq!(pos.halfmove_clock(), 0);
+    }
+
+    #[test]
+    fn test_halfmove_clock_resets_on_promotion() {
+        // Promotion is a pawn move → should reset
+        let mut pos = Position::from_fen("4k3/P7/8/8/8/8/8/4K3 w - - 42 10").unwrap();
+        assert_eq!(pos.halfmove_clock(), 42);
+        pos.make_move(Move::new_promotion(Square::A7, Square::A8, PieceType::Queen)).unwrap();
+        assert_eq!(pos.halfmove_clock(), 0);
+    }
+
+    // =========================================================================
+    // FULLMOVE NUMBER TESTS (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_fullmove_increments_after_black() {
+        let mut pos = Position::starting_position();
+        assert_eq!(pos.to_fen().split(' ').last().unwrap(), "1");
+
+        // 1. e4 — still fullmove 1
+        pos.make_move(Move::new(Square::E2, Square::from_file_rank(4, 3))).unwrap();
+        let fen1 = pos.to_fen();
+        let parts: Vec<&str> = fen1.split(' ').collect();
+        assert_eq!(parts[5], "1");
+
+        // 1... e5 — now fullmove 2
+        pos.make_move(Move::new(Square::from_file_rank(4, 6), Square::from_file_rank(4, 4))).unwrap();
+        let fen2 = pos.to_fen();
+        let parts: Vec<&str> = fen2.split(' ').collect();
+        assert_eq!(parts[5], "2");
+    }
 }

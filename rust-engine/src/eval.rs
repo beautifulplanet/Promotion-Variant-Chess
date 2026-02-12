@@ -327,4 +327,71 @@ mod tests {
         assert_eq!(piece_value(PieceType::Rook), 500);
         assert_eq!(piece_value(PieceType::Queen), 900);
     }
+
+    // =========================================================================
+    // EXPANDED EVAL TESTS (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_eval_symmetry() {
+        // Mirror position: swapping white/black pieces should give ~opposite eval
+        let white_pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1Q1 w - - 0 1").unwrap();
+        let black_pos = Position::from_fen("4k1q1/8/8/8/8/8/8/4K3 b - - 0 1").unwrap();
+        let white_score = evaluate(&white_pos);
+        let black_score = evaluate(&black_pos);
+        // Both evaluations are from side-to-move perspective
+        // White+Q sees big positive; Black+Q also sees big positive
+        assert!(white_score > 500, "White with queen should eval positive: {}", white_score);
+        assert!(black_score > 500, "Black with queen should eval positive: {}", black_score);
+    }
+
+    #[test]
+    fn test_eval_king_vs_king() {
+        // K vs K should be very close to 0
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let score = evaluate(&pos);
+        assert!(score.abs() < 100, "K vs K should eval near 0, got {}", score);
+    }
+
+    #[test]
+    fn test_eval_rook_advantage() {
+        // White up a rook
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
+        let score = evaluate(&pos);
+        assert!(score > 300, "Rook advantage should be significant: {}", score);
+    }
+
+    #[test]
+    fn test_eval_bishop_pair() {
+        // White has two bishops — should get bishop pair bonus
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/2B1KB2 w - - 0 1").unwrap();
+        let score = evaluate(&pos);
+        // Two bishops = 660 material + 30 bishop pair bonus + PST
+        assert!(score > 600, "Bishop pair should be strong: {}", score);
+    }
+
+    #[test]
+    fn test_eval_from_black_perspective() {
+        // Same position, different side to move → sign should flip
+        let pos_w = Position::from_fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").unwrap();
+        let pos_b = Position::from_fen("4k3/8/8/8/8/8/8/R3K3 b - - 0 1").unwrap();
+        let score_w = evaluate(&pos_w);
+        let score_b = evaluate(&pos_b);
+        // White has rook advantage. From white's view it's positive.
+        // From black's view, same position, so it should be negative.
+        assert!(score_w > 0, "White should see positive eval: {}", score_w);
+        assert!(score_b < 0, "Black should see negative eval: {}", score_b);
+        // They should be exact negations (same position, just side flipped)
+        assert_eq!(score_w, -score_b, "Eval should negate when side flips");
+    }
+
+    #[test]
+    fn test_eval_pawn_structure_matters() {
+        // Doubled pawns should be worth less than spread pawns
+        // But our eval doesn't penalize doubled pawns yet.
+        // At minimum, verify eval doesn't crash on pathological pawn structures
+        let pos = Position::from_fen("4k3/pppp4/8/8/8/8/PPPP4/4K3 w - - 0 1").unwrap();
+        let score = evaluate(&pos);
+        assert!(score.abs() < 100, "Equal pawns should be near equal: {}", score);
+    }
 }

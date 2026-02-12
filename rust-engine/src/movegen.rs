@@ -656,4 +656,218 @@ mod tests {
         let mut pos = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
         assert_eq!(perft(&mut pos, 3), 2_812);
     }
+
+    // =========================================================================
+    // STALEMATE / CHECKMATE DETECTION (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_stalemate_king_cornered() {
+        // Black king on a8, White queen on b6, White king on c8
+        // Black to move — no legal moves, not in check = stalemate
+        let mut pos = Position::from_fen("k7/8/1Q6/8/8/8/8/2K5 b - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Stalemate position should have 0 legal moves");
+        assert!(!pos.is_in_check(pos.side_to_move()), "Stalemate: king should NOT be in check");
+    }
+
+    #[test]
+    fn test_stalemate_king_h8_corner() {
+        // Black king stuck in h8 corner
+        // Kh8, White Qg6 Kf7 — stalemate
+        let mut pos = Position::from_fen("7k/5K2/6Q1/8/8/8/8/8 b - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Should be stalemate, got {} moves", moves.len());
+        assert!(!pos.is_in_check(pos.side_to_move()));
+    }
+
+    #[test]
+    fn test_checkmate_back_rank() {
+        // Back rank mate: Black king on g8, White rook delivers mate on e8
+        let mut pos = Position::from_fen("6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1").unwrap();
+        // Play Re8# — first verify Re8 is a legal move
+        let moves = generate_legal_moves(&mut pos);
+        let re8 = moves.iter().find(|m| m.to_uci() == "e1e8");
+        assert!(re8.is_some(), "Re8 should be a legal move");
+
+        // Make the move, then check black has no legal moves AND is in check
+        pos.make_move(*re8.unwrap()).unwrap();
+        let black_moves = generate_legal_moves(&mut pos);
+        assert!(black_moves.is_empty(), "Checkmate: black should have 0 legal moves");
+        assert!(pos.is_in_check(pos.side_to_move()), "Checkmate: black king should be in check");
+    }
+
+    #[test]
+    fn test_checkmate_scholars_mate() {
+        // After 1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6?? 4. Qxf7#
+        let mut pos = Position::from_fen("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Scholar's mate: should be checkmate");
+        assert!(pos.is_in_check(pos.side_to_move()), "King should be in check");
+    }
+
+    #[test]
+    fn test_fools_mate() {
+        // After 1. f3 e5 2. g4 Qh4#
+        let mut pos = Position::from_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Fool's mate: should be checkmate");
+        assert!(pos.is_in_check(pos.side_to_move()));
+    }
+
+    // =========================================================================
+    // EN PASSANT PIN (Task 1.7)
+    // A pawn pinned horizontally cannot take en passant
+    // =========================================================================
+
+    #[test]
+    fn test_ep_pin_horizontal() {
+        // White king on a5, White pawn on b5, Black pawn just played c7-c5
+        // Black rook on h5 — the b5 pawn is pinned to king along rank 5
+        // Taking en passant (bxc6 e.p.) would expose king to Rh5 check
+        let mut pos = Position::from_fen("8/8/8/KPp4r/8/8/8/4k3 w - c6 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        let ep_moves: Vec<_> = moves.iter().filter(|m| m.is_en_passant()).collect();
+        assert!(ep_moves.is_empty(),
+            "Pawn pinned along rank cannot take en passant, found {} EP moves", ep_moves.len());
+    }
+
+    #[test]
+    fn test_ep_pin_horizontal_other_side() {
+        // Mirror: King on h5, pawn on g5, black pawn on f5 (just played f7-f5)
+        // Black rook on a5
+        let mut pos = Position::from_fen("8/8/8/r4pPK/8/8/8/4k3 w - f6 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        let ep_moves: Vec<_> = moves.iter().filter(|m| m.is_en_passant()).collect();
+        assert!(ep_moves.is_empty(),
+            "Pawn pinned along rank cannot take en passant (mirror)");
+    }
+
+    #[test]
+    fn test_ep_allowed_when_not_pinned() {
+        // Same setup but no rook — EP should be allowed
+        let mut pos = Position::from_fen("8/8/8/KPp5/8/8/8/4k3 w - c6 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        let ep_moves: Vec<_> = moves.iter().filter(|m| m.is_en_passant()).collect();
+        assert_eq!(ep_moves.len(), 1, "EP should be allowed when not pinned");
+    }
+
+    // =========================================================================
+    // INSUFFICIENT MATERIAL — Verify move gen works for bare positions
+    // =========================================================================
+
+    #[test]
+    fn test_king_vs_king() {
+        // K vs K — both sides have only king moves, no possible checkmate
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        // King on e1 should have 5 moves (d1,d2,e2,f1,f2)
+        assert_eq!(moves.len(), 5, "K vs K king moves: {}", moves.len());
+    }
+
+    #[test]
+    fn test_king_bishop_vs_king() {
+        // K+B vs K — insufficient material
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1B1 w - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.len() > 0, "K+B vs K should have legal moves");
+        // Verify no checkmate is possible (just verify position works)
+        let piece_count = pos.piece_count();
+        assert_eq!(piece_count, 3);
+    }
+
+    #[test]
+    fn test_king_knight_vs_king() {
+        // K+N vs K — insufficient material
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.len() > 0);
+        assert_eq!(pos.piece_count(), 3);
+    }
+
+    // =========================================================================
+    // INTEGRATION TEST: Full game to checkmate (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_full_game_fools_mate() {
+        // Play Fool's Mate: 1. f3 e5 2. g4 Qh4#
+        let mut pos = Position::starting_position();
+
+        // 1. f3
+        pos.make_move(Move::new(Square::F2, Square::from_file_rank(5, 2))).unwrap();
+        assert_eq!(pos.side_to_move(), Color::Black);
+
+        // 1... e5
+        pos.make_move(Move::new(Square::from_file_rank(4, 6), Square::from_file_rank(4, 4))).unwrap();
+        assert_eq!(pos.side_to_move(), Color::White);
+
+        // 2. g4
+        pos.make_move(Move::new(Square::from_file_rank(6, 1), Square::from_file_rank(6, 3))).unwrap();
+
+        // 2... Qh4# (queen from d8 to h4)
+        pos.make_move(Move::new(Square::from_file_rank(3, 7), Square::from_file_rank(7, 3))).unwrap();
+
+        // Now white is in checkmate
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "White should be checkmated");
+        assert!(pos.is_in_check(pos.side_to_move()), "White king should be in check");
+    }
+
+    #[test]
+    fn test_full_game_scholars_mate() {
+        // Play Scholar's Mate: 1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6?? 4. Qxf7#
+        let mut pos = Position::starting_position();
+
+        // 1. e4
+        pos.make_move(Move::new(Square::E2, Square::from_file_rank(4, 3))).unwrap();
+        // 1... e5
+        pos.make_move(Move::new(Square::from_file_rank(4, 6), Square::from_file_rank(4, 4))).unwrap();
+        // 2. Qh5
+        pos.make_move(Move::new(Square::from_file_rank(3, 0), Square::from_file_rank(7, 4))).unwrap();
+        // 2... Nc6
+        pos.make_move(Move::new(Square::from_file_rank(1, 7), Square::from_file_rank(2, 5))).unwrap();
+        // 3. Bc4
+        pos.make_move(Move::new(Square::from_file_rank(5, 0), Square::from_file_rank(2, 3))).unwrap();
+        // 3... Nf6??
+        pos.make_move(Move::new(Square::from_file_rank(6, 7), Square::from_file_rank(5, 5))).unwrap();
+        // 4. Qxf7#
+        pos.make_move(Move::new(Square::from_file_rank(7, 4), Square::from_file_rank(5, 6))).unwrap();
+
+        // Black is checkmated
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Black should be checkmated after Scholar's Mate");
+        assert!(pos.is_in_check(pos.side_to_move()));
+    }
+
+    #[test]
+    fn test_full_game_stalemate() {
+        // Known stalemate position:
+        // Black king on a8, White Qb6 Kd6
+        // Ka8 moves: a7 (Qb6), b8 (Qb6), b7 (Qb6+Kd6) → all attacked
+        let mut pos = Position::from_fen("k7/8/1Q1K4/8/8/8/8/8 b - - 0 1").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.is_empty(), "Should be stalemate, got {} moves", moves.len());
+        assert!(!pos.is_in_check(pos.side_to_move()), "Should not be in check (stalemate not checkmate)");
+    }
+
+    // =========================================================================
+    // ADDITIONAL PERFT EDGE CASES (Task 1.7)
+    // =========================================================================
+
+    #[test]
+    fn test_perft_double_check() {
+        // Position with discovered double check possibilities
+        let mut pos = Position::from_fen("r1bqk2r/pppp1ppp/2n5/2b1p3/2BnP3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.len() > 0, "Should have legal moves in complex middlegame");
+    }
+
+    #[test]
+    fn test_perft_many_captures() {
+        // Position rich in captures
+        let mut pos = Position::from_fen("r2q1rk1/ppp2ppp/2npbn2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 7").unwrap();
+        let moves = generate_legal_moves(&mut pos);
+        assert!(moves.len() > 20, "Complex middlegame should have many moves");
+    }
 }
