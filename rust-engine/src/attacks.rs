@@ -16,24 +16,26 @@ pub static KNIGHT_ATTACKS: [Bitboard; 64] = {
     while sq < 64 {
         let bb = 1u64 << sq;
         let mut attack = 0u64;
+        let file = sq % 8;
+        let rank = sq / 8;
         
-        // All 8 knight moves (L-shaped)
-        // Up 2, Left 1
-        if sq >= 17 && (sq % 8) > 0 { attack |= bb >> 17; }
-        // Up 2, Right 1  
-        if sq >= 15 && (sq % 8) < 7 { attack |= bb >> 15; }
-        // Up 1, Left 2
-        if sq >= 10 && (sq % 8) > 1 { attack |= bb >> 10; }
-        // Up 1, Right 2
-        if sq >= 6 && (sq % 8) < 6 { attack |= bb >> 6; }
-        // Down 1, Left 2
-        if sq < 58 && (sq % 8) > 1 { attack |= bb << 6; }
-        // Down 1, Right 2
-        if sq < 62 && (sq % 8) < 6 { attack |= bb << 10; }
-        // Down 2, Left 1
-        if sq < 47 && (sq % 8) > 0 { attack |= bb << 15; }
-        // Down 2, Right 1
-        if sq < 49 && (sq % 8) < 7 { attack |= bb << 17; }
+        // All 8 knight moves using rank/file bounds checking
+        // North 2, West 1: rank+2, file-1
+        if rank < 6 && file > 0 { attack |= bb << 15; }
+        // North 2, East 1: rank+2, file+1
+        if rank < 6 && file < 7 { attack |= bb << 17; }
+        // North 1, West 2: rank+1, file-2
+        if rank < 7 && file > 1 { attack |= bb << 6; }
+        // North 1, East 2: rank+1, file+2
+        if rank < 7 && file < 6 { attack |= bb << 10; }
+        // South 1, West 2: rank-1, file-2
+        if rank > 0 && file > 1 { attack |= bb >> 10; }
+        // South 1, East 2: rank-1, file+2
+        if rank > 0 && file < 6 { attack |= bb >> 6; }
+        // South 2, West 1: rank-2, file-1
+        if rank > 1 && file > 0 { attack |= bb >> 17; }
+        // South 2, East 1: rank-2, file+1
+        if rank > 1 && file < 7 { attack |= bb >> 15; }
         
         attacks[sq as usize] = Bitboard(attack);
         sq += 1;
