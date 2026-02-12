@@ -35,6 +35,311 @@ export const Color = Object.freeze({
     Black: 1, "1": "Black",
 });
 
+/**
+ * A full game state that tracks position + hash history for repetition detection.
+ */
+export class GameState {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(GameState.prototype);
+        obj.__wbg_ptr = ptr;
+        GameStateFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        GameStateFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_gamestate_free(ptr, 0);
+    }
+    /**
+     * Get best move via search
+     * @param {number} depth
+     * @returns {string | undefined}
+     */
+    best_move(depth) {
+        const ret = wasm.gamestate_best_move(this.__wbg_ptr, depth);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * Evaluate current position
+     * @returns {number}
+     */
+    eval() {
+        const ret = wasm.gamestate_eval(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Get the FEN of the current position
+     * @returns {string}
+     */
+    fen() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_fen(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Create from FEN string
+     * @param {string} fen
+     * @returns {GameState}
+     */
+    static from_fen(fen) {
+        const ptr0 = passStringToWasm0(fen, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.gamestate_from_fen(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return GameState.__wrap(ret[0]);
+    }
+    /**
+     * Get the board as a JSON string representing 8x8 array
+     * Each cell is null or {\"type\":\"P\",\"color\":\"w\"} etc.
+     * @returns {string}
+     */
+    get_board_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_get_board_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get the Zobrist hash
+     * @returns {bigint}
+     */
+    hash() {
+        const ret = wasm.gamestate_hash(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * Get move history as UCI strings (JSON array)
+     * @returns {string}
+     */
+    history() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_history(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Check if current side is in checkmate
+     * @returns {boolean}
+     */
+    is_checkmate() {
+        const ret = wasm.gamestate_is_checkmate(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if the game is drawn (any draw condition including repetition)
+     * @returns {boolean}
+     */
+    is_draw() {
+        const ret = wasm.gamestate_is_draw(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check 50-move rule
+     * @returns {boolean}
+     */
+    is_fifty_move_draw() {
+        const ret = wasm.gamestate_is_fifty_move_draw(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if the game is over (checkmate or any draw)
+     * @returns {boolean}
+     */
+    is_game_over() {
+        const ret = wasm.gamestate_is_game_over(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if current side is in check
+     * @returns {boolean}
+     */
+    is_in_check() {
+        const ret = wasm.gamestate_is_in_check(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check for insufficient material
+     * @returns {boolean}
+     */
+    is_insufficient_material() {
+        const ret = wasm.gamestate_is_insufficient_material(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if current side is in stalemate
+     * @returns {boolean}
+     */
+    is_stalemate() {
+        const ret = wasm.gamestate_is_stalemate(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check threefold repetition using hash history
+     * @returns {boolean}
+     */
+    is_threefold_repetition() {
+        const ret = wasm.gamestate_is_threefold_repetition(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Get legal moves as UCI strings
+     * @returns {any[]}
+     */
+    legal_moves() {
+        const ret = wasm.gamestate_legal_moves(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * Load a position from FEN, clearing history
+     * @param {string} fen
+     * @returns {boolean}
+     */
+    load_fen(fen) {
+        const ptr0 = passStringToWasm0(fen, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.gamestate_load_fen(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * Make a move in UCI notation. Returns true if legal.
+     * @param {string} uci
+     * @returns {boolean}
+     */
+    make_move_uci(uci) {
+        const ptr0 = passStringToWasm0(uci, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.gamestate_make_move_uci(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+     * Get the number of moves played (hash history length - 1)
+     * @returns {number}
+     */
+    move_count() {
+        const ret = wasm.gamestate_move_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Create a new game from starting position
+     */
+    constructor() {
+        const ret = wasm.gamestate_new();
+        this.__wbg_ptr = ret >>> 0;
+        GameStateFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Get piece at a specific square (file 0-7, rank 0-7 where rank 0 = row 7 in display)
+     * Returns empty string if no piece, or "wP", "bN", etc.
+     * @param {number} file
+     * @param {number} rank
+     * @returns {string}
+     */
+    piece_at(file, rank) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_piece_at(this.__wbg_ptr, file, rank);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Reset to starting position
+     */
+    reset() {
+        wasm.gamestate_reset(this.__wbg_ptr);
+    }
+    /**
+     * Get full game status including repetition detection
+     * Returns: "checkmate", "stalemate", "insufficient_material", "fifty_move",
+     *          "threefold_repetition", or "playing"
+     * @returns {string}
+     */
+    status() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_status(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Get current turn: "w" or "b"
+     * @returns {string}
+     */
+    turn() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_turn(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Undo the last move. Returns the UCI string of the undone move, or empty string if nothing to undo.
+     * @returns {string}
+     */
+    undo() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_undo(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) GameState.prototype[Symbol.dispose] = GameState.prototype.free;
+
 export class Move {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -96,6 +401,24 @@ export class Position {
         wasm.__wbg_position_free(ptr, 0);
     }
     /**
+     * Get game status string
+     * Returns "checkmate", "stalemate", "draw", or "playing"
+     * Note: Does not detect threefold repetition (needs history).
+     * @returns {string}
+     */
+    game_status() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.position_game_status(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get piece character at square (for display)
      * Returns empty string if no piece
      * @param {number} file
@@ -113,6 +436,49 @@ export class Position {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Check if current side is in checkmate (in check AND no legal moves)
+     * @returns {boolean}
+     */
+    is_checkmate() {
+        const ret = wasm.position_is_checkmate(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if position is a draw (stalemate, insufficient material, or 50-move rule)
+     * Note: Threefold repetition is NOT checked here — it requires move history,
+     * which is tracked by GameState in lib.rs.
+     * @returns {boolean}
+     */
+    is_draw() {
+        const ret = wasm.position_is_draw(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if the 50-move rule has been reached (halfmove clock >= 100)
+     * @returns {boolean}
+     */
+    is_fifty_move_draw() {
+        const ret = wasm.position_is_fifty_move_draw(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if the position has insufficient material for either side to checkmate
+     * Returns true for: K vs K, K+N vs K, K+B vs K, K+B vs K+B (same color bishops)
+     * @returns {boolean}
+     */
+    is_insufficient_material() {
+        const ret = wasm.position_is_insufficient_material(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Check if current side is in stalemate (NOT in check AND no legal moves)
+     * @returns {boolean}
+     */
+    is_stalemate() {
+        const ret = wasm.position_is_stalemate(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * Check if it's white's turn
@@ -275,6 +641,26 @@ export function from_fen(fen) {
 }
 
 /**
+ * Get game status: "playing", "checkmate", "stalemate", or "draw"
+ * Note: Does not include threefold repetition. Use GameState for full detection.
+ * @param {Position} pos
+ * @returns {string}
+ */
+export function game_status(pos) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        _assertClass(pos, Position);
+        const ret = wasm.game_status(pos.__wbg_ptr);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Get best move for the current position
  * Returns move in UCI format (e.g., "e2e4")
  * @param {Position} pos
@@ -310,6 +696,17 @@ export function get_best_move_iterative(pos, max_depth) {
 }
 
 /**
+ * Get Zobrist hash of the position (for transposition tables / repetition detection)
+ * @param {Position} pos
+ * @returns {bigint}
+ */
+export function get_hash(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.gamestate_hash(pos.__wbg_ptr);
+    return BigInt.asUintN(64, ret);
+}
+
+/**
  * Get all legal moves for a position as a JSON array of move strings (UCI format)
  * @param {Position} pos
  * @returns {any[]}
@@ -340,6 +737,40 @@ export function init() {
 }
 
 /**
+ * Check if the current side is in checkmate
+ * @param {Position} pos
+ * @returns {boolean}
+ */
+export function is_checkmate(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.is_checkmate(pos.__wbg_ptr);
+    return ret !== 0;
+}
+
+/**
+ * Check if the game is drawn (stalemate, insufficient material, or 50-move)
+ * Note: For threefold repetition, use GameState which tracks hash history.
+ * @param {Position} pos
+ * @returns {boolean}
+ */
+export function is_draw(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.is_draw(pos.__wbg_ptr);
+    return ret !== 0;
+}
+
+/**
+ * Check if the 50-move rule draw has been reached
+ * @param {Position} pos
+ * @returns {boolean}
+ */
+export function is_fifty_move_draw(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.gamestate_is_fifty_move_draw(pos.__wbg_ptr);
+    return ret !== 0;
+}
+
+/**
  * Check if the current side is in check
  * @param {Position} pos
  * @returns {boolean}
@@ -347,6 +778,28 @@ export function init() {
 export function is_in_check(pos) {
     _assertClass(pos, Position);
     const ret = wasm.is_in_check(pos.__wbg_ptr);
+    return ret !== 0;
+}
+
+/**
+ * Check if the position has insufficient material for checkmate
+ * @param {Position} pos
+ * @returns {boolean}
+ */
+export function is_insufficient_material(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.gamestate_is_insufficient_material(pos.__wbg_ptr);
+    return ret !== 0;
+}
+
+/**
+ * Check if the current side is in stalemate
+ * @param {Position} pos
+ * @returns {boolean}
+ */
+export function is_stalemate(pos) {
+    _assertClass(pos, Position);
+    const ret = wasm.is_stalemate(pos.__wbg_ptr);
     return ret !== 0;
 }
 
@@ -505,6 +958,9 @@ function __wbg_get_imports() {
 const CastlingRightsFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_castlingrights_free(ptr >>> 0, 1));
+const GameStateFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_gamestate_free(ptr >>> 0, 1));
 const MoveFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_move_free(ptr >>> 0, 1));
