@@ -95,6 +95,12 @@ impl Position {
         self.en_passant
     }
 
+    /// Get halfmove clock (for 50-move rule)
+    #[inline]
+    pub fn halfmove_clock(&self) -> u8 {
+        self.halfmove_clock
+    }
+
     /// Find what piece is on a square
     pub fn piece_on(&self, sq: Square) -> Option<(Color, PieceType)> {
         let bb = Bitboard::from_square(sq);
@@ -163,6 +169,12 @@ impl Position {
             _ => return false, // Invalid move
         };
         
+        // Detect capture BEFORE modifying the board (needed for halfmove clock)
+        let is_capture = match self.piece_on(to) {
+            Some((cap_color, _)) if cap_color == them => true,
+            _ => false,
+        };
+
         // Handle captures (remove enemy piece at destination)
         if let Some((cap_color, cap_piece)) = self.piece_on(to) {
             if cap_color == them {
@@ -222,8 +234,8 @@ impl Position {
             None
         };
         
-        // Update halfmove clock
-        if moving_piece == PieceType::Pawn || self.piece_on(to).is_some() {
+        // Update halfmove clock (reset on pawn move or capture)
+        if moving_piece == PieceType::Pawn || is_capture || m.is_en_passant() {
             self.halfmove_clock = 0;
         } else {
             self.halfmove_clock += 1;
@@ -605,5 +617,34 @@ mod tests {
         // e4 should be empty
         let e4 = Square::from_file_rank(4, 3);
         assert_eq!(pos.piece_on(e4), None);
+    }
+
+    #[test]
+    fn test_halfmove_clock_increments_on_quiet_move() {
+        // Knight can move — non-pawn, non-capture
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1").unwrap();
+        let nf3 = Square::from_file_rank(5, 2); // f3
+        let m = Move::new(Square::G1, nf3); // Nf3
+        pos.make_move(m);
+        assert_eq!(pos.halfmove_clock(), 1);
+    }
+
+    #[test]
+    fn test_halfmove_clock_resets_on_capture() {
+        // White knight captures black pawn on f3
+        let mut pos = Position::from_fen("4k3/8/8/8/8/5p2/8/4K1N1 w - - 5 1").unwrap();
+        let nf3 = Square::from_file_rank(5, 2); // f3
+        let m = Move::new(Square::G1, nf3); // Nxf3
+        pos.make_move(m);
+        assert_eq!(pos.halfmove_clock(), 0);
+    }
+
+    #[test]
+    fn test_halfmove_clock_resets_on_pawn_move() {
+        let mut pos = Position::from_fen("4k3/8/8/8/8/8/4P3/4K3 w - - 5 1").unwrap();
+        let e4 = Square::from_file_rank(4, 3); // e4
+        let m = Move::new(Square::E2, e4); // e4
+        pos.make_move(m);
+        assert_eq!(pos.halfmove_clock(), 0);
     }
 }

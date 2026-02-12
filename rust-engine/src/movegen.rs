@@ -237,14 +237,22 @@ fn generate_king_moves(pos: &Position, us: Color, moves: &mut MoveList) {
 fn generate_castling_moves(pos: &Position, us: Color, king_sq: Square, moves: &mut MoveList) {
     let rights = pos.castling_rights();
     let occupied = pos.occupied();
+    let them = us.flip();
+
+    // Can't castle while in check
+    if pos.is_in_check(us) {
+        return;
+    }
     
     match us {
         Color::White => {
             // White kingside: e1-g1, f1 and g1 must be empty
             if rights.has(CastlingRights::WHITE_KINGSIDE) {
                 let between = Bitboard::from_square(Square::F1) | Bitboard::from_square(Square::G1);
-                if (occupied & between).is_empty() {
-                    // TODO Part 3: Check that king doesn't pass through check
+                if (occupied & between).is_empty()
+                    && !pos.is_square_attacked(Square::F1, them)
+                    && !pos.is_square_attacked(Square::G1, them)
+                {
                     moves.push(Move::new_castling(king_sq, Square::G1));
                 }
             }
@@ -253,7 +261,10 @@ fn generate_castling_moves(pos: &Position, us: Color, king_sq: Square, moves: &m
                 let between = Bitboard::from_square(Square::B1) 
                     | Bitboard::from_square(Square::C1) 
                     | Bitboard::from_square(Square::D1);
-                if (occupied & between).is_empty() {
+                if (occupied & between).is_empty()
+                    && !pos.is_square_attacked(Square::D1, them)
+                    && !pos.is_square_attacked(Square::C1, them)
+                {
                     moves.push(Move::new_castling(king_sq, Square::C1));
                 }
             }
@@ -262,7 +273,10 @@ fn generate_castling_moves(pos: &Position, us: Color, king_sq: Square, moves: &m
             // Black kingside
             if rights.has(CastlingRights::BLACK_KINGSIDE) {
                 let between = Bitboard::from_square(Square::F8) | Bitboard::from_square(Square::G8);
-                if (occupied & between).is_empty() {
+                if (occupied & between).is_empty()
+                    && !pos.is_square_attacked(Square::F8, them)
+                    && !pos.is_square_attacked(Square::G8, them)
+                {
                     moves.push(Move::new_castling(king_sq, Square::G8));
                 }
             }
@@ -271,7 +285,10 @@ fn generate_castling_moves(pos: &Position, us: Color, king_sq: Square, moves: &m
                 let between = Bitboard::from_square(Square::B8) 
                     | Bitboard::from_square(Square::C8) 
                     | Bitboard::from_square(Square::D8);
-                if (occupied & between).is_empty() {
+                if (occupied & between).is_empty()
+                    && !pos.is_square_attacked(Square::D8, them)
+                    && !pos.is_square_attacked(Square::C8, them)
+                {
                     moves.push(Move::new_castling(king_sq, Square::C8));
                 }
             }
@@ -451,5 +468,50 @@ mod tests {
         
         // Starting position has 20 legal moves
         assert_eq!(moves.len(), 20);
+    }
+
+    #[test]
+    fn test_no_castling_through_check() {
+        // White king on e1, rooks on a1/h1, black bishop on b4 attacks d2 and e1...
+        // Actually: black rook on f4 doesn't help. Use black bishop on h4 attacking e1.
+        // Better: black rook on f2 attacks f1 — blocks kingside castling through f1
+        let pos = Position::from_fen("4k3/8/8/8/8/8/5r2/R3K2R w KQ - 0 1").unwrap();
+        let moves = generate_pseudo_legal_moves(&pos);
+        let castle_moves: Vec<_> = moves.iter().filter(|m| m.is_castling()).collect();
+        // Rook on f2 attacks f1, so kingside castling blocked (king passes through f1)
+        // Queenside castling should still be available
+        assert_eq!(castle_moves.len(), 1);
+        assert_eq!(castle_moves[0].to(), Square::C1);
+    }
+
+    #[test]
+    fn test_no_castling_while_in_check() {
+        // White king on e1 in check from black rook on e8
+        // No castling should be allowed
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/R3K2r w KQ - 0 1").unwrap();
+        let legal = generate_legal_moves(&pos);
+        let castle_moves: Vec<_> = legal.iter().filter(|m| m.is_castling()).collect();
+        assert_eq!(castle_moves.len(), 0);
+    }
+
+    #[test]
+    fn test_no_castling_into_check() {
+        // White king on e1, black bishop on b4 attacks d2 — but NOT g1 or f1 or c1
+        // Actually let's use: black rook on g8 attacks g1 — kingside castling into check
+        let pos = Position::from_fen("4k1r1/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+        let moves = generate_pseudo_legal_moves(&pos);
+        let castle_moves: Vec<_> = moves.iter().filter(|m| m.is_castling()).collect();
+        // Kingside blocked (g1 attacked), only queenside
+        assert_eq!(castle_moves.len(), 1);
+        assert_eq!(castle_moves[0].to(), Square::C1);
+    }
+
+    #[test]
+    fn test_castling_allowed_when_safe() {
+        // All clear — both sides should castle
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
+        let moves = generate_pseudo_legal_moves(&pos);
+        let castle_moves: Vec<_> = moves.iter().filter(|m| m.is_castling()).collect();
+        assert_eq!(castle_moves.len(), 2);
     }
 }
