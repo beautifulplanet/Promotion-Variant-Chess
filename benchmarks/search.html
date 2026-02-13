@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Depth Benchmark — Rust/WASM vs chess.js</title>
+  <style>
+    :root {
+      --bg: #0d1117; --card: #161b22; --border: #30363d;
+      --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; line-height: 1.5; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; background: linear-gradient(90deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--text-dim); margin-bottom: 1.5rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: var(--accent); text-decoration: none; margin-right: 1.5rem; font-size: 0.875rem; }
+    nav a:hover { text-decoration: underline; }
+    nav a.active { font-weight: 700; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
+    .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.5rem; }
+    select, button, input[type="number"] { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; }
+    button { background: var(--accent); color: #fff; font-weight: 600; border: none; }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.stop { background: var(--red); }
+    .engines { display: flex; gap: 1rem; margin-bottom: 1rem; }
+    .engine-badge { padding: 0.35rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .engine-badge.js { background: #f0db4f33; color: #f0db4f; border: 1px solid #f0db4f44; }
+    .engine-badge.wasm { background: #654ff033; color: var(--purple); border: 1px solid #654ff044; }
+    .engine-badge.ready { box-shadow: 0 0 6px var(--green); }
+    .engine-badge.loading { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
+    th, td { padding: 0.6rem 0.8rem; text-align: right; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
+    th { background: #21262d; color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+    td:first-child, th:first-child { text-align: left; }
+    .speedup { color: var(--orange); font-weight: 600; }
+    .running-row { background: #1f6feb22; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem; }
+    #log { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; color: var(--text-dim); }
+    .log-ok { color: var(--green); }
+    .log-err { color: var(--red); }
+    .log-info { color: var(--accent); }
+    .log-speed { color: var(--orange); }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; color: var(--text); }
+  </style>
+</head>
+<body>
+
+<h1>Search Depth Benchmark</h1>
+<p class="subtitle">How deep can each engine search in a fixed time budget?</p>
+
+<nav>
+  <a href="perft.html">Perft Benchmark</a>
+  <a href="search.html" class="active">Search Benchmark</a>
+</nav>
+
+<div class="engines">
+  <span id="js-badge" class="engine-badge js ready">JS (chess.js) ✓</span>
+  <span id="wasm-badge" class="engine-badge wasm loading">WASM loading…</span>
+</div>
+
+<div class="controls">
+  <label>
+    Time Budget (ms):
+    <input type="number" id="time-budget" value="1000" min="100" max="30000" step="100" style="width:80px" />
+  </label>
+  <label>
+    Fixed Depth:
+    <input type="number" id="fixed-depth" value="5" min="1" max="10" style="width:60px" />
+  </label>
+  <button id="run-timed-btn" onclick="runTimedBenchmark()">Run Timed Search</button>
+  <button id="run-fixed-btn" onclick="runFixedDepthBenchmark()">Run Fixed-Depth</button>
+  <button id="stop-btn" class="stop" onclick="stopBenchmark()" disabled>Stop</button>
+</div>
+
+<div class="summary" id="summary" style="display:none">
+  <div class="stat-card"><div class="value" id="tests-run">—</div><div class="label">Positions Tested</div></div>
+  <div class="stat-card"><div class="value" id="wasm-avg-depth">—</div><div class="label">Avg WASM Depth</div></div>
+  <div class="stat-card"><div class="value" id="js-avg-depth">—</div><div class="label">Avg JS Depth</div></div>
+  <div class="stat-card"><div class="value" id="nps-ratio">—</div><div class="label">NPS Ratio (WASM/JS)</div></div>
+</div>
+
+<h2 id="bench-title">Results</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Position</th>
+      <th>Engine</th>
+      <th>Depth</th>
+      <th>Best Move</th>
+      <th>Score (cp)</th>
+      <th>Nodes</th>
+      <th>Time</th>
+      <th>NPS</th>
+    </tr>
+  </thead>
+  <tbody id="results"></tbody>
+</table>
+
+<div id="log"></div>
+
+<script type="module">
+import { Chess } from 'chess.js';
+
+// ─── Standard middlegame positions ──────────────────────────────────────
+const POSITIONS = [
+  { name: 'Starting Position', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' },
+  { name: 'Italian Game',      fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3' },
+  { name: 'Sicilian Najdorf',  fen: 'rnbqkb1r/1p2pppp/p2p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 6' },
+  { name: 'Queens Gambit',     fen: 'rnbqkb1r/ppp1pppp/5n2/3p4/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 2 3' },
+  { name: 'Ruy Lopez',         fen: 'r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3' },
+  { name: 'Complex Middle',    fen: 'r1bq1rk1/pp2bppp/2nppn2/8/3NP3/2N1BP2/PPP1B1PP/R2Q1RK1 w - - 2 10' },
+  { name: 'Open Position',     fen: 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1' },
+  { name: 'Endgame (R+P)',     fen: '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1' },
+  { name: 'Endgame (Q vs R)',  fen: '6k1/5ppp/8/8/8/8/1q3PPP/4R1K1 w - - 0 1' },
+  { name: 'Tactical (Pins)',   fen: 'r1b1k2r/ppppnppp/2n2q2/2b5/3NP3/2P1B3/PP3PPP/RN1QKB1R w KQkq - 5 7' },
+];
+
+// ─── WASM loader ────────────────────────────────────────────────────────
+let wasmReady = false;
+let WasmGameState = null;
+
+async function loadWasm() {
+  try {
+    const base = import.meta.env?.BASE_URL || '/';
+    const wasm = await import(/* @vite-ignore */ `${base}wasm/chess_engine.js`);
+    await wasm.default(`${base}wasm/chess_engine_bg.wasm`);
+    WasmGameState = wasm.GameState;
+    wasmReady = true;
+    const badge = document.getElementById('wasm-badge');
+    badge.textContent = 'WASM ✓';
+    badge.classList.remove('loading');
+    badge.classList.add('ready');
+    log('WASM engine loaded', 'ok');
+  } catch (e) {
+    document.getElementById('wasm-badge').textContent = 'WASM ✗';
+    document.getElementById('wasm-badge').classList.remove('loading');
+    log('WASM failed: ' + e.message, 'err');
+  }
+}
+loadWasm();
+
+// ─── JS search (chess.js minimax) ───────────────────────────────────────
+function jsEval(game) {
+  // Simple material evaluation from white's perspective
+  const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+  let score = 0;
+  const board = game.board();
+  for (const row of board) {
+    for (const sq of row) {
+      if (!sq) continue;
+      const val = values[sq.type] || 0;
+      score += sq.color === 'w' ? val : -val;
+    }
+  }
+  return score;
+}
+
+function jsMinimax(game, depth, alpha, beta, maximizing) {
+  if (depth === 0 || game.isGameOver()) return jsEval(game);
+
+  const moves = game.moves({ verbose: true });
+
+  if (maximizing) {
+    let best = -Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const score = jsMinimax(game, depth - 1, alpha, beta, false);
+      game.undo();
+      best = Math.max(best, score);
+      alpha = Math.max(alpha, score);
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const score = jsMinimax(game, depth - 1, alpha, beta, true);
+      game.undo();
+      best = Math.min(best, score);
+      beta = Math.min(beta, score);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+// JS fixed-depth search with node counting
+function jsSearchDepth(fen, depth) {
+  const game = new Chess(fen);
+  const isWhite = game.turn() === 'w';
+  let nodes = 0;
+  let bestMove = null;
+  let bestScore = isWhite ? -Infinity : Infinity;
+  const moves = game.moves({ verbose: true });
+  const t0 = performance.now();
+
+  for (const m of moves) {
+    game.move(m);
+    nodes++;
+    const score = jsMinimaxCount(game, depth - 1, -Infinity, Infinity, !isWhite, { n: 0 });
+    nodes += score.nodes;
+    game.undo();
+
+    if (isWhite ? score.val > bestScore : score.val < bestScore) {
+      bestScore = score.val;
+      bestMove = m.san;
+    }
+  }
+
+  const elapsed = performance.now() - t0;
+  return {
+    bestMove, score: bestScore, depth, nodes,
+    timeMs: elapsed,
+    nps: elapsed > 0 ? Math.round(nodes / (elapsed / 1000)) : 0,
+  };
+}
+
+function jsMinimaxCount(game, depth, alpha, beta, maximizing, counter) {
+  counter.n++;
+  if (depth === 0 || game.isGameOver()) return { val: jsEval(game), nodes: counter.n, n: counter.n };
+
+  const moves = game.moves({ verbose: true });
+
+  if (maximizing) {
+    let best = -Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const r = jsMinimaxCount(game, depth - 1, alpha, beta, false, counter);
+      game.undo();
+      best = Math.max(best, r.val);
+      alpha = Math.max(alpha, r.val);
+      if (beta <= alpha) break;
+    }
+    return { val: best, nodes: counter.n };
+  } else {
+    let best = Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const r = jsMinimaxCount(game, depth - 1, alpha, beta, true, counter);
+      game.undo();
+      best = Math.min(best, r.val);
+      beta = Math.min(beta, r.val);
+      if (beta <= alpha) break;
+    }
+    return { val: best, nodes: counter.n };
+  }
+}
+
+// JS timed search (iterative deepening)
+function jsSearchTimed(fen, maxMs) {
+  const game = new Chess(fen);
+  const isWhite = game.turn() === 'w';
+  const t0 = performance.now();
+  let bestResult = { bestMove: null, score: 0, depth: 0, nodes: 0, timeMs: 0, nps: 0 };
+
+  for (let d = 1; d <= 20; d++) {
+    const result = jsSearchDepth(fen, d);
+    bestResult = result;
+    const elapsed = performance.now() - t0;
+    if (elapsed >= maxMs) break;
+    // Predict next depth takes ~3-4x longer
+    const remaining = maxMs - elapsed;
+    if (remaining < elapsed * 3) break;
+  }
+
+  bestResult.timeMs = performance.now() - t0;
+  return bestResult;
+}
+
+// ─── Logging / formatting ───────────────────────────────────────────────
+function log(msg, cls = '') {
+  const el = document.getElementById('log');
+  const span = document.createElement('span');
+  span.className = cls ? `log-${cls}` : '';
+  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+function fmt(n) { return n.toLocaleString(); }
+function fmtMs(ms) { return ms < 1000 ? ms.toFixed(1) + ' ms' : (ms/1000).toFixed(2) + ' s'; }
+function fmtNps(nps) {
+  if (nps > 1e6) return (nps/1e6).toFixed(1) + 'M';
+  if (nps > 1e3) return (nps/1e3).toFixed(1) + 'K';
+  return nps.toString();
+}
+
+// ─── Benchmark runners ──────────────────────────────────────────────────
+let running = false;
+let aborted = false;
+
+window.stopBenchmark = function() { aborted = true; document.getElementById('stop-btn').disabled = true; log('Stopped', 'err'); };
+
+function setButtons(isRunning) {
+  running = isRunning;
+  document.getElementById('run-timed-btn').disabled = isRunning;
+  document.getElementById('run-fixed-btn').disabled = isRunning;
+  document.getElementById('stop-btn').disabled = !isRunning;
+}
+
+// ── Timed search benchmark ──
+window.runTimedBenchmark = async function() {
+  if (running) return;
+  setButtons(true); aborted = false;
+  const tbody = document.getElementById('results');
+  tbody.innerHTML = '';
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('bench-title').textContent = 'Timed Search Results';
+
+  const maxMs = parseInt(document.getElementById('time-budget').value) || 1000;
+  log(`Timed search benchmark — ${POSITIONS.length} positions, ${maxMs}ms budget each`, 'info');
+
+  const allResults = [];
+
+  for (const pos of POSITIONS) {
+    if (aborted) break;
+    log(`\n▸ ${pos.name}`, 'info');
+    await new Promise(r => setTimeout(r, 10));
+
+    // WASM timed search
+    let wasmRow = null;
+    if (wasmReady) {
+      try {
+        const gs = WasmGameState.from_fen(pos.fen);
+        const json = gs.search_timed(maxMs);
+        const r = JSON.parse(json);
+        gs.free();
+        wasmRow = { engine: 'WASM', position: pos.name, ...r };
+        addRow(tbody, pos.name, 'WASM', r);
+        log(`  WASM: depth=${r.depth} move=${r.bestMove} nodes=${fmt(r.nodes)} ${fmtMs(r.timeMs)} ${fmtNps(r.nps)} NPS`, 'ok');
+      } catch (e) { log(`  WASM error: ${e.message}`, 'err'); }
+    }
+
+    await new Promise(r => setTimeout(r, 10));
+
+    // JS timed search
+    try {
+      const r = jsSearchTimed(pos.fen, maxMs);
+      const jsRow = { engine: 'JS', position: pos.name, ...r };
+      addRow(tbody, pos.name, 'JS', r);
+      log(`  JS:   depth=${r.depth} move=${r.bestMove} nodes=${fmt(r.nodes)} ${fmtMs(r.timeMs)} ${fmtNps(r.nps)} NPS`, 'ok');
+      if (wasmRow) {
+        const ratio = wasmRow.nps / Math.max(1, r.nps);
+        log(`  NPS ratio: ${ratio.toFixed(1)}× faster`, 'speed');
+      }
+      allResults.push({ pos: pos.name, wasm: wasmRow, js: jsRow });
+    } catch (e) { log(`  JS error: ${e.message}`, 'err'); }
+  }
+
+  showSummary(allResults);
+  setButtons(false);
+  log('\nBenchmark complete.', 'info');
+};
+
+// ── Fixed-depth benchmark ──
+window.runFixedDepthBenchmark = async function() {
+  if (running) return;
+  setButtons(true); aborted = false;
+  const tbody = document.getElementById('results');
+  tbody.innerHTML = '';
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('summary').style.display = 'none';
+  const depth = parseInt(document.getElementById('fixed-depth').value) || 5;
+  document.getElementById('bench-title').textContent = `Fixed-Depth ${depth} Results`;
+
+  log(`Fixed-depth benchmark — ${POSITIONS.length} positions, depth ${depth}`, 'info');
+
+  const allResults = [];
+
+  for (const pos of POSITIONS) {
+    if (aborted) break;
+    log(`\n▸ ${pos.name}`, 'info');
+    await new Promise(r => setTimeout(r, 10));
+
+    // WASM
+    let wasmRow = null;
+    if (wasmReady) {
+      try {
+        const gs = WasmGameState.from_fen(pos.fen);
+        const json = gs.search_depth(depth);
+        const r = JSON.parse(json);
+        gs.free();
+        wasmRow = { engine: 'WASM', position: pos.name, ...r };
+        addRow(tbody, pos.name, 'WASM', r);
+        log(`  WASM: move=${r.bestMove} score=${r.score} nodes=${fmt(r.nodes)} ${fmtMs(r.timeMs)} ${fmtNps(r.nps)} NPS`, 'ok');
+      } catch (e) { log(`  WASM error: ${e.message}`, 'err'); }
+    }
+
+    await new Promise(r => setTimeout(r, 10));
+
+    // JS
+    try {
+      const r = jsSearchDepth(pos.fen, depth);
+      const jsRow = { engine: 'JS', position: pos.name, ...r };
+      addRow(tbody, pos.name, 'JS', r);
+      log(`  JS:   move=${r.bestMove} score=${r.score} nodes=${fmt(r.nodes)} ${fmtMs(r.timeMs)} ${fmtNps(r.nps)} NPS`, 'ok');
+      if (wasmRow) {
+        const speedup = wasmRow.nps > 0 && r.nps > 0 ? (wasmRow.nps / r.nps).toFixed(1) : '—';
+        log(`  Speed: ${speedup}× faster`, 'speed');
+      }
+      allResults.push({ pos: pos.name, wasm: wasmRow, js: jsRow });
+    } catch (e) { log(`  JS error: ${e.message}`, 'err'); }
+  }
+
+  showSummary(allResults);
+  setButtons(false);
+  log('\nBenchmark complete.', 'info');
+};
+
+function addRow(tbody, name, engine, r) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${name}</td>
+    <td style="color:${engine === 'WASM' ? 'var(--purple)' : '#f0db4f'}">${engine}</td>
+    <td>${r.depth}</td>
+    <td>${r.bestMove || '—'}</td>
+    <td>${r.score}</td>
+    <td>${fmt(r.nodes)}</td>
+    <td>${fmtMs(r.timeMs)}</td>
+    <td class="speedup">${fmtNps(r.nps)}</td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function showSummary(results) {
+  const el = document.getElementById('summary');
+  el.style.display = 'grid';
+  document.getElementById('tests-run').textContent = results.length;
+
+  const wasmDepths = results.filter(r => r.wasm).map(r => r.wasm.depth);
+  const jsDepths = results.map(r => r.js.depth);
+  const wasmAvg = wasmDepths.length ? (wasmDepths.reduce((a,b)=>a+b,0)/wasmDepths.length).toFixed(1) : '—';
+  const jsAvg = jsDepths.length ? (jsDepths.reduce((a,b)=>a+b,0)/jsDepths.length).toFixed(1) : '—';
+  document.getElementById('wasm-avg-depth').textContent = wasmAvg;
+  document.getElementById('js-avg-depth').textContent = jsAvg;
+
+  const ratios = results.filter(r => r.wasm && r.js.nps > 0).map(r => r.wasm.nps / r.js.nps);
+  const avgRatio = ratios.length ? (ratios.reduce((a,b)=>a+b,0)/ratios.length).toFixed(1) + '×' : '—';
+  document.getElementById('nps-ratio').textContent = avgRatio;
+}
+</script>
+
+</body>
+</html>

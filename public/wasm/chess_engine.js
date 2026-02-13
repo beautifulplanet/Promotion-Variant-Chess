@@ -316,6 +316,41 @@ export class GameState {
         wasm.gamestate_reset(this.__wbg_ptr);
     }
     /**
+     * Fixed-depth search returning full stats as JSON.
+     * @param {number} depth
+     * @returns {string}
+     */
+    search_depth(depth) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_search_depth(this.__wbg_ptr, depth);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Time-limited search. Searches deeper until time budget is exhausted.
+     * Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000}
+     * @param {number} max_ms
+     * @returns {string}
+     */
+    search_timed(max_ms) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_search_timed(this.__wbg_ptr, max_ms);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get full game status including repetition detection
      * Returns: "checkmate", "stalemate", "insufficient_material", "fifty_move",
      *          "threefold_repetition", or "playing"
@@ -953,6 +988,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_8a6f238a6ece86ea: function() {
             const ret = new Error();
+            return ret;
+        },
+        __wbg_now_a3af9a2f4bbaa4d1: function() {
+            const ret = Date.now();
             return ret;
         },
         __wbg_stack_0ed75d68575b0f3c: function(arg0, arg1) {

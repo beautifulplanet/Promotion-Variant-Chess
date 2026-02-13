@@ -641,6 +641,48 @@ impl GameState {
         evaluate(&self.position)
     }
 
+    /// Time-limited search. Searches deeper until time budget is exhausted.
+    /// Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000}
+    pub fn search_timed(&self, max_ms: f64) -> String {
+        let mut pos = self.position.clone();
+        let (best_move, score, stats) = search::search_timed(&mut pos, max_ms, 0);
+        let mv_str = best_move.map_or("null".to_string(), |m| format!("\"{}\"", m.to_uci()));
+        format!(
+            "{{\"bestMove\":{},\"score\":{},\"depth\":{},\"nodes\":{},\"timeMs\":{:.1},\"nps\":{}}}",
+            mv_str, score, stats.depth, stats.nodes, stats.time_ms, stats.nps
+        )
+    }
+
+    /// Fixed-depth search returning full stats as JSON.
+    pub fn search_depth(&self, depth: u8) -> String {
+        let mut pos = self.position.clone();
+        let start = {
+            #[cfg(target_arch = "wasm32")]
+            { js_sys::Date::now() }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64() * 1000.0
+            }
+        };
+        let (best_move, score, stats) = search::search(&mut pos, depth);
+        let elapsed = {
+            #[cfg(target_arch = "wasm32")]
+            { js_sys::Date::now() - start }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64() * 1000.0 - start
+            }
+        };
+        let nps = if elapsed > 0.0 { (stats.nodes as f64 / (elapsed / 1000.0)) as u64 } else { 0 };
+        let mv_str = best_move.map_or("null".to_string(), |m| format!("\"{}\"", m.to_uci()));
+        format!(
+            "{{\"bestMove\":{},\"score\":{},\"depth\":{},\"nodes\":{},\"timeMs\":{:.1},\"nps\":{}}}",
+            mv_str, score, depth, stats.nodes, elapsed, nps
+        )
+    }
+
     /// Run perft from the current position at the given depth.
     /// Returns the total leaf node count — the standard correctness benchmark.
     pub fn perft(&self, depth: u32) -> u64 {
@@ -1055,5 +1097,41 @@ mod tests {
             })
             .sum();
         assert_eq!(total, 400);
+    }
+
+    #[test]
+    fn test_gamestate_search_timed() {
+        let gs = GameState::new();
+        let json = gs.search_timed(500.0); // 500ms budget
+        // Should contain all expected fields
+        assert!(json.contains("\"bestMove\""), "Missing bestMove: {}", json);
+        assert!(json.contains("\"score\""), "Missing score: {}", json);
+        assert!(json.contains("\"depth\""), "Missing depth: {}", json);
+        assert!(json.contains("\"nodes\""), "Missing nodes: {}", json);
+        assert!(json.contains("\"timeMs\""), "Missing timeMs: {}", json);
+        assert!(json.contains("\"nps\""), "Missing nps: {}", json);
+        // bestMove should not be null for starting position
+        assert!(!json.contains("\"bestMove\":null"), "bestMove should exist: {}", json);
+    }
+
+    #[test]
+    fn test_gamestate_search_depth_json() {
+        let gs = GameState::new();
+        let json = gs.search_depth(3);
+        assert!(json.contains("\"bestMove\""), "Missing bestMove: {}", json);
+        assert!(json.contains("\"depth\":3"), "Should report depth 3: {}", json);
+        assert!(json.contains("\"nodes\""), "Missing nodes: {}", json);
+    }
+
+    #[test]
+    fn test_search_timed_respects_budget() {
+        let gs = GameState::new();
+        let json = gs.search_timed(100.0); // 100ms budget
+        // Parse timeMs — should be roughly within budget (with some overhead)
+        let time_start = json.find("\"timeMs\":").unwrap() + 9;
+        let time_end = json[time_start..].find(|c: char| c == ',' || c == '}').unwrap() + time_start;
+        let time_ms: f64 = json[time_start..time_end].parse().unwrap();
+        // Should finish within ~2x the budget (overhead from last depth completing)
+        assert!(time_ms < 5000.0, "Took too long: {}ms", time_ms);
     }
 }

@@ -7,6 +7,26 @@ use crate::position::Position;
 use crate::types::Move;
 
 // =============================================================================
+// TIME MEASUREMENT (works on both native and WASM)
+// =============================================================================
+
+/// Get current time in milliseconds.
+/// Uses js_sys::Date::now() on WASM, std::time for native.
+#[cfg(target_arch = "wasm32")]
+fn now_ms() -> f64 {
+    js_sys::Date::now()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn now_ms() -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64() * 1000.0
+}
+
+// =============================================================================
 // SEARCH CONFIGURATION
 // =============================================================================
 
@@ -20,6 +40,10 @@ pub struct SearchStats {
     pub depth: u8,
     pub best_move: Option<Move>,
     pub score: Score,
+    pub time_ms: f64,
+    pub nps: u64,
+    /// Set when search was stopped by time limit (result still valid — last completed depth)
+    pub time_stopped: bool,
 }
 
 // =============================================================================
@@ -68,6 +92,59 @@ pub fn search_iterative(pos: &mut Position, max_depth: u8) -> (Option<Move>, Sco
     total_stats.best_move = best_move;
     total_stats.score = best_score;
     
+    (best_move, best_score, total_stats)
+}
+
+/// Time-limited iterative deepening search.
+/// Searches deeper and deeper until `max_ms` wall-clock time is exceeded.
+/// Returns the result from the last *completed* depth.
+/// If `max_depth` is 0, defaults to MAX_DEPTH (64).
+pub fn search_timed(pos: &mut Position, max_ms: f64, max_depth: u8) -> (Option<Move>, Score, SearchStats) {
+    let start = now_ms();
+    let deadline = start + max_ms;
+    let depth_limit = if max_depth == 0 { MAX_DEPTH } else { max_depth };
+
+    let mut best_move = None;
+    let mut best_score = -MATE_SCORE;
+    let mut total_stats = SearchStats::default();
+
+    for depth in 1..=depth_limit {
+        let (mv, score, stats) = search(pos, depth);
+
+        total_stats.nodes += stats.nodes;
+        total_stats.depth = depth;
+
+        if let Some(m) = mv {
+            best_move = Some(m);
+            best_score = score;
+        }
+
+        // Check if we exceeded the time budget
+        let elapsed = now_ms() - start;
+        if elapsed >= max_ms {
+            total_stats.time_stopped = true;
+            break;
+        }
+
+        // If the *next* depth is likely to take too long, stop early.
+        // Heuristic: next depth takes ~3-4x longer than current.
+        let remaining = deadline - now_ms();
+        if remaining < elapsed * 3.0 {
+            total_stats.time_stopped = true;
+            break;
+        }
+    }
+
+    let total_time = now_ms() - start;
+    total_stats.time_ms = total_time;
+    total_stats.nps = if total_time > 0.0 {
+        (total_stats.nodes as f64 / (total_time / 1000.0)) as u64
+    } else {
+        0
+    };
+    total_stats.best_move = best_move;
+    total_stats.score = best_score;
+
     (best_move, best_score, total_stats)
 }
 

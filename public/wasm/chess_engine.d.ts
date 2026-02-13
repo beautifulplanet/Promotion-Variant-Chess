@@ -120,6 +120,15 @@ export class GameState {
      */
     reset(): void;
     /**
+     * Fixed-depth search returning full stats as JSON.
+     */
+    search_depth(depth: number): string;
+    /**
+     * Time-limited search. Searches deeper until time budget is exhausted.
+     * Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000}
+     */
+    search_timed(max_ms: number): string;
+    /**
      * Get full game status including repetition detection
      * Returns: "checkmate", "stalemate", "insufficient_material", "fifty_move",
      *          "threefold_repetition", or "playing"
@@ -379,6 +388,8 @@ export interface InitOutput {
     readonly gamestate_perft_divide: (a: number, b: number) => [number, number];
     readonly gamestate_piece_at: (a: number, b: number, c: number) => [number, number];
     readonly gamestate_reset: (a: number) => void;
+    readonly gamestate_search_depth: (a: number, b: number) => [number, number];
+    readonly gamestate_search_timed: (a: number, b: number) => [number, number];
     readonly gamestate_status: (a: number) => [number, number];
     readonly gamestate_turn: (a: number) => [number, number];
     readonly gamestate_undo: (a: number) => [number, number];
