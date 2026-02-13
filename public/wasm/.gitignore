@@ -1,4 +1,1 @@
-# wasm-pack generates this .gitignore with "*" which blocks all files.
-# We WANT these files committed so the WASM engine works on GitHub Pages.
-# Only ignore build artifacts we don't need:
-snippets/
+*

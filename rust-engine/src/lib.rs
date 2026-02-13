@@ -8,6 +8,7 @@ mod magic;
 mod movegen;
 mod position;
 mod search;
+mod tt;
 mod types;
 mod zobrist;
 
@@ -642,14 +643,14 @@ impl GameState {
     }
 
     /// Time-limited search. Searches deeper until time budget is exhausted.
-    /// Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000}
+    /// Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000,"ttHits":1234}
     pub fn search_timed(&self, max_ms: f64) -> String {
         let mut pos = self.position.clone();
         let (best_move, score, stats) = search::search_timed(&mut pos, max_ms, 0);
         let mv_str = best_move.map_or("null".to_string(), |m| format!("\"{}\"", m.to_uci()));
         format!(
-            "{{\"bestMove\":{},\"score\":{},\"depth\":{},\"nodes\":{},\"timeMs\":{:.1},\"nps\":{}}}",
-            mv_str, score, stats.depth, stats.nodes, stats.time_ms, stats.nps
+            "{{\"bestMove\":{},\"score\":{},\"depth\":{},\"nodes\":{},\"timeMs\":{:.1},\"nps\":{},\"ttHits\":{}}}",
+            mv_str, score, stats.depth, stats.nodes, stats.time_ms, stats.nps, stats.tt_hits
         )
     }
 

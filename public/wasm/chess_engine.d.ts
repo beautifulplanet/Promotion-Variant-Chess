@@ -125,7 +125,7 @@ export class GameState {
     search_depth(depth: number): string;
     /**
      * Time-limited search. Searches deeper until time budget is exhausted.
-     * Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000}
+     * Returns JSON: {"bestMove":"e2e4","score":15,"depth":6,"nodes":123456,"timeMs":987.5,"nps":125000,"ttHits":1234}
      */
     search_timed(max_ms: number): string;
     /**
