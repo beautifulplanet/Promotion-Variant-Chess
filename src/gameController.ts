@@ -2,7 +2,7 @@
 // Pure game logic - NO rendering code here
 // This can be used with Canvas2D, WebGL, Three.js, or any renderer
 
-import { engine, type Move } from './engineProvider';
+import { engine, type Move, promoteEngine } from './engineProvider';
 import { aiService } from './aiService';
 import { stockfishEngine } from './stockfishEngine'; // Hybrid AI system
 import { learningAI, runTrainingSession } from './learningAI';
@@ -29,6 +29,7 @@ const DEBUG_LOG = import.meta.env.DEV
  * Handles both SAN format (e.g. "a8=Q") and UCI format (e.g. "a7a8q").
  */
 function isMovePromotion(move: string): boolean {
+  if (!move) return false;
   // SAN format: contains '='
   if (move.includes('=')) return true;
   // UCI format: 5-char string ending in promotion piece letter
@@ -128,6 +129,9 @@ let currentSaveData: SaveData = createDefaultSave();
  * Initialize the game with fresh state (no auto-load)
  */
 export function initGame(): GameState {
+  // Try upgrading to Rust WASM at game boundary (safe — no history to lose)
+  promoteEngine();
+
   // Start fresh each time - player must manually load their save
   currentSaveData = createDefaultSave();
 

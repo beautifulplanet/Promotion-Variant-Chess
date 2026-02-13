@@ -4,9 +4,10 @@
 //
 // Architecture:
 //   1. App starts → engine uses chess.js (instant, sync, universal)
-//   2. Background → WASM loads asynchronously
-//   3. When WASM ready → engine switches to RustGameState (faster search/eval)
-//   4. If WASM fails → engine stays on chess.js (graceful degradation)
+//   2. Background → WASM loads asynchronously (via initEngine)
+//   3. WASM ready → marked as "pending" — NOT swapped mid-game
+//   4. Game boundary (reset/newGame) → promoteEngine() swaps to WASM
+//   5. If WASM fails → engine stays on chess.js (graceful degradation)
 //
 // All consumers import { engine } from './engineProvider' — they never
 // need to know which backend is active.
@@ -19,6 +20,53 @@ import { RustGameState, initRustGameState, isRustGameStateReady } from './rustGa
 export type { Move };
 export { boardToFEN };
 
+/**
+ * Common engine interface — the public API that both ChessEngine and RustGameState share.
+ * We use this instead of `ChessEngine & RustGameState` to avoid the TypeScript
+ * "never" collapse caused by conflicting private members (both have private boardCache).
+ */
+export interface ChessEngineAPI {
+  // Position management
+  reset(): void;
+  loadFEN(fen: string): boolean;
+  fen(): string;
+  getFEN(): string;
+  loadPosition(
+    board: (import('./types').Piece | null)[][],
+    currentTurn: import('./types').PieceColor,
+    castlingRights?: { whiteKingSide: boolean; whiteQueenSide: boolean; blackKingSide: boolean; blackQueenSide: boolean },
+    enPassantTarget?: { row: number; col: number } | null
+  ): boolean;
+  loadCustomBoard(
+    arrangement: Array<{ row: number; col: number; type: import('./types').PieceType; color: import('./types').PieceColor }>,
+    currentTurn: import('./types').PieceColor
+  ): void;
+
+  // Board & turn
+  turn(): import('./types').PieceColor;
+  getBoard(): (import('./types').Piece | null)[][];
+
+  // Moves
+  getLegalMoves(): Move[];
+  isMoveLegal(from: { row: number; col: number }, to: { row: number; col: number }, promotion?: import('./types').PieceType): boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  makeMove(from: { row: number; col: number }, to: { row: number; col: number }, promotion?: import('./types').PieceType): any;
+  undo(): boolean;
+  getMoveHistory(): string[];
+
+  // Game state
+  isCheck(): boolean;
+  isCheckmate(): boolean;
+  isStalemate(): boolean;
+  isDraw(): boolean;
+  isGameOver(): boolean;
+  getDrawType(): string;
+
+  // Evaluation & search
+  evaluate(): number;
+  getBestMove(depth: number, maximizing: boolean): Move | null;
+}
+
 // =============================================================================
 // ENGINE STATE
 // =============================================================================
@@ -26,6 +74,10 @@ export { boardToFEN };
 // Reuse the existing chess.js singleton so tests and legacy code stay in sync
 let activeEngine: ChessEngine | RustGameState = chessJsEngine;
 let engineType: 'chess.js' | 'rust-wasm' = 'chess.js';
+
+// WASM readiness — deferred swap to avoid mid-game corruption
+let wasmReady = false;
+let initInProgress = false;
 
 // =============================================================================
 // PROXY-BASED SINGLETON
@@ -35,13 +87,16 @@ let engineType: 'chess.js' | 'rust-wasm' = 'chess.js';
 // is transparent to all consumers. Method calls are automatically forwarded
 // to whichever engine is active, with correct `this` binding.
 
-export const engine = new Proxy({} as ChessEngine & RustGameState, {
+export const engine = new Proxy({} as ChessEngineAPI, {
   get(_target, prop, _receiver) {
     const value = (activeEngine as unknown as Record<string | symbol, unknown>)[prop];
     if (typeof value === 'function') {
       return (value as Function).bind(activeEngine);
     }
     return value;
+  },
+  has(_target, prop) {
+    return prop in (activeEngine as unknown as Record<string | symbol, unknown>);
   }
 });
 
@@ -51,38 +106,65 @@ export const engine = new Proxy({} as ChessEngine & RustGameState, {
 
 /**
  * Initialize the Rust WASM engine in the background.
- * If successful, swaps the active engine to Rust.
- * If it fails, chess.js remains active — the game works either way.
+ * Does NOT swap engines mid-game — only marks WASM as available.
+ * Call promoteEngine() at a game boundary to actually switch.
  *
  * Call this once at app startup (non-blocking).
  */
 export async function initEngine(): Promise<'rust-wasm' | 'chess.js'> {
+  // Re-entrancy guard
+  if (engineType === 'rust-wasm') return 'rust-wasm';
+  if (initInProgress) {
+    // Wait for existing init to complete
+    try {
+      const ok = await initRustGameState();
+      return ok && isRustGameStateReady() ? 'rust-wasm' : 'chess.js';
+    } catch {
+      return 'chess.js';
+    }
+  }
+
+  initInProgress = true;
   try {
     console.log('[EngineProvider] Attempting Rust WASM initialization...');
     const ok = await initRustGameState();
 
     if (ok && isRustGameStateReady()) {
-      // Sync the current position from chess.js → Rust
-      const currentFen = activeEngine.fen();
-      const rustEngine = new RustGameState();
+      wasmReady = true;
+      console.log('[EngineProvider] 🦀 Rust WASM ready — will activate at next game boundary');
 
-      // If we're not at starting position, load the current FEN
-      const startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-      if (currentFen !== startFen) {
-        rustEngine.loadFEN(currentFen);
+      // If no game is in progress (starting position, no moves), swap immediately
+      if (activeEngine.getMoveHistory().length === 0) {
+        promoteEngine();
+        return 'rust-wasm';
       }
 
-      activeEngine = rustEngine;
-      engineType = 'rust-wasm';
-      console.log('[EngineProvider] 🦀 Upgraded to Rust WASM engine');
       return 'rust-wasm';
     }
   } catch (e) {
     console.warn('[EngineProvider] Rust WASM not available:', e);
+  } finally {
+    initInProgress = false;
   }
 
   console.log('[EngineProvider] Using chess.js fallback engine');
   return 'chess.js';
+}
+
+/**
+ * Promote WASM to active engine — call at game boundaries only
+ * (new game, reset, loadFEN from scratch).
+ * Safe because there's no move history to lose at a boundary.
+ */
+export function promoteEngine(): boolean {
+  if (engineType === 'rust-wasm') return true;
+  if (!wasmReady || !isRustGameStateReady()) return false;
+
+  const rustEngine = new RustGameState();
+  activeEngine = rustEngine;
+  engineType = 'rust-wasm';
+  console.log('[EngineProvider] 🦀 Activated Rust WASM engine');
+  return true;
 }
 
 // =============================================================================
@@ -104,8 +186,16 @@ export function isRustActive(): boolean {
 }
 
 /**
+ * Check if Rust WASM is loaded and ready (but not necessarily active)
+ */
+export function isWasmReady(): boolean {
+  return wasmReady;
+}
+
+/**
  * Force switch to a specific engine backend.
  * Useful for debugging or user preference.
+ * Only safe to call at game boundaries (no moves in progress).
  */
 export function switchEngine(type: 'chess.js' | 'rust-wasm'): boolean {
   if (type === 'chess.js' && engineType !== 'chess.js') {
@@ -118,7 +208,7 @@ export function switchEngine(type: 'chess.js' | 'rust-wasm'): boolean {
   }
 
   if (type === 'rust-wasm' && engineType !== 'rust-wasm') {
-    if (!isRustGameStateReady()) {
+    if (!wasmReady || !isRustGameStateReady()) {
       console.warn('[EngineProvider] Rust WASM not initialized');
       return false;
     }

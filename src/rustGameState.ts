@@ -59,13 +59,9 @@ interface WasmModuleWithGameState {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let wasmModule: any = null;
-let gs: WasmGameState | null = null;
+let WasmGameStateClass: { new(): WasmGameState; from_fen(fen: string): WasmGameState } | null = null;
 let isInitialized = false;
 let initPromise: Promise<boolean> | null = null;
-
-// Board cache — avoids re-parsing JSON every frame
-let boardCache: (Piece | null)[][] | null = null;
-let boardDirty = true;
 
 // =============================================================================
 // INITIALIZATION
@@ -99,9 +95,8 @@ export async function initRustGameState(): Promise<boolean> {
       await wasm.default(`${base}wasm/chess_engine_bg.wasm`);
 
       wasmModule = wasm;
-      gs = new wasm.GameState();
+      WasmGameStateClass = wasm.GameState;
       isInitialized = true;
-      boardDirty = true;
 
       console.log('[RustGameState] 🦀 Initialized with stateful GameState');
       return true;
@@ -119,7 +114,7 @@ export async function initRustGameState(): Promise<boolean> {
  * Check if the Rust GameState engine is ready
  */
 export function isRustGameStateReady(): boolean {
-  return isInitialized && gs !== null;
+  return isInitialized && WasmGameStateClass !== null;
 }
 
 // =============================================================================
@@ -158,6 +153,19 @@ function rowColToFileRank(row: number, col: number): { file: number; rank: numbe
  */
 export class RustGameState {
 
+  // Instance-owned WASM GameState — each RustGameState gets its own
+  private gs: WasmGameState | null = null;
+
+  // Board cache — avoids re-parsing JSON every frame (instance-scoped)
+  private boardCache: (Piece | null)[][] | null = null;
+  private boardDirty = true;
+
+  constructor() {
+    if (WasmGameStateClass) {
+      this.gs = new WasmGameStateClass();
+    }
+  }
+
   // ── Position management ──────────────────────────────────────────────────
 
   /**
@@ -170,15 +178,15 @@ export class RustGameState {
     castlingRights?: { whiteKingSide: boolean; whiteQueenSide: boolean; blackKingSide: boolean; blackQueenSide: boolean },
     enPassantTarget?: { row: number; col: number } | null
   ): boolean {
-    if (!gs) return false;
+    if (!this.gs) return false;
     const fen = boardToFEN(board, currentTurn, castlingRights, enPassantTarget);
     console.log('[RustGameState] Loading FEN:', fen);
-    const ok = gs.load_fen(fen);
+    const ok = this.gs.load_fen(fen);
     if (!ok) {
       console.error('[RustGameState] FAILED to load FEN:', fen);
-      gs.reset();
+      this.gs.reset();
     }
-    boardDirty = true;
+    this.boardDirty = true;
     return ok;
   }
 
@@ -190,7 +198,7 @@ export class RustGameState {
     arrangement: Array<{ row: number; col: number; type: PieceType; color: PieceColor }>,
     currentTurn: PieceColor
   ): void {
-    if (!gs) return;
+    if (!this.gs) return;
 
     console.log('[RustGameState] loadCustomBoard called with', arrangement.length, 'pieces');
 
@@ -201,30 +209,30 @@ export class RustGameState {
     }
 
     const fen = boardToFEN(board, currentTurn);
-    const ok = gs.load_fen(fen);
+    const ok = this.gs.load_fen(fen);
     if (!ok) {
       console.error('[RustGameState] Failed to load custom board FEN:', fen);
     }
-    boardDirty = true;
+    this.boardDirty = true;
   }
 
   /**
    * Reset to starting position
    */
   reset(): void {
-    if (!gs) return;
-    gs.reset();
-    boardDirty = true;
+    if (!this.gs) return;
+    this.gs.reset();
+    this.boardDirty = true;
   }
 
   /**
    * Load position from FEN string
    */
   loadFEN(fen: string): boolean {
-    if (!gs) return false;
-    const ok = gs.load_fen(fen);
+    if (!this.gs) return false;
+    const ok = this.gs.load_fen(fen);
     if (ok) {
-      boardDirty = true;
+      this.boardDirty = true;
       console.log('[RustGameState] Loaded FEN:', fen);
     } else {
       console.error('[RustGameState] Failed to load FEN:', fen);
@@ -236,8 +244,8 @@ export class RustGameState {
    * Get FEN
    */
   fen(): string {
-    if (!gs) return '';
-    return gs.fen();
+    if (!this.gs) return '';
+    return this.gs.fen();
   }
 
   /**
@@ -253,8 +261,8 @@ export class RustGameState {
    * Get current turn as PieceColor
    */
   turn(): PieceColor {
-    if (!gs) return 'white';
-    return gs.turn() === 'w' ? 'white' : 'black';
+    if (!this.gs) return 'white';
+    return this.gs.turn() === 'w' ? 'white' : 'black';
   }
 
   /**
@@ -262,11 +270,11 @@ export class RustGameState {
    * Cached for efficiency — only re-parses when dirty.
    */
   getBoard(): (Piece | null)[][] {
-    if (!boardDirty && boardCache) return boardCache;
-    if (!gs) return emptyBoard();
+    if (!this.boardDirty && this.boardCache) return this.boardCache;
+    if (!this.gs) return emptyBoard();
 
     try {
-      const json = gs.get_board_json();
+      const json = this.gs.get_board_json();
       const raw: (null | { type: string; color: string })[][] = JSON.parse(json);
 
       const board: (Piece | null)[][] = [];
@@ -285,8 +293,8 @@ export class RustGameState {
         }
       }
 
-      boardCache = board;
-      boardDirty = false;
+      this.boardCache = board;
+      this.boardDirty = false;
       return board;
     } catch (e) {
       console.error('[RustGameState] getBoard parse error:', e);
@@ -301,10 +309,10 @@ export class RustGameState {
    * Fetches UCI strings from WASM, converts to Move objects with piece/capture info.
    */
   getLegalMoves(): Move[] {
-    if (!gs) return [];
+    if (!this.gs) return [];
 
     try {
-      const uciMoves: string[] = gs.legal_moves();
+      const uciMoves: string[] = this.gs.legal_moves();
       const board = this.getBoard();
       const moves: Move[] = [];
 
@@ -362,13 +370,13 @@ export class RustGameState {
    * Check if a specific move is legal
    */
   isMoveLegal(from: { row: number; col: number }, to: { row: number; col: number }, promotion?: PieceType): boolean {
-    if (!gs) return false;
+    if (!this.gs) return false;
 
     const uci = toUci(from.row, from.col, to.row, to.col,
       promotion ? promotion.toLowerCase() as 'q' | 'r' | 'b' | 'n' : undefined);
 
     // Check if this UCI move is in the legal moves list
-    const legalMoves: string[] = gs.legal_moves();
+    const legalMoves: string[] = this.gs.legal_moves();
     return legalMoves.includes(uci);
   }
 
@@ -381,7 +389,7 @@ export class RustGameState {
     to: { row: number; col: number },
     promotion?: PieceType
   ): MoveResult | null {
-    if (!gs) return null;
+    if (!this.gs) return null;
 
     // Capture info BEFORE making the move
     const board = this.getBoard();
@@ -393,10 +401,10 @@ export class RustGameState {
     const uci = toUci(from.row, from.col, to.row, to.col,
       promotion ? promotion.toLowerCase() as 'q' | 'r' | 'b' | 'n' : undefined);
 
-    const ok = gs.make_move_uci(uci);
+    const ok = this.gs.make_move_uci(uci);
     if (!ok) return null;
 
-    boardDirty = true;
+    this.boardDirty = true;
 
     // Build a result object compatible with what callers expect from chess.js ChessMove
     const fromSq = rowColToAlgebraic(from.row, from.col);
@@ -436,10 +444,10 @@ export class RustGameState {
    * Undo last move. Returns true if a move was undone.
    */
   undo(): boolean {
-    if (!gs) return false;
-    const undone = gs.undo();
+    if (!this.gs) return false;
+    const undone = this.gs.undo();
     if (undone) {
-      boardDirty = true;
+      this.boardDirty = true;
       return true;
     }
     return false;
@@ -450,9 +458,9 @@ export class RustGameState {
    * Compatible with chess.js history() — callers use .length for counting.
    */
   getMoveHistory(): string[] {
-    if (!gs) return [];
+    if (!this.gs) return [];
     try {
-      const json = gs.history();
+      const json = this.gs.history();
       return JSON.parse(json) as string[];
     } catch {
       return [];
@@ -462,40 +470,40 @@ export class RustGameState {
   // ── Game state queries ──────────────────────────────────────────────────
 
   isCheck(): boolean {
-    if (!gs) return false;
-    return gs.is_in_check();
+    if (!this.gs) return false;
+    return this.gs.is_in_check();
   }
 
   isCheckmate(): boolean {
-    if (!gs) return false;
-    return gs.is_checkmate();
+    if (!this.gs) return false;
+    return this.gs.is_checkmate();
   }
 
   isStalemate(): boolean {
-    if (!gs) return false;
-    return gs.is_stalemate();
+    if (!this.gs) return false;
+    return this.gs.is_stalemate();
   }
 
   isDraw(): boolean {
-    if (!gs) return false;
-    return gs.is_draw();
+    if (!this.gs) return false;
+    return this.gs.is_draw();
   }
 
   isGameOver(): boolean {
-    if (!gs) return false;
-    return gs.is_game_over();
+    if (!this.gs) return false;
+    return this.gs.is_game_over();
   }
 
   /**
    * Get the specific type of draw
    */
   getDrawType(): 'stalemate' | 'insufficient' | 'fifty-move' | 'repetition' | 'agreement' | 'unknown' {
-    if (!gs) return 'unknown';
-    if (gs.is_stalemate()) return 'stalemate';
-    if (gs.is_insufficient_material()) return 'insufficient';
-    if (gs.is_threefold_repetition()) return 'repetition';
-    if (gs.is_fifty_move_draw()) return 'fifty-move';
-    if (gs.is_draw()) return 'fifty-move'; // fallback
+    if (!this.gs) return 'unknown';
+    if (this.gs.is_stalemate()) return 'stalemate';
+    if (this.gs.is_insufficient_material()) return 'insufficient';
+    if (this.gs.is_threefold_repetition()) return 'repetition';
+    if (this.gs.is_fifty_move_draw()) return 'fifty-move';
+    if (this.gs.is_draw()) return 'fifty-move'; // fallback
     return 'unknown';
   }
 
@@ -506,17 +514,17 @@ export class RustGameState {
    * Uses the Rust engine's evaluation (much faster than JS).
    */
   evaluate(): number {
-    if (!gs) return 0;
+    if (!this.gs) return 0;
 
     // Handle terminal states
-    if (gs.is_checkmate()) {
-      return gs.turn() === 'w' ? -100000 : 100000;
+    if (this.gs.is_checkmate()) {
+      return this.gs.turn() === 'w' ? -100000 : 100000;
     }
-    if (gs.is_stalemate() || gs.is_draw()) {
+    if (this.gs.is_stalemate() || this.gs.is_draw()) {
       return 0;
     }
 
-    return gs.eval();
+    return this.gs.eval();
   }
 
   /**
@@ -524,7 +532,7 @@ export class RustGameState {
    * Returns Move in our format, or null.
    */
   getBestMove(depth: number, maximizing: boolean): Move | null {
-    if (!gs) return null;
+    if (!this.gs) return null;
 
     try {
       // 1. Check opening book
@@ -553,7 +561,7 @@ export class RustGameState {
       }
 
       // 2. Use Rust search
-      const bestUci = gs.best_move(depth);
+      const bestUci = this.gs.best_move(depth);
       if (!bestUci) return null;
 
       const parsed = fromUci(bestUci);
@@ -598,12 +606,12 @@ export class RustGameState {
    * Simple approach: try each legal move, make it, check if it matches.
    */
   private sanToUci(san: string): string | null {
-    if (!gs) return null;
+    if (!this.gs) return null;
 
     // Strip check/mate symbols and capture notation for matching
     const cleanSan = san.replace(/[+#x]/g, '').replace(/=/, '');
 
-    const legalUcis: string[] = gs.legal_moves();
+    const legalUcis: string[] = this.gs.legal_moves();
     const board = this.getBoard();
 
     // For each legal move, see if it could match the SAN
