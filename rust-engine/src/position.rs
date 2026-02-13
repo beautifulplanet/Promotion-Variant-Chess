@@ -456,7 +456,49 @@ impl Position {
             self.castling.remove(CastlingRights::BLACK_KINGSIDE);
         }
     }
-    
+
+    // =========================================================================
+    // NULL MOVE (for null move pruning in search)
+    // =========================================================================
+
+    /// Make a null move (pass the turn). Returns saved state for undo.
+    pub fn make_null_move(&mut self) -> (Option<Square>, u64) {
+        let saved_ep = self.en_passant;
+        let saved_hash = self.hash;
+
+        // Remove EP from hash
+        if let Some(ep) = self.en_passant {
+            self.hash ^= zobrist::en_passant_key(ep.file());
+            self.en_passant = None;
+        }
+
+        // Flip side
+        self.side_to_move = self.side_to_move.flip();
+        self.hash ^= zobrist::side_to_move_key();
+
+        (saved_ep, saved_hash)
+    }
+
+    /// Undo a null move.
+    pub fn unmake_null_move(&mut self, saved_ep: Option<Square>, saved_hash: u64) {
+        self.side_to_move = self.side_to_move.flip();
+        self.en_passant = saved_ep;
+        self.hash = saved_hash;
+    }
+
+    /// Check if side has non-pawn material (needed for null move pruning safety).
+    pub fn has_non_pawn_material(&self, color: Color) -> bool {
+        let knights = self.pieces(color, PieceType::Knight);
+        let bishops = self.pieces(color, PieceType::Bishop);
+        let rooks = self.pieces(color, PieceType::Rook);
+        let queens = self.pieces(color, PieceType::Queen);
+        (knights | bishops | rooks | queens).is_not_empty()
+    }
+
+    // =========================================================================
+    // CHECK DETECTION
+    // =========================================================================
+
     /// Check if the given side's king is in check
     pub fn is_in_check(&self, color: Color) -> bool {
         let king_bb = self.pieces(color, PieceType::King);

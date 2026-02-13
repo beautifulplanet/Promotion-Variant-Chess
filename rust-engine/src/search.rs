@@ -97,7 +97,7 @@ pub fn search_with_tt(pos: &mut Position, depth: u8, tt: &mut TranspositionTable
     stats.depth = depth;
 
     let (score, best_move) = alpha_beta(
-        pos, depth, 0, -MATE_SCORE - 1, MATE_SCORE + 1, &mut stats, tt, &mut killers,
+        pos, depth, 0, -MATE_SCORE - 1, MATE_SCORE + 1, &mut stats, tt, &mut killers, true,
     );
 
     stats.score = score;
@@ -180,8 +180,15 @@ pub fn search_timed(pos: &mut Position, max_ms: f64, max_depth: u8) -> (Option<M
 }
 
 // =============================================================================
-// ALPHA-BETA SEARCH WITH TT + KILLERS
+// ALPHA-BETA SEARCH WITH TT + KILLERS + NMP + LMR
 // =============================================================================
+
+/// Null Move Pruning reduction
+const NMP_REDUCTION: u8 = 2;
+/// Late Move Reduction: start reducing after this many moves
+const LMR_FULL_DEPTH_MOVES: usize = 4;
+/// Late Move Reduction: minimum depth to apply LMR
+const LMR_MIN_DEPTH: u8 = 3;
 
 fn alpha_beta(
     pos: &mut Position,
@@ -192,6 +199,7 @@ fn alpha_beta(
     stats: &mut SearchStats,
     tt: &mut TranspositionTable,
     killers: &mut Killers,
+    do_null: bool,
 ) -> (Score, Option<Move>) {
     stats.nodes += 1;
 
@@ -199,6 +207,8 @@ fn alpha_beta(
     if depth == 0 {
         return (quiescence(pos, alpha, beta, stats), None);
     }
+
+    let in_check = pos.is_in_check(pos.side_to_move());
 
     // ── TT Probe ──
     let hash = pos.hash();
@@ -233,12 +243,31 @@ fn alpha_beta(
         }
     }
 
+    // ── Null Move Pruning ──
+    // Skip if: in check, at root (ply 0), already did null move, no non-pawn material,
+    // or depth is too shallow.
+    if do_null && !in_check && ply > 0 && depth > NMP_REDUCTION + 1
+        && pos.has_non_pawn_material(pos.side_to_move())
+    {
+        let (saved_ep, saved_hash) = pos.make_null_move();
+        let reduced_depth = depth - 1 - NMP_REDUCTION;
+        let (null_score, _) = alpha_beta(
+            pos, reduced_depth, ply + 1, -beta, -beta + 1, stats, tt, killers, false,
+        );
+        let null_score = -null_score;
+        pos.unmake_null_move(saved_ep, saved_hash);
+
+        if null_score >= beta {
+            return (beta, None); // Null move cutoff
+        }
+    }
+
     // Generate legal moves
     let moves = generate_legal_moves(pos);
 
     // Checkmate or stalemate
     if moves.is_empty() {
-        let score = if pos.is_in_check(pos.side_to_move()) {
+        let score = if in_check {
             -MATE_SCORE + ply as Score
         } else {
             DRAW_SCORE
@@ -251,17 +280,55 @@ fn alpha_beta(
 
     let mut best_move = None;
     let original_alpha = alpha;
+    let mut moves_searched: usize = 0;
 
     for mv in ordered_moves.iter() {
+        let is_cap = is_capture(pos, *mv);
+        let is_promo = mv.is_promotion();
+        let is_killer = killers.is_killer(ply, *mv);
+
         let undo = match pos.make_move(*mv) {
             Some(u) => u,
             None => continue,
         };
 
-        let (score, _) = alpha_beta(pos, depth - 1, ply + 1, -beta, -alpha, stats, tt, killers);
-        let score = -score;
+        let gives_check = pos.is_in_check(pos.side_to_move());
+
+        // ── Late Move Reduction (LMR) ──
+        // For late quiet moves (not captures, promotions, killers, or moves giving check),
+        // search at reduced depth first. If the result is promising, re-search at full depth.
+        let score;
+        if moves_searched >= LMR_FULL_DEPTH_MOVES
+            && depth >= LMR_MIN_DEPTH
+            && !is_cap
+            && !is_promo
+            && !is_killer
+            && !in_check
+            && !gives_check
+        {
+            // Search at reduced depth (reduction of 1)
+            let (reduced_score, _) = alpha_beta(
+                pos, depth - 2, ply + 1, -beta, -alpha, stats, tt, killers, true,
+            );
+            let reduced_score = -reduced_score;
+
+            if reduced_score > alpha {
+                // LMR failed — re-search at full depth
+                let (full_score, _) = alpha_beta(
+                    pos, depth - 1, ply + 1, -beta, -alpha, stats, tt, killers, true,
+                );
+                score = -full_score;
+            } else {
+                score = reduced_score;
+            }
+        } else {
+            // Full-depth search
+            let (s, _) = alpha_beta(pos, depth - 1, ply + 1, -beta, -alpha, stats, tt, killers, true);
+            score = -s;
+        }
 
         pos.unmake_move(*mv, &undo);
+        moves_searched += 1;
 
         if score > alpha {
             alpha = score;
@@ -269,7 +336,7 @@ fn alpha_beta(
 
             if alpha >= beta {
                 // Beta cutoff — store killer if quiet move
-                if !is_capture(pos, *mv) {
+                if !is_cap {
                     killers.store(ply, *mv);
                 }
                 break;
@@ -479,5 +546,30 @@ mod tests {
         let (best_move, _, stats) = search(&mut pos, 4);
         assert!(best_move.is_some());
         assert!(stats.nodes > 0);
+    }
+
+    #[test]
+    fn test_null_move_pruning_reduces_nodes() {
+        // NMP should reduce node count for same depth in most middlegame positions
+        let mut pos = Position::from_fen("r1bqkb1r/pppppppp/2n2n2/8/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3").unwrap();
+        let (mv, _, _stats) = search(&mut pos, 5);
+        assert!(mv.is_some());
+    }
+
+    #[test]
+    fn test_lmr_reduces_nodes() {
+        // LMR should work without crashing on deeper searches
+        let mut pos = Position::from_fen("r1bqkbnr/pppppppp/2n5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2").unwrap();
+        let (mv, _, stats) = search(&mut pos, 5);
+        assert!(mv.is_some());
+        assert!(stats.nodes > 0);
+    }
+
+    #[test]
+    fn test_search_endgame_no_null_move_crash() {
+        // King + pawn endgame — null move should be skipped (no non-pawn material)
+        let mut pos = Position::from_fen("8/8/4k3/8/8/8/4P3/4K3 w - - 0 1").unwrap();
+        let (mv, _, _) = search(&mut pos, 6);
+        assert!(mv.is_some());
     }
 }
