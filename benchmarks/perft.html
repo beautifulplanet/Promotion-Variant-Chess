@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perft Benchmark — Rust/WASM vs chess.js</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: var(--text-dim); margin-bottom: 1.5rem; }
+    .controls {
+      display: flex; gap: 0.75rem; flex-wrap: wrap;
+      align-items: center; margin-bottom: 1.5rem;
+    }
+    select, button, input[type="number"] {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      border: none;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.stop { background: var(--red); }
+    .engines { display: flex; gap: 1rem; margin-bottom: 1rem; }
+    .engine-badge {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .engine-badge.js { background: #f0db4f33; color: #f0db4f; border: 1px solid #f0db4f44; }
+    .engine-badge.wasm { background: #654ff033; color: var(--purple); border: 1px solid #654ff044; }
+    .engine-badge.ready { box-shadow: 0 0 6px var(--green); }
+    .engine-badge.loading { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    th, td {
+      padding: 0.6rem 0.8rem;
+      text-align: right;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: #21262d;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+    td:first-child, th:first-child { text-align: left; }
+    .correct { color: var(--green); }
+    .incorrect { color: var(--red); font-weight: bold; }
+    .speedup { color: var(--orange); font-weight: 600; }
+    .running-row { background: #1f6feb22; }
+
+    #log {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: var(--text-dim);
+    }
+    .log-ok { color: var(--green); }
+    .log-err { color: var(--red); }
+    .log-info { color: var(--accent); }
+    .log-speed { color: var(--orange); }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-card .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+
+<h1>Perft Benchmark Suite</h1>
+<p class="subtitle">Move generation correctness &amp; speed — Rust/WASM vs chess.js</p>
+
+<div class="engines">
+  <span id="js-badge" class="engine-badge js ready">JS (chess.js) ✓</span>
+  <span id="wasm-badge" class="engine-badge wasm loading">WASM loading…</span>
+</div>
+
+<div class="controls">
+  <select id="position-select">
+    <option value="all">All Positions</option>
+  </select>
+  <label>
+    Max Depth:
+    <input type="number" id="max-depth" value="4" min="1" max="7" style="width:60px" />
+  </label>
+  <button id="run-btn" onclick="runBenchmark()">Run Benchmark</button>
+  <button id="stop-btn" class="stop" onclick="stopBenchmark()" disabled>Stop</button>
+</div>
+
+<div class="summary" id="summary" style="display:none">
+  <div class="stat-card">
+    <div class="value" id="total-tests">—</div>
+    <div class="label">Tests Run</div>
+  </div>
+  <div class="stat-card">
+    <div class="value" id="all-correct">—</div>
+    <div class="label">All Correct</div>
+  </div>
+  <div class="stat-card">
+    <div class="value" id="avg-speedup">—</div>
+    <div class="label">Avg Speedup</div>
+  </div>
+  <div class="stat-card">
+    <div class="value" id="peak-wasm-nps">—</div>
+    <div class="label">Peak WASM NPS</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Position</th>
+      <th>Depth</th>
+      <th>Expected</th>
+      <th>JS Nodes</th>
+      <th>JS Time</th>
+      <th>JS NPS</th>
+      <th>WASM Nodes</th>
+      <th>WASM Time</th>
+      <th>WASM NPS</th>
+      <th>Speedup</th>
+    </tr>
+  </thead>
+  <tbody id="results"></tbody>
+</table>
+
+<div id="log"></div>
+
+<script type="module">
+// ─── Position data ────────────────────────────────────────────────────────
+const POSITIONS = [
+  {
+    name: 'Starting Position',
+    fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    expected: { 1:20, 2:400, 3:8902, 4:197281, 5:4865609, 6:119060324 },
+  },
+  {
+    name: 'Kiwipete',
+    fen: 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1',
+    expected: { 1:48, 2:2039, 3:97862, 4:4085603, 5:193690690 },
+  },
+  {
+    name: 'Position 3',
+    fen: '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1',
+    expected: { 1:14, 2:191, 3:2812, 4:43238, 5:674624, 6:11030083 },
+  },
+  {
+    name: 'Position 4',
+    fen: 'r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1',
+    expected: { 1:6, 2:264, 3:9467, 4:422333, 5:15833292 },
+  },
+  {
+    name: 'Position 5 (Edwards)',
+    fen: 'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8',
+    expected: { 1:44, 2:1486, 3:62379, 4:2103487, 5:89941194 },
+  },
+  {
+    name: 'Position 6',
+    fen: 'r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10',
+    expected: { 1:46, 2:2079, 3:89890, 4:3894594, 5:164075551 },
+  },
+];
+
+// ─── Populate position selector ──────────────────────────────────────────
+const sel = document.getElementById('position-select');
+POSITIONS.forEach((p, i) => {
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = p.name;
+  sel.appendChild(opt);
+});
+
+// ─── Chess.js perft ──────────────────────────────────────────────────────
+import { Chess } from 'chess.js';
+
+function jsPerft(game, depth) {
+  if (depth === 0) return 1;
+  const moves = game.moves({ verbose: true });
+  if (depth === 1) return moves.length;
+  let nodes = 0;
+  for (const m of moves) {
+    game.move(m);
+    nodes += jsPerft(game, depth - 1);
+    game.undo();
+  }
+  return nodes;
+}
+
+// ─── WASM loader ─────────────────────────────────────────────────────────
+let wasmReady = false;
+let WasmGameState = null;
+
+async function loadWasm() {
+  try {
+    const base = import.meta.env?.BASE_URL || '/';
+    const wasm = await import(/* @vite-ignore */ `${base}wasm/chess_engine.js`);
+    await wasm.default(`${base}wasm/chess_engine_bg.wasm`);
+    WasmGameState = wasm.GameState;
+    wasmReady = true;
+    const badge = document.getElementById('wasm-badge');
+    badge.textContent = 'WASM ✓';
+    badge.classList.remove('loading');
+    badge.classList.add('ready');
+    log('WASM engine loaded successfully', 'ok');
+  } catch (e) {
+    const badge = document.getElementById('wasm-badge');
+    badge.textContent = 'WASM ✗';
+    badge.classList.remove('loading');
+    log('WASM failed to load: ' + e.message, 'err');
+  }
+}
+loadWasm();
+
+// ─── Logging ─────────────────────────────────────────────────────────────
+function log(msg, cls = '') {
+  const el = document.getElementById('log');
+  const span = document.createElement('span');
+  span.className = cls ? `log-${cls}` : '';
+  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Number formatting ───────────────────────────────────────────────────
+function fmt(n) { return n.toLocaleString(); }
+function fmtMs(ms) { return ms < 1000 ? ms.toFixed(1) + ' ms' : (ms/1000).toFixed(2) + ' s'; }
+function fmtNps(nps) {
+  if (nps > 1e6) return (nps/1e6).toFixed(1) + 'M';
+  if (nps > 1e3) return (nps/1e3).toFixed(1) + 'K';
+  return nps.toString();
+}
+
+// ─── Benchmark runner ────────────────────────────────────────────────────
+let running = false;
+let aborted = false;
+const allResults = [];
+
+window.stopBenchmark = function() {
+  aborted = true;
+  document.getElementById('stop-btn').disabled = true;
+  log('Benchmark stopped by user', 'err');
+};
+
+window.runBenchmark = async function() {
+  if (running) return;
+  running = true; aborted = false;
+  allResults.length = 0;
+
+  const runBtn = document.getElementById('run-btn');
+  const stopBtn = document.getElementById('stop-btn');
+  runBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  const tbody = document.getElementById('results');
+  tbody.innerHTML = '';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('log').innerHTML = '';
+
+  const maxDepth = parseInt(document.getElementById('max-depth').value) || 4;
+  const posVal = sel.value;
+  const positions = posVal === 'all' ? POSITIONS : [POSITIONS[parseInt(posVal)]];
+
+  log(`Starting perft benchmark — ${positions.length} position(s), max depth ${maxDepth}`, 'info');
+  if (wasmReady) log('WASM engine available — will run both engines', 'info');
+  else log('WASM not available — running JS only', 'err');
+
+  for (const pos of positions) {
+    if (aborted) break;
+    log(`\n▸ ${pos.name}`, 'info');
+    log(`  FEN: ${pos.fen}`);
+
+    for (let depth = 1; depth <= maxDepth; depth++) {
+      if (aborted) break;
+      const expected = pos.expected[depth];
+      if (expected === undefined) {
+        log(`  Depth ${depth}: no reference value, skipping`);
+        continue;
+      }
+
+      // Create result row
+      const row = document.createElement('tr');
+      row.className = 'running-row';
+      row.innerHTML = `<td>${pos.name}</td><td>${depth}</td><td>${fmt(expected)}</td>` +
+        '<td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td>';
+      tbody.appendChild(row);
+
+      // Yield to UI
+      await new Promise(r => setTimeout(r, 10));
+
+      // ── JS perft ──
+      let jsNodes = 0, jsMs = 0;
+      try {
+        const game = new Chess(pos.fen);
+        const t0 = performance.now();
+        jsNodes = jsPerft(game, depth);
+        jsMs = performance.now() - t0;
+      } catch (e) {
+        log(`  JS depth ${depth} error: ${e.message}`, 'err');
+      }
+      const jsNps = jsMs > 0 ? Math.round(jsNodes / (jsMs / 1000)) : 0;
+      const jsOk = jsNodes === expected;
+
+      // ── WASM perft ──
+      let wasmNodes = 0, wasmMs = 0, wasmNps = 0, wasmOk = false;
+      if (wasmReady) {
+        try {
+          const gs = WasmGameState.from_fen(pos.fen);
+          const t0 = performance.now();
+          const result = gs.perft(depth);           // returns BigInt
+          wasmMs = performance.now() - t0;
+          wasmNodes = Number(result);
+          wasmNps = wasmMs > 0 ? Math.round(wasmNodes / (wasmMs / 1000)) : 0;
+          wasmOk = wasmNodes === expected;
+          gs.free();
+        } catch (e) {
+          log(`  WASM depth ${depth} error: ${e.message}`, 'err');
+        }
+      }
+
+      const speedup = (jsMs > 0 && wasmMs > 0) ? (jsMs / wasmMs) : null;
+
+      const result = {
+        position: pos.name, depth, expected,
+        jsNodes, jsMs, jsNps, jsOk,
+        wasmNodes, wasmMs, wasmNps, wasmOk, speedup,
+      };
+      allResults.push(result);
+
+      // Update row
+      row.className = '';
+      row.innerHTML = `
+        <td>${pos.name}</td>
+        <td>${depth}</td>
+        <td>${fmt(expected)}</td>
+        <td class="${jsOk ? 'correct' : 'incorrect'}">${fmt(jsNodes)}</td>
+        <td>${fmtMs(jsMs)}</td>
+        <td>${fmtNps(jsNps)}</td>
+        <td class="${wasmReady ? (wasmOk ? 'correct' : 'incorrect') : ''}">${wasmReady ? fmt(wasmNodes) : '—'}</td>
+        <td>${wasmReady ? fmtMs(wasmMs) : '—'}</td>
+        <td>${wasmReady ? fmtNps(wasmNps) : '—'}</td>
+        <td class="speedup">${speedup ? speedup.toFixed(1) + '×' : '—'}</td>
+      `;
+
+      const status = jsOk && (!wasmReady || wasmOk) ? '✓' : '✗';
+      const speedStr = speedup ? ` | speedup ${speedup.toFixed(1)}×` : '';
+      log(`  Depth ${depth}: ${status} JS=${fmt(jsNodes)} (${fmtMs(jsMs)})` +
+        (wasmReady ? ` WASM=${fmt(wasmNodes)} (${fmtMs(wasmMs)})${speedStr}` : ''),
+        jsOk && (!wasmReady || wasmOk) ? 'ok' : 'err');
+    }
+  }
+
+  // ── Summary ──
+  updateSummary();
+  running = false;
+  runBtn.disabled = false;
+  stopBtn.disabled = true;
+  log('\nBenchmark complete.', 'info');
+};
+
+function updateSummary() {
+  const el = document.getElementById('summary');
+  el.style.display = 'grid';
+
+  document.getElementById('total-tests').textContent = allResults.length;
+
+  const allCorrect = allResults.every(r => r.jsOk && (!wasmReady || r.wasmOk));
+  const el2 = document.getElementById('all-correct');
+  el2.textContent = allCorrect ? '✓ Yes' : '✗ No';
+  el2.style.background = 'none';
+  el2.style['-webkit-text-fill-color'] = allCorrect ? 'var(--green)' : 'var(--red)';
+  el2.style['-webkit-background-clip'] = 'unset';
+
+  const speedups = allResults.filter(r => r.speedup).map(r => r.speedup);
+  const avgSpeedup = speedups.length > 0
+    ? (speedups.reduce((a, b) => a + b, 0) / speedups.length).toFixed(1) + '×'
+    : '—';
+  document.getElementById('avg-speedup').textContent = avgSpeedup;
+
+  const peakNps = allResults.reduce((max, r) => Math.max(max, r.wasmNps || 0), 0);
+  document.getElementById('peak-wasm-nps').textContent = peakNps > 0 ? fmtNps(peakNps) : '—';
+}
+</script>
+
+</body>
+</html>

@@ -263,6 +263,34 @@ export class GameState {
         return this;
     }
     /**
+     * Run perft from the current position at the given depth.
+     * Returns the total leaf node count — the standard correctness benchmark.
+     * @param {number} depth
+     * @returns {bigint}
+     */
+    perft(depth) {
+        const ret = wasm.gamestate_perft(this.__wbg_ptr, depth);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * Run perft divide — returns JSON: [["e2e4", 8102], ["d2d4", 8338], ...]
+     * Shows node count per root move (useful for debugging move generation).
+     * @param {number} depth
+     * @returns {string}
+     */
+    perft_divide(depth) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.gamestate_perft_divide(this.__wbg_ptr, depth);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get piece at a specific square (file 0-7, rank 0-7 where rank 0 = row 7 in display)
      * Returns empty string if no piece, or "wP", "bN", etc.
      * @param {number} file

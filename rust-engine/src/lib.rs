@@ -640,6 +640,25 @@ impl GameState {
     pub fn eval(&self) -> i32 {
         evaluate(&self.position)
     }
+
+    /// Run perft from the current position at the given depth.
+    /// Returns the total leaf node count — the standard correctness benchmark.
+    pub fn perft(&self, depth: u32) -> u64 {
+        let mut pos = self.position.clone();
+        perft(&mut pos, depth)
+    }
+
+    /// Run perft divide — returns JSON: [["e2e4", 8102], ["d2d4", 8338], ...]
+    /// Shows node count per root move (useful for debugging move generation).
+    pub fn perft_divide(&self, depth: u32) -> String {
+        let mut pos = self.position.clone();
+        let results = movegen::perft_divide(&mut pos, depth);
+        let entries: Vec<String> = results
+            .iter()
+            .map(|(uci, nodes)| format!("[\"{}\",{}]", uci, nodes))
+            .collect();
+        format!("[{}]", entries.join(","))
+    }
 }
 
 // =============================================================================
@@ -988,5 +1007,53 @@ mod tests {
         }
         // Hash history should only have 1 entry (starting pos)
         assert!(!gs.is_threefold_repetition());
+    }
+
+    #[test]
+    fn test_gamestate_perft_starting_pos() {
+        let gs = GameState::new();
+        assert_eq!(gs.perft(1), 20);
+        assert_eq!(gs.perft(2), 400);
+        assert_eq!(gs.perft(3), 8902);
+        assert_eq!(gs.perft(4), 197281);
+    }
+
+    #[test]
+    fn test_gamestate_perft_kiwipete() {
+        let gs = GameState::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(gs.perft(1), 48);
+        assert_eq!(gs.perft(2), 2039);
+        assert_eq!(gs.perft(3), 97862);
+        assert_eq!(gs.perft(4), 4085603);
+    }
+
+    #[test]
+    fn test_gamestate_perft_divide() {
+        let gs = GameState::new();
+        let json = gs.perft_divide(1);
+        // Should contain 20 entries (one per legal move)
+        let entries: Vec<&str> = json.matches("[\"").collect();
+        assert_eq!(entries.len(), 20);
+        // Verify it's valid JSON-ish: starts with [[ and ends with ]]
+        assert!(json.starts_with("[["));
+        assert!(json.ends_with("]]"));
+    }
+
+    #[test]
+    fn test_gamestate_perft_divide_depth2() {
+        let gs = GameState::new();
+        let json = gs.perft_divide(2);
+        // Should still have 20 root moves
+        let entries: Vec<&str> = json.matches("[\"").collect();
+        assert_eq!(entries.len(), 20);
+        // Total nodes from divide should equal perft(2) = 400
+        // Parse manually: extract numbers after commas
+        let total: u64 = json.split(',')
+            .filter_map(|s| {
+                let s = s.trim().trim_matches(|c| c == '[' || c == ']');
+                s.parse::<u64>().ok()
+            })
+            .sum();
+        assert_eq!(total, 400);
     }
 }

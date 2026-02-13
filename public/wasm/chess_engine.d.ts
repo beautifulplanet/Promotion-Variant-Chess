@@ -101,6 +101,16 @@ export class GameState {
      */
     constructor();
     /**
+     * Run perft from the current position at the given depth.
+     * Returns the total leaf node count — the standard correctness benchmark.
+     */
+    perft(depth: number): bigint;
+    /**
+     * Run perft divide — returns JSON: [["e2e4", 8102], ["d2d4", 8338], ...]
+     * Shows node count per root move (useful for debugging move generation).
+     */
+    perft_divide(depth: number): string;
+    /**
      * Get piece at a specific square (file 0-7, rank 0-7 where rank 0 = row 7 in display)
      * Returns empty string if no piece, or "wP", "bN", etc.
      */
@@ -365,6 +375,8 @@ export interface InitOutput {
     readonly gamestate_make_move_uci: (a: number, b: number, c: number) => number;
     readonly gamestate_move_count: (a: number) => number;
     readonly gamestate_new: () => number;
+    readonly gamestate_perft: (a: number, b: number) => bigint;
+    readonly gamestate_perft_divide: (a: number, b: number) => [number, number];
     readonly gamestate_piece_at: (a: number, b: number, c: number) => [number, number];
     readonly gamestate_reset: (a: number) => void;
     readonly gamestate_status: (a: number) => [number, number];
