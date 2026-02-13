@@ -1,7 +1,7 @@
 // src/moveQualityAnalyzer.ts
 // Analyzes move quality by comparing player's move to engine's best move
 
-import { engine, type Move } from './chessEngine';
+import { engine, type Move } from './engineProvider';
 
 export type MoveQuality = 'brilliant' | 'best' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | null;
 

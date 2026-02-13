@@ -25,6 +25,7 @@ import * as Theme from './themeSystem';
 import * as Overlay from './overlayRenderer';
 import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
+import { initEngine, getEngineType } from './engineProvider';
 import type { PieceType } from './types';
 
 // =============================================================================
@@ -1316,6 +1317,14 @@ if (debugParticleDensity) {
 
 // Initialize theme system
 Theme.init();
+
+// Initialize Rust WASM engine in background (non-blocking)
+// Falls back to chess.js if WASM is unavailable
+initEngine().then(type => {
+  console.log(`[Main-3D] Engine ready: ${type}`);
+}).catch(err => {
+  console.warn('[Main-3D] Engine init error (using chess.js fallback):', err);
+});
 
 // Initialize game
 const initialState = Game.initGame();

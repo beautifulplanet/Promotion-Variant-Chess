@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as Game from '../src/gameController';
-import { engine } from '../src/chessEngine';
+import { engine } from '../src/engineProvider';
 import { getEraForElo, ERAS } from '../src/eraSystem';
 import { BALANCE } from '../src/constants';
 

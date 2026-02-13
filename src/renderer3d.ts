@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import type { Piece } from './types';
-import type { Move } from './chessEngine';
+import type { Move } from './engineProvider';
 import { TILE_SIZE, BOARD_SIZE } from './constants';
 import {
     EraConfig,
@@ -179,9 +179,9 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
             antialias: true,
             alpha: false,
             powerPreference: 'high-performance',
-            precision: 'highp', // High precision for better quality
-            stencil: true,
-            logarithmicDepthBuffer: true, // Better depth precision for large scenes
+            precision: 'mediump', // PERF: mediump is sufficient for chess scene
+            stencil: false,       // PERF: not used, save GPU memory
+            logarithmicDepthBuffer: false, // PERF: removes per-fragment log2() cost
         });
     } catch (e) {
         console.error('[Renderer3D] WebGL initialization failed:', e);
@@ -517,6 +517,7 @@ export function updateEraForElo(elo: number, instant: boolean = false): void {
 function regenerateEnvironment(): void {
     createEraEnvironment(currentElo, environmentGroup, scrollOffset);
     applyParticleVisibility();
+    _cullableMeshes = []; // PERF: Clear cached array so it repopulates on next cull pass
 }
 
 // PERFORMANCE: Reusable fog object
@@ -3646,41 +3647,54 @@ function createPieceMesh(piece: Piece, row: number, col: number): void {
     // 3D Piece rendering using cached materials
     const isWhite = getVisualColor(piece.color) === 'white';
 
-    // Get cached materials (or create if first time)
-    const materials = getPieceMaterials(piece);
-    const material = materials.base;
-    const accentMaterial = materials.accent;
-    const rimMaterial = materials.rim;
-    const teamMaterial = materials.team;
+    // PERFORMANCE: Cache piece geometry groups by type+color+style
+    // Only build geometry once, then clone the cached group
+    const cacheKey = `${piece.type}-${piece.color}-${currentPieceStyle}`;
+    let group: THREE.Group;
 
-    const group = new THREE.Group();
+    if (pieceMeshCache.has(cacheKey)) {
+        // Clone the cached geometry group (shares geometry/material, cheap)
+        group = pieceMeshCache.get(cacheKey)!.clone();
+    } else {
+        // Get cached materials (or create if first time)
+        const materials = getPieceMaterials(piece);
+        const material = materials.base;
+        const accentMaterial = materials.accent;
+        const rimMaterial = materials.rim;
+        const teamMaterial = materials.team;
 
-    // Add subtle team indicator ring at the very bottom
-    const indicator = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.45, 32), teamMaterial);
-    indicator.rotation.x = -Math.PI / 2;
-    indicator.position.y = 0.01;
-    group.add(indicator);
+        group = new THREE.Group();
 
-    switch (piece.type) {
-        case 'K':
-            createKingMesh(group, material, accentMaterial, rimMaterial, isWhite);
-            break;
-        case 'Q':
-            createQueenMesh(group, material, accentMaterial, rimMaterial, isWhite);
-            break;
-        case 'R':
-            createRookMesh(group, material, rimMaterial, accentMaterial);
-            break;
-        case 'B':
-            createBishopMesh(group, material, accentMaterial, rimMaterial);
-            break;
-        case 'N':
-            createKnightMesh(group, material, rimMaterial, accentMaterial);
-            break;
-        case 'P':
-        default:
-            createPawnMesh(group, material, rimMaterial, accentMaterial);
-            break;
+        // Add subtle team indicator ring at the very bottom
+        const indicator = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.45, 32), teamMaterial);
+        indicator.rotation.x = -Math.PI / 2;
+        indicator.position.y = 0.01;
+        group.add(indicator);
+
+        switch (piece.type) {
+            case 'K':
+                createKingMesh(group, material, accentMaterial, rimMaterial, isWhite);
+                break;
+            case 'Q':
+                createQueenMesh(group, material, accentMaterial, rimMaterial, isWhite);
+                break;
+            case 'R':
+                createRookMesh(group, material, rimMaterial, accentMaterial);
+                break;
+            case 'B':
+                createBishopMesh(group, material, accentMaterial, rimMaterial);
+                break;
+            case 'N':
+                createKnightMesh(group, material, rimMaterial, accentMaterial);
+                break;
+            case 'P':
+            default:
+                createPawnMesh(group, material, rimMaterial, accentMaterial);
+                break;
+        }
+
+        // Store in cache for reuse
+        pieceMeshCache.set(cacheKey, group.clone());
     }
 
     group.position.set(
@@ -4074,6 +4088,7 @@ function createPawnMesh(group: THREE.Group, material: THREE.Material, rimMateria
 // PERFORMANCE: Track previous highlight state to avoid unnecessary updates
 let _prevSelectedSquare: { row: number; col: number } | null = null;
 let _prevLegalMoveCount: number = 0;
+const _legalMoveSet: Set<number> = new Set(); // PERF: O(1) legal move lookup
 
 function updateSquareHighlights(): void {
     // PERFORMANCE: Skip if nothing changed
@@ -4088,6 +4103,12 @@ function updateSquareHighlights(): void {
 
     _prevSelectedSquare = cachedSelectedSquare ? { ...cachedSelectedSquare } : null;
     _prevLegalMoveCount = cachedLegalMoves.length;
+
+    // PERFORMANCE: Pre-compute legal move set for O(1) lookup
+    _legalMoveSet.clear();
+    for (const m of cachedLegalMoves) {
+        _legalMoveSet.add((m.to.row << 3) | m.to.col);
+    }
 
     // Use cached squares if available
     const squares = _cachedSquares || boardGroup.children.filter(
@@ -4105,10 +4126,7 @@ function updateSquareHighlights(): void {
             color = COLORS_3D.selectedSquare;
         }
 
-        const isLegalMove = cachedLegalMoves.some(
-            (m) => m.to.row === row && m.to.col === col
-        );
-        if (isLegalMove) {
+        if (_legalMoveSet.has((row << 3) | col)) {
             color = COLORS_3D.legalMoveHighlight;
         }
 
@@ -4123,6 +4141,7 @@ function updateSquareHighlights(): void {
 // PERFORMANCE: Track when environment was last regenerated
 let _lastEnvRegenTime = 0;
 const ENV_REGEN_INTERVAL = 5000; // Only regenerate every 5 seconds
+let _cullableMeshes: THREE.Mesh[] = []; // PERF: flat array for distance culling
 
 function startRenderLoop(): void {
     let frameCount = 0;
@@ -4175,16 +4194,18 @@ function startRenderLoop(): void {
             const cameraPos = camera.position;
             const maxDistSq = 150 * 150; // Cull objects > 150 units away
 
-            environmentGroup.traverse((obj) => {
-                // Only cull meshes that aren't the ground or sky
-                if (obj instanceof THREE.Mesh) {
-                    // Skip skybox/ground (usually very large scale or specific names)
-                    if (obj.name.includes('sky') || obj.name.includes('ground') || obj.scale.x > 50) return;
-
-                    const distSq = obj.position.distanceToSquared(cameraPos);
-                    obj.visible = distSq < maxDistSq;
-                }
-            });
+            // PERF: Use flat array instead of traverse() for distance culling
+            if (_cullableMeshes.length === 0) {
+                environmentGroup.traverse((obj) => {
+                    if (obj instanceof THREE.Mesh && !obj.name.includes('sky') && !obj.name.includes('ground') && obj.scale.x <= 50) {
+                        _cullableMeshes.push(obj);
+                    }
+                });
+            }
+            for (let i = 0; i < _cullableMeshes.length; i++) {
+                const mesh = _cullableMeshes[i];
+                mesh.visible = mesh.position.distanceToSquared(cameraPos) < maxDistSq;
+            }
         }
 
         // PERFORMANCE: In overhead/2D mode, hide environment but ALWAYS render

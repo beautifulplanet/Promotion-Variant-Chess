@@ -3,9 +3,14 @@
 // Falls back to synchronous computation if workers unavailable
 // NOW WITH RUST WASM ENGINE SUPPORT!
 
-import type { Move } from './chessEngine';
+import type { Move } from './engineProvider';
 import type { PieceType } from './types';
 import { TIMING } from './constants';
+
+// Production-safe logging: stripped by Vite in production builds
+const DEBUG_LOG = import.meta.env.DEV
+  ? (...args: unknown[]) => console.log(...args)
+  : (..._args: unknown[]) => {};
 
 // Lazy import for Rust engine to prevent blocking on load
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,7 +48,7 @@ class AIService {
     resolve: (move: Move | null) => void;
     reject: (error: Error) => void;
   } | null = null;
-  private fallbackEngine: typeof import('./chessEngine').engine | null = null;
+  private fallbackEngine: typeof import('./engineProvider').engine | null = null;
   private rustEngineReady = false;
   private rustEngineInitializing = false;
 
@@ -107,7 +112,7 @@ class AIService {
             return;
           }
 
-          console.log(`[AIService] Worker found move in ${timeMs?.toFixed(0)}ms, ${nodesSearched} nodes, score: ${score}`);
+          DEBUG_LOG(`[AIService] Worker found move in ${timeMs?.toFixed(0)}ms, ${nodesSearched} nodes, score: ${score}`);
 
           const { resolve } = this.pendingRequest;
           this.pendingRequest = null;
@@ -158,7 +163,7 @@ class AIService {
         const elapsed = performance.now() - start;
 
         if (result.bestMove) {
-          console.log(`[AIService] 🦀 Rust found move ${result.bestMove} in ${elapsed.toFixed(0)}ms, depth ${result.depth}, score ${result.score}, ${result.nodes} nodes`);
+          DEBUG_LOG(`[AIService] 🦀 Rust found move ${result.bestMove} in ${elapsed.toFixed(0)}ms, depth ${result.depth}, score ${result.score}, ${result.nodes} nodes`);
 
           // Convert UCI move to our format
           const fromCol = result.bestMove.charCodeAt(0) - 97;
@@ -231,11 +236,11 @@ class AIService {
   ): Promise<Move | null> {
     // Lazy load the engine to avoid circular dependencies
     if (!this.fallbackEngine) {
-      const { engine } = await import('./chessEngine');
+      const { engine } = await import('./engineProvider');
       this.fallbackEngine = engine;
     }
 
-    console.log('[AIService] Using synchronous fallback');
+    DEBUG_LOG('[AIService] Using synchronous fallback');
     // Note: This will block the UI - but it's a fallback
     return this.fallbackEngine.getBestMove(depth, maximizing);
   }

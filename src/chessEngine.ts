@@ -8,6 +8,11 @@ import {
   PIECE_VALUES, PST_PAWN, PST_KNIGHT, PST_BISHOP, PST_ROOK, PST_QUEEN, PST_KING_MID, PST_KING_END, BONUSES
 } from './evaluationConstants';
 
+// Production-safe logging: stripped by Vite in production builds
+const DEBUG_LOG = import.meta.env.DEV
+  ? (...args: unknown[]) => console.log(...args)
+  : (..._args: unknown[]) => {};
+
 // =============================================================================
 // EVALUATION HELPERS
 // =============================================================================
@@ -462,7 +467,7 @@ export class ChessEngine {
       const currentFen = this.fen();
       const bookMove = getBookMove(currentFen);
       if (bookMove) {
-        console.log(`[Engine] Opening Book hit: ${bookMove.name || bookMove.san}`);
+        DEBUG_LOG(`[Engine] Opening Book hit: ${bookMove.name || bookMove.san}`);
         // Track the opening name for UI display
         if (bookMove.name) {
           setCurrentOpeningName(bookMove.name);
@@ -492,7 +497,7 @@ export class ChessEngine {
       this.historyMoves.clear();
 
       const moves = this.getLegalMoves();
-      console.log('[Engine] getBestMove called, moves count:', moves.length);
+      DEBUG_LOG('[Engine] getBestMove called, moves count:', moves.length);
       if (moves.length === 0) return null;
 
       let bestMove: Move | null = null;
@@ -532,7 +537,7 @@ export class ChessEngine {
         }
       }
 
-      console.log('[Engine] Best move found:', bestMove, 'score:', bestScore);
+      DEBUG_LOG('[Engine] Best move found:', bestMove, 'score:', bestScore);
       return bestMove;
     } catch (e) {
       console.error('[Engine] getBestMove error:', e);

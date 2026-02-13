@@ -2,7 +2,7 @@
 // Pure game logic - NO rendering code here
 // This can be used with Canvas2D, WebGL, Three.js, or any renderer
 
-import { engine, type Move } from './chessEngine';
+import { engine, type Move } from './engineProvider';
 import { aiService } from './aiService';
 import { stockfishEngine } from './stockfishEngine'; // Hybrid AI system
 import { learningAI, runTrainingSession } from './learningAI';
@@ -15,9 +15,26 @@ import { resetOpeningTracking, updateOpeningName } from './openingBook';
 import { capturePreMoveAnalysis, analyzePlayerMove, resetMoveQualityTracking, getLastMoveQuality, type MoveQuality } from './moveQualityAnalyzer';
 import type { PieceColor, Piece, PieceType } from './types';
 
+// Production-safe logging: stripped by Vite in production builds
+const DEBUG_LOG = import.meta.env.DEV
+  ? (...args: unknown[]) => console.log(...args)
+  : (..._args: unknown[]) => {};
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/**
+ * Detect if a move string represents a promotion.
+ * Handles both SAN format (e.g. "a8=Q") and UCI format (e.g. "a7a8q").
+ */
+function isMovePromotion(move: string): boolean {
+  // SAN format: contains '='
+  if (move.includes('=')) return true;
+  // UCI format: 5-char string ending in promotion piece letter
+  if (move.length === 5 && 'qrbnQRBN'.includes(move[4])) return true;
+  return false;
+}
 
 // Piece values for capture priority (used in AI move selection)
 function getPieceValueForCapture(type: PieceType): number {
@@ -343,7 +360,7 @@ export function undoMove(): boolean {
     if (engine.getMoveHistory().length > 0) {
       const history = engine.getMoveHistory();
       const lastMove = history[history.length - 1];
-      if (lastMove && lastMove.includes('=')) {
+      if (lastMove && isMovePromotion(lastMove)) {
         currentGamePromotions.pop();
         console.log('[Game] Rolled back promotion credit');
       }
@@ -357,7 +374,7 @@ export function undoMove(): boolean {
     // position they were in before making that move, ready to choose differently.
     const history1 = engine.getMoveHistory();
     const lastMove1 = history1[history1.length - 1];
-    if (lastMove1 && lastMove1.includes('=')) {
+    if (lastMove1 && isMovePromotion(lastMove1)) {
       currentGamePromotions.pop();
       console.log('[Game] Rolled back promotion credit');
     }
@@ -465,14 +482,14 @@ export function handleSquareClick(row: number, col: number): boolean {
         state.selectedSquare = null;
         state.legalMovesForSelected = [];
         notifyStateChange();
-        console.log('[Game] Promotion pending - waiting for player choice');
+        DEBUG_LOG('[Game] Promotion pending - waiting for player choice');
         return false;  // Move not complete yet
       }
 
       const result = engine.makeMove(state.selectedSquare, { row, col }, undefined);
 
       if (result) {
-        console.log('[Game] Move made:', result.san);
+        DEBUG_LOG('[Game] Move made:', result.san);
 
         // Analyze the player's move quality
         const playerMove = state.legalMovesForSelected.find(
@@ -530,12 +547,12 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
 
   // Track this promotion (will be saved if player wins)
   currentGamePromotions.push(pieceType);
-  console.log('[Game] Pawn promoted to', pieceType, '- will be saved if you win!');
+  DEBUG_LOG('[Game] Pawn promoted to', pieceType, '- will be saved if you win!');
 
   const result = engine.makeMove(from, to, pieceType);
 
   if (result) {
-    console.log('[Game] Promotion move made:', result.san);
+    DEBUG_LOG('[Game] Promotion move made:', result.san);
     notifyStateChange();
 
     checkGameEnd();
@@ -556,7 +573,7 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
  */
 export function cancelPromotion(): void {
   if (state.pendingPromotion) {
-    console.log('[Game] Promotion cancelled');
+    DEBUG_LOG('[Game] Promotion cancelled');
     state.pendingPromotion = null;
     notifyStateChange();
   }
@@ -1218,9 +1235,9 @@ function getPieceValue(type: string): number {
  * Uses MATERIAL VALUE to ensure fairness
  */
 function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType[] {
-  console.log('=== [AI BONUS] Calculating AI bonus pieces ===');
-  console.log('[AI BONUS] Input ELO:', elo);
-  console.log('[AI BONUS] Player pieces count:', playerPieces.length);
+  DEBUG_LOG('=== [AI BONUS] Calculating AI bonus pieces ===');
+  DEBUG_LOG('[AI BONUS] Input ELO:', elo);
+  DEBUG_LOG('[AI BONUS] Player pieces count:', playerPieces.length);
 
   const bonusPieces: PieceType[] = [];
 
@@ -1229,9 +1246,9 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   for (const p of playerPieces) {
     const value = getPieceValue(p.type);
     playerMaterialValue += value;
-    console.log(`[AI BONUS] Player piece: ${p.type} = ${value} pts`);
+    DEBUG_LOG(`[AI BONUS] Player piece: ${p.type} = ${value} pts`);
   }
-  console.log('[AI BONUS] Total player material value:', playerMaterialValue);
+  DEBUG_LOG('[AI BONUS] Total player material value:', playerMaterialValue);
 
   // Calculate base AI material value based on ELO
   let aiMaterialValue = 0;
@@ -1241,23 +1258,23 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
     const eloDiff = elo - BALANCE.aiBonusThresholdElo;
     const extraValue = Math.floor(eloDiff / 50) * BALANCE.aiBonusPointsPer50Elo;
     aiMaterialValue += extraValue;
-    console.log(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above ${BALANCE.aiBonusThresholdElo}`);
+    DEBUG_LOG(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above ${BALANCE.aiBonusThresholdElo}`);
   } else {
-    console.log(`[AI BONUS] ELO ${elo} is below ${BALANCE.aiBonusThresholdElo} - no ELO bonus`);
+    DEBUG_LOG(`[AI BONUS] ELO ${elo} is below ${BALANCE.aiBonusThresholdElo} - no ELO bonus`);
   }
 
   // Compensation: Match player's bonus value (if player has advantage)
   if (playerMaterialValue > BALANCE.aiBonusPlayerFreePoints) {
     const valueNeededToMatch = playerMaterialValue - BALANCE.aiBonusPlayerFreePoints;
     aiMaterialValue += valueNeededToMatch;
-    console.log(`[AI BONUS] Compensation for player advantage: +${valueNeededToMatch} points`);
+    DEBUG_LOG(`[AI BONUS] Compensation for player advantage: +${valueNeededToMatch} points`);
   }
 
-  console.log('[AI BONUS] Total AI material value before cap:', aiMaterialValue);
+  DEBUG_LOG('[AI BONUS] Total AI material value before cap:', aiMaterialValue);
 
   // Cap max value using constant
   aiMaterialValue = Math.min(BALANCE.aiBonusMaxMaterial, aiMaterialValue);
-  console.log('[AI BONUS] Final AI material value after cap:', aiMaterialValue);
+  DEBUG_LOG('[AI BONUS] Final AI material value after cap:', aiMaterialValue);
 
   // Convert aiMaterialValue into pieces
   // We fill from largest to smallest to keep piece count manageable, 
@@ -1300,11 +1317,11 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   // If we have too many pieces (e.g. many small ones), upgrade them?
   // With the greedy approach above (Q -> R -> B/N), we shouldn't exceed 14 easily unless value > 126
   if (bonusPieces.length > 14) {
-    console.log('[AI BONUS] Capping at 14 pieces (had', bonusPieces.length, ')');
+    DEBUG_LOG('[AI BONUS] Capping at 14 pieces (had', bonusPieces.length, ')');
     return bonusPieces.slice(0, 14);
   }
 
-  console.log('=== [AI BONUS] Final result:', bonusPieces.length, 'pieces:', bonusPieces, '===');
+  DEBUG_LOG('=== [AI BONUS] Final result:', bonusPieces.length, 'pieces:', bonusPieces, '===');
   return bonusPieces;
 }
 
@@ -1314,11 +1331,11 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
  */
 function applyAIBonusPieces(board: (Piece | null)[][], bonusPieces: PieceType[], aiColor: PieceColor = 'black'): void {
   if (bonusPieces.length === 0) {
-    console.log('[AI] No bonus pieces to apply');
+    DEBUG_LOG('[AI] No bonus pieces to apply');
     return;
   }
 
-  console.log(`[AI] Applying ${bonusPieces.length} bonus pieces for ${aiColor}:`, bonusPieces);
+  DEBUG_LOG(`[AI] Applying ${bonusPieces.length} bonus pieces for ${aiColor}:`, bonusPieces);
 
   // Slots to place AI bonus pieces
   // For black: rows 0-1, for white: rows 6-7
@@ -1352,10 +1369,10 @@ function applyAIBonusPieces(board: (Piece | null)[][], bonusPieces: PieceType[],
     const oldPiece = board[slot.row][slot.col];
     board[slot.row][slot.col] = { type: toPlace[i], color: aiColor };
     const rank = isBlack ? (8 - slot.row) : (slot.row - 7 + 8); // Correct rank calculation
-    console.log(`[AI] Placed ${toPlace[i]} at ${String.fromCharCode(97 + slot.col)}${8 - slot.row} (replaced ${oldPiece?.type || 'empty'})`);
+    DEBUG_LOG(`[AI] Placed ${toPlace[i]} at ${String.fromCharCode(97 + slot.col)}${8 - slot.row} (replaced ${oldPiece?.type || 'empty'})`);
   }
 
-  console.log('[AI] Finished placing bonus pieces:', toPlace.join(', '));
+  DEBUG_LOG('[AI] Finished placing bonus pieces:', toPlace.join(', '));
 }
 
 // =============================================================================
@@ -1393,7 +1410,7 @@ let pendingAIMoveTimeout: number | null = null;
 let moveGeneration = 0;
 
 function scheduleAIMove(): void {
-  console.log('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
+  DEBUG_LOG('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
   if (onAIThinking) onAIThinking(true);
 
   // PERFORMANCE: Cancel any pending AI move to prevent stacking
@@ -1406,14 +1423,14 @@ function scheduleAIMove(): void {
   // Speed button multiplies this: 0.1x = 10ms (blitz), 2x = 200ms (slow)
   const baseDelay = aiVsAiMode ? 100 : TIMING.aiMoveDelay;
   const delay = Math.round(baseDelay * aiMoveSpeedMultiplier);
-  console.log('[AI] Scheduling AI move in', delay, 'ms');
+  DEBUG_LOG('[AI] Scheduling AI move in', delay, 'ms');
 
   const generation = moveGeneration;
   pendingAIMoveTimeout = window.setTimeout(() => {
     pendingAIMoveTimeout = null;
     // Discard if undo/new game happened since we were scheduled
     if (generation !== moveGeneration) {
-      console.log('[AI] Stale scheduled move discarded (generation mismatch)');
+      DEBUG_LOG('[AI] Stale scheduled move discarded (generation mismatch)');
       if (onAIThinking) onAIThinking(false);
       return;
     }
@@ -1459,16 +1476,16 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
 
     if (currentTurn === 'white') {
       effectiveElo = 1800; // Fixed strong rating
-      console.log(`[AI vs AI] White: 1800 ELO (Candidate Master)`);
+      DEBUG_LOG(`[AI vs AI] White: 1800 ELO (Candidate Master)`);
     } else {
       effectiveElo = state.elo;
       const level = getLevelForElo(effectiveElo);
-      console.log(`[AI vs AI] Black: ${effectiveElo} ELO (${level.name})`);
+      DEBUG_LOG(`[AI vs AI] Black: ${effectiveElo} ELO (${level.name})`);
     }
   } else {
     const level = getLevelForElo(state.elo);
     effectiveElo = state.elo;
-    console.log(`[AI] Level ${level.level} (${level.name}), ELO: ${effectiveElo}`);
+    DEBUG_LOG(`[AI] Level ${level.level} (${level.name}), ELO: ${effectiveElo}`);
   }
 
   let move: Move | null = null;
@@ -1477,13 +1494,13 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
   const legalMoves = engine.getLegalMoves();
 
   if (legalMoves.length === 0) {
-    console.log('[AI] No legal moves!');
+    DEBUG_LOG('[AI] No legal moves!');
     if (onAIThinking) onAIThinking(false);
     return;
   }
 
   // Always use Stockfish (runs in Web Worker, non-blocking)
-  console.log(`[AI] Using Stockfish with ELO ${effectiveElo}`);
+  DEBUG_LOG(`[AI] Using Stockfish with ELO ${effectiveElo}`);
 
   try {
     const fen = engine.getFEN();
@@ -1491,7 +1508,7 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
 
     // Check generation before the async call
     if (generation !== moveGeneration) {
-      console.log('[AI] Stale AI move discarded before Stockfish call');
+      DEBUG_LOG('[AI] Stale AI move discarded before Stockfish call');
       if (onAIThinking) onAIThinking(false);
       return;
     }
@@ -1502,7 +1519,7 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
 
     // Check generation after the async Stockfish call — undo may have happened while waiting
     if (generation !== moveGeneration) {
-      console.log('[AI] Stale AI move discarded after Stockfish returned (undo happened)');
+      DEBUG_LOG('[AI] Stale AI move discarded after Stockfish returned (undo happened)');
       if (onAIThinking) onAIThinking(false);
       return;
     }
@@ -1519,7 +1536,7 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
           piece,
           promotion: stockfishMove.promotion
         };
-        console.log('[AI] Stockfish move:', move);
+        DEBUG_LOG('[AI] Stockfish move:', move);
       } else {
         console.error('[AI] Stockfish returned invalid move (no piece at source)');
         move = null;

@@ -57,6 +57,13 @@ export class DynamicLighting {
     // Animation state
     private time: number = 0;
 
+    // Pre-allocated Color objects to avoid per-frame GC pressure
+    private readonly _tempColor = new THREE.Color();
+    private readonly _c1 = new THREE.Color();
+    private readonly _c2 = new THREE.Color();
+    private readonly _c3 = new THREE.Color();
+    private readonly _oColor = new THREE.Color();
+
     constructor(scene: THREE.Scene) {
         this.scene = scene;
 
@@ -1134,28 +1141,27 @@ export class DynamicLighting {
                         light.intensity = era.accentLightIntensity * transcend;
                         // Dynamic color cycling!
                         const hue = ((t * 0.1 + i * 0.15) % 1.0);
-                        const tempColor = new THREE.Color();
-                        tempColor.setHSL(hue, 0.8, 0.6);
-                        light.color.copy(tempColor);
+                        this._tempColor.setHSL(hue, 0.8, 0.6);
+                        light.color.copy(this._tempColor);
                     }
                 });
                 // Underlights: prismatic cycle
                 const hue1 = (t * 0.15) % 1.0;
                 const hue2 = (t * 0.15 + 0.33) % 1.0;
                 const hue3 = (t * 0.15 + 0.66) % 1.0;
-                const c1 = new THREE.Color(); c1.setHSL(hue1, 0.9, 0.5);
-                const c2 = new THREE.Color(); c2.setHSL(hue2, 0.9, 0.5);
-                const c3 = new THREE.Color(); c3.setHSL(hue3, 0.9, 0.5);
-                this.eerieUnderlight1.color.copy(c1);
-                this.eerieUnderlight2.color.copy(c2);
-                this.eerieUnderlight3.color.copy(c3);
+                this._c1.setHSL(hue1, 0.9, 0.5);
+                this._c2.setHSL(hue2, 0.9, 0.5);
+                this._c3.setHSL(hue3, 0.9, 0.5);
+                this.eerieUnderlight1.color.copy(this._c1);
+                this.eerieUnderlight2.color.copy(this._c2);
+                this.eerieUnderlight3.color.copy(this._c3);
                 this.eerieUnderlight1.intensity = eerieConfig.underIntensity1 * (0.6 + Math.sin(t * 1.2) * 0.3);
                 this.eerieUnderlight2.intensity = eerieConfig.underIntensity2 * (0.6 + Math.sin(t * 1.2 + 2.09) * 0.3);
                 this.eerieUnderlight3.intensity = eerieConfig.underIntensity3 * (0.6 + Math.sin(t * 1.2 + 4.19) * 0.3);
                 // Orbiter also cycles
                 const oHue = (t * 0.2) % 1.0;
-                const oColor = new THREE.Color(); oColor.setHSL(oHue, 1.0, 0.7);
-                this.eerieOrbiter.color.copy(oColor);
+                this._oColor.setHSL(oHue, 1.0, 0.7);
+                this.eerieOrbiter.color.copy(this._oColor);
                 break;
 
             default:

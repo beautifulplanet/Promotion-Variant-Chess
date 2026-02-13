@@ -2,7 +2,7 @@
 // Self-learning AI for Promotion Variant Chess
 // Uses reinforcement learning through self-play to improve
 
-import type { Move } from './chessEngine';
+import type { Move } from './engineProvider';
 import type { PieceType, Piece } from './types';
 import { BALANCE } from './constants';
 

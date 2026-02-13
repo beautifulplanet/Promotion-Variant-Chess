@@ -3,7 +3,7 @@
 // Updates the move history display (via Overlay) and game clock
 // OPTIMIZED: Uses canvas overlay for move list to prevent DOM thrashing
 
-import { engine } from './chessEngine';
+import { engine } from './engineProvider';
 import * as Overlay from './overlayRenderer';
 
 // =============================================================================

@@ -2,7 +2,7 @@
 // Stockfish.js wrapper for ALL chess AI (non-blocking via Web Worker)
 // Skill levels 0-20 provide appropriate difficulty for all ELO ranges
 
-import type { Move } from './chessEngine';
+import type { Move } from './engineProvider';
 import type { PieceType, Piece } from './types';
 
 // =============================================================================
