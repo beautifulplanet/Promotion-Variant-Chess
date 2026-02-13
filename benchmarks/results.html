@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Benchmark Results — Rust/WASM Chess Engine</title>
+  <style>
+    :root {
+      --bg: #0d1117; --card: #161b22; --border: #30363d;
+      --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; line-height: 1.5; max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; background: linear-gradient(90deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; color: var(--accent); }
+    h3 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--text); }
+    .subtitle { color: var(--text-dim); margin-bottom: 1.5rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: var(--accent); text-decoration: none; margin-right: 1.5rem; font-size: 0.875rem; }
+    nav a:hover { text-decoration: underline; }
+    nav a.active { font-weight: 700; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
+    button { background: var(--accent); color: #fff; font-weight: 600; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; text-align: center; }
+    .stat .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 1.75rem; font-weight: 700; margin-top: 0.25rem; }
+    .stat .value.green { color: var(--green); }
+    .stat .value.purple { color: var(--purple); }
+    .stat .value.orange { color: var(--orange); }
+    .stat .value.accent { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-dim); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td.num { text-align: right; font-family: 'Cascadia Code', 'Fira Code', monospace; }
+    tr.winner td { color: var(--green); }
+    .bar-chart { margin: 0.5rem 0; }
+    .bar-row { display: flex; align-items: center; margin-bottom: 0.35rem; gap: 0.5rem; }
+    .bar-label { width: 80px; font-size: 0.75rem; color: var(--text-dim); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 0.72rem; font-weight: 600; color: #fff; transition: width 0.5s ease; min-width: 2px; }
+    .bar-fill.js { background: linear-gradient(90deg, #f0db4f88, #f0db4fcc); }
+    .bar-fill.wasm { background: linear-gradient(90deg, #654ff088, #654ff0cc); }
+    .progress { color: var(--text-dim); font-size: 0.85rem; padding: 1rem 0; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top: 2px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+    .optimization-list { list-style: none; padding: 0; }
+    .optimization-list li { padding: 0.5rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+    .optimization-list li:last-child { border: none; }
+    .tag { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+    .tag.rust { background: #654ff022; color: var(--purple); border: 1px solid #654ff044; }
+    .tag.search { background: #3fb95022; color: var(--green); border: 1px solid #3fb95044; }
+  </style>
+</head>
+<body>
+
+<h1>🏁 Benchmark Results</h1>
+<p class="subtitle">Rust/WASM Chess Engine — Performance Analysis & Comparison</p>
+<nav>
+  <a href="perft.html">Perft</a>
+  <a href="search.html">Search</a>
+  <a href="results.html" class="active">Results</a>
+</nav>
+
+<div style="margin-bottom: 1.5rem;">
+  <button id="btnRun" onclick="runAllBenchmarks()">▶ Run All Benchmarks</button>
+  <span id="statusText" class="progress" style="margin-left: 1rem;"></span>
+</div>
+
+<!-- Summary Stats -->
+<div class="stat-grid" id="summaryStats">
+  <div class="stat"><div class="label">Perft Speedup</div><div class="value accent" id="perftSpeedup">—</div></div>
+  <div class="stat"><div class="label">Search NPS (WASM)</div><div class="value purple" id="wasmNps">—</div></div>
+  <div class="stat"><div class="label">Search NPS (JS)</div><div class="value orange" id="jsNps">—</div></div>
+  <div class="stat"><div class="label">Max Depth in 1s</div><div class="value green" id="maxDepth">—</div></div>
+</div>
+
+<!-- Optimizations Applied -->
+<div class="card">
+  <h3>Search Optimizations</h3>
+  <ul class="optimization-list">
+    <li><span>Bitboard Representation</span> <span class="tag rust">Rust</span></li>
+    <li><span>Magic Bitboard Sliding Attacks</span> <span class="tag rust">Rust</span></li>
+    <li><span>Zobrist Hashing</span> <span class="tag rust">Rust</span></li>
+    <li><span>Transposition Table (256K entries)</span> <span class="tag search">Search</span></li>
+    <li><span>Killer Move Heuristic (2 per ply)</span> <span class="tag search">Search</span></li>
+    <li><span>MVV-LVA + Hash Move Ordering</span> <span class="tag search">Search</span></li>
+    <li><span>Null Move Pruning (R=2)</span> <span class="tag search">Search</span></li>
+    <li><span>Late Move Reduction</span> <span class="tag search">Search</span></li>
+    <li><span>Quiescence Search</span> <span class="tag search">Search</span></li>
+    <li><span>Iterative Deepening + Time Mgmt</span> <span class="tag search">Search</span></li>
+  </ul>
+</div>
+
+<!-- Perft Results -->
+<h2>📊 Perft Benchmark</h2>
+<div class="card">
+  <div id="perftResults"><p class="progress">Click "Run All Benchmarks" to begin.</p></div>
+</div>
+
+<!-- Search Comparison -->
+<h2>🔍 Search Depth Benchmark</h2>
+<div class="card">
+  <div id="searchResults"><p class="progress">Click "Run All Benchmarks" to begin.</p></div>
+</div>
+
+<!-- NPS Bar Chart -->
+<h2>⚡ Nodes Per Second Comparison</h2>
+<div class="card">
+  <div id="npsChart"><p class="progress">Waiting for benchmark data…</p></div>
+</div>
+
+<!-- Depth vs Time Chart -->
+<h2>⏱ Depth vs Time</h2>
+<div class="card">
+  <div id="depthTimeChart"><p class="progress">Waiting for benchmark data…</p></div>
+</div>
+
+<script type="module">
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WASM ENGINE LOADING
+  // ═══════════════════════════════════════════════════════════════════════════
+  const BASE = import.meta.env?.BASE_URL ?? '/';
+  let wasmEngine = null;
+  let wasmReady = false;
+
+  async function initWasm() {
+    try {
+      const { default: init, GameState } = await import(BASE + 'wasm/chess_engine.js');
+      await init(BASE + 'wasm/chess_engine_bg.wasm');
+      wasmEngine = { GameState };
+      wasmReady = true;
+      return true;
+    } catch (e) {
+      console.error('WASM init failed:', e);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // JS CHESS ENGINE (minimal alpha-beta for comparison)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Use chess.js for move gen + a simple eval
+  let Chess = null;
+  async function loadChessJs() {
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/chess.js@1.0.0-beta.8/+esm');
+      Chess = mod.Chess;
+    } catch {
+      const mod2 = await import('https://unpkg.com/chess.js@1.0.0-beta.8/dist/chess.js');
+      Chess = mod2.Chess;
+    }
+  }
+
+  const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+
+  function jsEval(chess) {
+    const board = chess.board();
+    let score = 0;
+    for (const row of board) {
+      for (const sq of row) {
+        if (!sq) continue;
+        const val = PIECE_VALUES[sq.type] || 0;
+        score += sq.color === 'w' ? val : -val;
+      }
+    }
+    return chess.turn() === 'w' ? score : -score;
+  }
+
+  function jsSearch(chess, depth) {
+    let nodes = 0;
+    function ab(d, alpha, beta) {
+      nodes++;
+      if (d === 0) return jsEval(chess);
+      const moves = chess.moves();
+      if (moves.length === 0) {
+        if (chess.isCheck()) return -30000 + (10 - d);
+        return 0;
+      }
+      for (const m of moves) {
+        chess.move(m);
+        const score = -ab(d - 1, -beta, -alpha);
+        chess.undo();
+        if (score >= beta) return beta;
+        if (score > alpha) alpha = score;
+      }
+      return alpha;
+    }
+    const moves = chess.moves();
+    let bestMove = moves[0];
+    let bestScore = -Infinity;
+    for (const m of moves) {
+      chess.move(m);
+      const score = -ab(depth - 1, -Infinity, -bestScore);
+      chess.undo();
+      if (score > bestScore) { bestScore = score; bestMove = m; }
+    }
+    return { bestMove, bestScore, nodes };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BENCHMARK RUNNER
+  // ═══════════════════════════════════════════════════════════════════════════
+  const POSITIONS = [
+    { name: 'Starting position', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' },
+    { name: 'Italian Game', fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3' },
+    { name: 'Kiwipete', fen: 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1' },
+    { name: 'Open middlegame', fen: 'r1bq1rk1/pp2ppbp/2np1np1/8/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 0 9' },
+    { name: 'Endgame', fen: '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1' },
+  ];
+
+  const status = (msg) => { document.getElementById('statusText').innerHTML = msg; };
+
+  async function runPerftBenchmark() {
+    const results = [];
+    const PERFT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const maxDepth = 4;
+
+    for (let depth = 1; depth <= maxDepth; depth++) {
+      status(`<span class="spinner"></span>Perft depth ${depth}…`);
+
+      // JS perft
+      const chess = new Chess(PERFT_FEN);
+      const jsStart = performance.now();
+      const jsNodes = jsPerft(chess, depth);
+      const jsTime = performance.now() - jsStart;
+
+      // WASM perft
+      let wasmNodes = 0, wasmTime = 0;
+      if (wasmReady) {
+        const gs = new wasmEngine.GameState();
+        const wStart = performance.now();
+        wasmNodes = gs.perft(depth);
+        wasmTime = performance.now() - wStart;
+        gs.free();
+      }
+
+      results.push({ depth, jsNodes, jsTime, wasmNodes, wasmTime });
+    }
+    return results;
+  }
+
+  function jsPerft(chess, depth) {
+    if (depth === 0) return 1;
+    const moves = chess.moves();
+    let nodes = 0;
+    for (const m of moves) {
+      chess.move(m);
+      nodes += jsPerft(chess, depth - 1);
+      chess.undo();
+    }
+    return nodes;
+  }
+
+  async function runSearchBenchmark() {
+    const results = [];
+    const maxDepth = 5;
+
+    for (const pos of POSITIONS) {
+      status(`<span class="spinner"></span>Searching: ${pos.name}…`);
+
+      const posResults = { name: pos.name, fen: pos.fen, js: [], wasm: [] };
+
+      // JS search at each depth
+      const chess = new Chess(pos.fen);
+      for (let d = 1; d <= maxDepth; d++) {
+        const start = performance.now();
+        const { bestMove, nodes } = jsSearch(chess, d);
+        const time = performance.now() - start;
+        posResults.js.push({ depth: d, nodes, time, nps: time > 0 ? Math.round(nodes / (time / 1000)) : 0, bestMove });
+        if (time > 5000) break; // Skip deeper if too slow
+      }
+
+      // WASM search at each depth
+      if (wasmReady) {
+        const gs = wasmEngine.GameState.from_fen(pos.fen);
+        for (let d = 1; d <= maxDepth; d++) {
+          const json = JSON.parse(gs.search_depth(d));
+          posResults.wasm.push({
+            depth: d,
+            nodes: json.nodes,
+            time: json.timeMs,
+            nps: json.nps,
+            bestMove: json.bestMove,
+            ttHits: json.ttHits || 0,
+          });
+        }
+        gs.free();
+      }
+
+      results.push(posResults);
+    }
+    return results;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDERING
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderPerftResults(data) {
+    const el = document.getElementById('perftResults');
+    let html = '<table><thead><tr><th>Depth</th><th>Nodes</th><th>JS Time</th><th>WASM Time</th><th>Speedup</th></tr></thead><tbody>';
+    let totalJsTime = 0, totalWasmTime = 0;
+    for (const r of data) {
+      const speedup = r.jsTime > 0 && r.wasmTime > 0 ? (r.jsTime / r.wasmTime).toFixed(1) : '—';
+      totalJsTime += r.jsTime;
+      totalWasmTime += r.wasmTime;
+      html += `<tr>
+        <td>${r.depth}</td>
+        <td class="num">${r.jsNodes.toLocaleString()}</td>
+        <td class="num">${r.jsTime.toFixed(1)}ms</td>
+        <td class="num">${r.wasmTime.toFixed(1)}ms</td>
+        <td class="num" style="color:var(--green);font-weight:700">${speedup}×</td>
+      </tr>`;
+    }
+    const totalSpeedup = totalWasmTime > 0 ? (totalJsTime / totalWasmTime).toFixed(1) : '—';
+    html += `<tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td></td><td class="num">${totalJsTime.toFixed(1)}ms</td><td class="num">${totalWasmTime.toFixed(1)}ms</td><td class="num" style="color:var(--green)">${totalSpeedup}×</td></tr>`;
+    html += '</tbody></table>';
+    el.innerHTML = html;
+
+    document.getElementById('perftSpeedup').textContent = totalSpeedup + '×';
+  }
+
+  function renderSearchResults(data) {
+    const el = document.getElementById('searchResults');
+    let html = '';
+    for (const pos of data) {
+      html += `<h3 style="margin-top:1rem">${pos.name}</h3>`;
+      html += '<table><thead><tr><th>Depth</th><th>JS Nodes</th><th>JS Time</th><th>JS NPS</th><th>WASM Nodes</th><th>WASM Time</th><th>WASM NPS</th><th>Speedup</th></tr></thead><tbody>';
+      const maxD = Math.max(pos.js.length, pos.wasm.length);
+      for (let i = 0; i < maxD; i++) {
+        const j = pos.js[i] || {};
+        const w = pos.wasm[i] || {};
+        const speedup = j.time > 0 && w.time > 0 ? (j.time / w.time).toFixed(1) : '—';
+        html += `<tr>
+          <td>${(j.depth || w.depth)}</td>
+          <td class="num">${j.nodes ? j.nodes.toLocaleString() : '—'}</td>
+          <td class="num">${j.time ? j.time.toFixed(1) + 'ms' : '—'}</td>
+          <td class="num">${j.nps ? formatNps(j.nps) : '—'}</td>
+          <td class="num">${w.nodes ? w.nodes.toLocaleString() : '—'}</td>
+          <td class="num">${w.time ? w.time.toFixed(1) + 'ms' : '—'}</td>
+          <td class="num">${w.nps ? formatNps(w.nps) : '—'}</td>
+          <td class="num" style="color:var(--green);font-weight:700">${speedup}×</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    el.innerHTML = html;
+
+    // Update summary stats
+    if (data.length > 0 && data[0].wasm.length > 0) {
+      const lastWasm = data[0].wasm[data[0].wasm.length - 1];
+      const lastJs = data[0].js[data[0].js.length - 1];
+      document.getElementById('wasmNps').textContent = formatNps(lastWasm.nps);
+      document.getElementById('jsNps').textContent = lastJs ? formatNps(lastJs.nps) : '—';
+    }
+  }
+
+  function renderNpsChart(data) {
+    const el = document.getElementById('npsChart');
+    if (!data.length) return;
+
+    // Average NPS at depth 4 across all positions
+    let jsNpsSum = 0, wasmNpsSum = 0, count = 0;
+    for (const pos of data) {
+      const jd4 = pos.js.find(x => x.depth === 4);
+      const wd4 = pos.wasm.find(x => x.depth === 4);
+      if (jd4 && wd4) {
+        jsNpsSum += jd4.nps;
+        wasmNpsSum += wd4.nps;
+        count++;
+      }
+    }
+    const jsAvg = count > 0 ? Math.round(jsNpsSum / count) : 0;
+    const wasmAvg = count > 0 ? Math.round(wasmNpsSum / count) : 0;
+    const maxNps = Math.max(jsAvg, wasmAvg);
+
+    let html = '<h3>Average NPS at Depth 4</h3><div class="bar-chart">';
+    html += `<div class="bar-row"><div class="bar-label">JS</div><div class="bar-track"><div class="bar-fill js" style="width:${(jsAvg/maxNps*100).toFixed(1)}%">${formatNps(jsAvg)}</div></div></div>`;
+    html += `<div class="bar-row"><div class="bar-label">WASM</div><div class="bar-track"><div class="bar-fill wasm" style="width:${(wasmAvg/maxNps*100).toFixed(1)}%">${formatNps(wasmAvg)}</div></div></div>`;
+    html += '</div>';
+
+    // Per-position bars
+    html += '<h3 style="margin-top:1.5rem">NPS by Position (Depth 4)</h3><div class="bar-chart">';
+    for (const pos of data) {
+      const wd4 = pos.wasm.find(x => x.depth === 4);
+      const jd4 = pos.js.find(x => x.depth === 4);
+      if (!wd4) continue;
+      const max = Math.max(wd4?.nps || 0, jd4?.nps || 0);
+      html += `<div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-dim)">${pos.name}</div>`;
+      if (jd4) html += `<div class="bar-row"><div class="bar-label">JS</div><div class="bar-track"><div class="bar-fill js" style="width:${(jd4.nps/maxNps*100).toFixed(1)}%">${formatNps(jd4.nps)}</div></div></div>`;
+      html += `<div class="bar-row"><div class="bar-label">WASM</div><div class="bar-track"><div class="bar-fill wasm" style="width:${(wd4.nps/maxNps*100).toFixed(1)}%">${formatNps(wd4.nps)}</div></div></div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function renderDepthTimeChart(data) {
+    const el = document.getElementById('depthTimeChart');
+    if (!data.length) return;
+
+    // Use the starting position for depth vs time
+    const pos = data[0];
+    let html = `<h3>${pos.name} — Time per Depth</h3>`;
+    html += '<div class="bar-chart">';
+    const maxD = Math.max(pos.js.length, pos.wasm.length);
+    for (let i = 0; i < maxD; i++) {
+      const d = i + 1;
+      const jt = pos.js[i]?.time || 0;
+      const wt = pos.wasm[i]?.time || 0;
+      const maxT = Math.max(jt, wt, 1);
+      const scale = 100;
+      html += `<div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-dim)">Depth ${d}</div>`;
+      html += `<div class="bar-row"><div class="bar-label">JS</div><div class="bar-track"><div class="bar-fill js" style="width:${Math.max(1, jt/maxT*scale).toFixed(1)}%">${jt.toFixed(1)}ms</div></div></div>`;
+      html += `<div class="bar-row"><div class="bar-label">WASM</div><div class="bar-track"><div class="bar-fill wasm" style="width:${Math.max(1, wt/maxT*scale).toFixed(1)}%">${wt.toFixed(1)}ms</div></div></div>`;
+    }
+    html += '</div>';
+
+    // Timed search: how deep can each engine go in 1 second?
+    if (wasmReady) {
+      html += '<h3 style="margin-top:1.5rem">Max Depth in 1 Second</h3>';
+      const gs = wasmEngine.GameState.from_fen(pos.fen);
+      const wResult = JSON.parse(gs.search_timed(1000));
+      gs.free();
+
+      const chess = new Chess(pos.fen);
+      let jsDepth = 0;
+      const jsStart = performance.now();
+      for (let d = 1; d <= 20; d++) {
+        jsSearch(chess, d);
+        if (performance.now() - jsStart > 1000) { jsDepth = d; break; }
+        jsDepth = d;
+      }
+
+      html += '<div class="bar-chart">';
+      const maxDepthChart = Math.max(jsDepth, wResult.depth);
+      html += `<div class="bar-row"><div class="bar-label">JS</div><div class="bar-track"><div class="bar-fill js" style="width:${(jsDepth/maxDepthChart*100)}%">Depth ${jsDepth}</div></div></div>`;
+      html += `<div class="bar-row"><div class="bar-label">WASM</div><div class="bar-track"><div class="bar-fill wasm" style="width:${(wResult.depth/maxDepthChart*100)}%">Depth ${wResult.depth}</div></div></div>`;
+      html += '</div>';
+
+      document.getElementById('maxDepth').textContent = `${wResult.depth} (WASM) vs ${jsDepth} (JS)`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  function formatNps(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return n.toString();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MAIN
+  // ═══════════════════════════════════════════════════════════════════════════
+  window.runAllBenchmarks = async function() {
+    const btn = document.getElementById('btnRun');
+    btn.disabled = true;
+
+    status('<span class="spinner"></span>Loading engines…');
+    await Promise.all([initWasm(), loadChessJs()]);
+
+    if (!Chess) { status('❌ Failed to load chess.js'); btn.disabled = false; return; }
+    if (!wasmReady) { status('⚠️ WASM not available — running JS-only'); }
+
+    // Perft
+    status('<span class="spinner"></span>Running perft benchmarks…');
+    const perftData = await runPerftBenchmark();
+    renderPerftResults(perftData);
+
+    // Search
+    status('<span class="spinner"></span>Running search benchmarks…');
+    const searchData = await runSearchBenchmark();
+    renderSearchResults(searchData);
+
+    // Charts
+    renderNpsChart(searchData);
+    renderDepthTimeChart(searchData);
+
+    status('✅ All benchmarks complete!');
+    btn.disabled = false;
+  };
+</script>
+
+</body>
+</html>

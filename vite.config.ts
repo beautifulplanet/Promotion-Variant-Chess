@@ -9,6 +9,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         perft: resolve(__dirname, 'benchmarks/perft.html'),
         search: resolve(__dirname, 'benchmarks/search.html'),
+        results: resolve(__dirname, 'benchmarks/results.html'),
       },
     },
   },
