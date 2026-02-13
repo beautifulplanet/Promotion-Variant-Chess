@@ -1240,8 +1240,12 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 | 2026-02-12 | Performance → Scale → AI/ML order | Dependency chain: Rust engine feeds everything |
 | 2026-02-12 | ~$20/mo hosting budget | Budget constraint for Scale phase |
 | 2026-02-12 | Plan A/B for each task | Reduce decision paralysis, always have a fallback |
+| 2026-02-13 | Keep chess.js as fallback | User: keep all engines for device/accessibility compat |
+| 2026-02-13 | Proxy facade pattern | engineProvider.ts — transparent backend switching |
+| 2026-02-13 | Deferred WASM swap | Red-team fix: only swap at game boundaries, not mid-game |
 
 ---
 
-*Last updated: 2026-02-15*
-*Phase 2 in progress — Next: Task 2.3 — Wire RustGameState into gameController*
+*Last updated: 2026-02-13*
+*Phase 2 complete (Tasks 2.1-2.3 done, 2.4 adapted: chess.js kept as fallback)*
+*Next: Phase 3 — Benchmarking & Optimization (Task 3.1: perft benchmark suite)*
