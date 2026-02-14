@@ -4,16 +4,14 @@
 // =============================================================================
 
 import 'dotenv/config';
-import { PrismaClient } from './generated/prisma/client.js';
+import { PrismaClient } from '@prisma/client';
 
 // Singleton Prisma client
 let prisma: PrismaClient | null = null;
 
 export function getPrisma(): PrismaClient {
   if (!prisma) {
-    prisma = new PrismaClient({
-      datasourceUrl: process.env.DATABASE_URL || 'file:./dev.db',
-    });
+    prisma = new PrismaClient();
   }
   return prisma;
 }

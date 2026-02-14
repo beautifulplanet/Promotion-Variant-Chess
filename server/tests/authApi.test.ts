@@ -4,15 +4,14 @@
 // =============================================================================
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from '../src/generated/prisma/client.js';
-import { setPrisma, disconnectDB } from '../src/database.js';
+import { getPrisma, disconnectDB } from '../src/database.js';
 import { app } from '../src/index.js';
 import type { Server as HttpServer } from 'http';
 import { createServer } from 'http';
 
 let httpServer: HttpServer;
 let port: number;
-let prisma: PrismaClient;
+let prisma: ReturnType<typeof getPrisma>;
 let baseUrl: string;
 
 // Simple fetch wrapper for testing
@@ -31,8 +30,8 @@ async function api(method: string, path: string, body?: any, token?: string) {
 }
 
 beforeAll(async () => {
-  prisma = new PrismaClient();
-  setPrisma(prisma);
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+  prisma = getPrisma();
 
   httpServer = createServer(app);
   await new Promise<void>(resolve => {

@@ -4,7 +4,6 @@
 // =============================================================================
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from '../src/generated/prisma/client.js';
 import {
   setPrisma, getPrisma, disconnectDB,
   createPlayer, findPlayerByUsername, findPlayerById,
@@ -12,14 +11,10 @@ import {
   getLeaderboard, saveGame, getPlayerGames, getTotalGames,
 } from '../src/database.js';
 
-let prisma: PrismaClient;
+let prisma: ReturnType<typeof getPrisma>;
 
 beforeAll(async () => {
-  // Use the dev database for testing (SQLite)
-  prisma = new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL || 'file:./dev.db',
-  });
-  setPrisma(prisma);
+  prisma = getPrisma();
 });
 
 afterAll(async () => {

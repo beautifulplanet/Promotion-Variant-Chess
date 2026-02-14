@@ -5,11 +5,10 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import type { ServerMessage, GameFound, MoveAck, OpponentMove, GameOver, QueueStatus, ServerError } from '../src/protocol.js';
-import { startServer, io, rooms, matchmaker, playerData } from '../src/index.js';
-import type { Server as HttpServer } from 'http';
+import { startServer, io, rooms, matchmaker, playerData, httpServer as sharedHttpServer } from '../src/index.js';
+import { createPlayer, getPrisma } from '../src/database.js';
 import type { AddressInfo } from 'net';
 
-let httpServer: HttpServer;
 let port: number;
 
 function connectClient(name: string = 'TestPlayer'): ClientSocket {
@@ -38,15 +37,19 @@ function waitForMessage<T extends ServerMessage>(
 
 describe('Server Integration', () => {
   beforeAll(async () => {
-    httpServer = startServer(0); // random port
-    await new Promise<void>(resolve => httpServer.once('listening', resolve));
-    const addr = httpServer.address() as AddressInfo;
+    process.env.DATABASE_URL = process.env.DATABASE_URL || 'file:./dev.db';
+    await startServer(0); // random port
+    await new Promise<void>(resolve => {
+      if (sharedHttpServer.listening) return resolve();
+      sharedHttpServer.once('listening', resolve);
+    });
+    const addr = sharedHttpServer.address() as AddressInfo;
     port = addr.port;
   });
 
   afterAll(async () => {
     io.close();
-    await new Promise<void>(resolve => httpServer.close(() => resolve()));
+    await new Promise<void>(resolve => sharedHttpServer.close(() => resolve()));
   });
 
   afterEach(() => {
@@ -186,10 +189,12 @@ describe('Server Integration', () => {
   });
 
   it('leaderboard endpoint returns sorted players', async () => {
-    // Seed some player data
-    playerData.set('Alice', { name: 'Alice', elo: 1500, games: 10 });
-    playerData.set('Bob', { name: 'Bob', elo: 1300, games: 5 });
-    playerData.set('Charlie', { name: 'Charlie', elo: 1700, games: 20 });
+    // Seed the database with test players
+    const db = getPrisma();
+    await db.player.deleteMany();
+    await createPlayer({ username: 'Alice', elo: 1500, isGuest: true });
+    await createPlayer({ username: 'Bob', elo: 1300, isGuest: true });
+    await createPlayer({ username: 'Charlie', elo: 1700, isGuest: true });
 
     const res = await fetch(`http://localhost:${port}/api/leaderboard`);
     const data = await res.json();
@@ -200,5 +205,8 @@ describe('Server Integration', () => {
     expect(data.players[1].name).toBe('Alice');
     expect(data.players[2].name).toBe('Bob');
     expect(data.total).toBe(3);
+
+    // Clean up
+    await db.player.deleteMany();
   });
 });
