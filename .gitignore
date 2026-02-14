@@ -51,6 +51,7 @@ coverage/
 
 # Rust build artifacts
 rust-engine/target/
+rust-engine/pkg/
 
 # Prisma
 server/prisma/dev.db
