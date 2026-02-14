@@ -40,3 +40,18 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Large binary assets in root (use external hosting)
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.bmp
+/*.psd
+
+# Rust build artifacts
+rust-engine/target/
+
+# Prisma
+server/prisma/dev.db
+server/prisma/dev.db-journal

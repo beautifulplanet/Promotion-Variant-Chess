@@ -172,6 +172,6 @@ cd rust-engine && cargo test
 
 ---
 
-## AI Disclosure
+## Development
 
-This project uses AI-assisted development. Architecture decisions, testing strategy, and code review by [beautifulplanet](https://github.com/beautifulplanet).
+This project uses AI-assisted development tools for code generation, testing, and documentation. All architecture decisions, code review, debugging, and testing verification are performed by [beautifulplanet](https://github.com/beautifulplanet).
