@@ -49,14 +49,32 @@ async function main() {
 ```
 src/
 ├── lib.rs        # WASM entry point & public API
-├── bitboard.rs   # 64-bit board representation
-├── position.rs   # Full game state
-└── types.rs      # Piece, Square, Move types
+├── types.rs      # Piece, Square, Color, Move types
+├── bitboard.rs   # 64-bit board representation & operations
+├── position.rs   # Full game state (pieces, castling, en passant)
+├── movegen.rs    # Legal move generation
+├── attacks.rs    # Attack/defend square lookups
+├── magic.rs      # Magic bitboard tables for sliding pieces
+├── eval.rs       # Static position evaluation (material, PST, mobility)
+├── search.rs     # Alpha-beta with TT, NMP, LMR, killer moves, quiescence
+├── tt.rs         # Transposition table (Zobrist-indexed)
+└── zobrist.rs    # Zobrist hashing for position fingerprints
 ```
+
+## Search Features
+
+- **Alpha-beta pruning** with iterative deepening
+- **Transposition table** — Zobrist-hashed position cache
+- **Null-move pruning** — Skip a move to get fast cutoffs
+- **Late move reductions** — Search unlikely moves at reduced depth
+- **Killer move heuristic** — Remember refutation moves per ply
+- **Quiescence search** — Resolve captures to avoid horizon effect
+- **Move ordering** — TT move → captures (MVV-LVA) → killers → quiet moves
 
 ## Performance
 
 Bitboards enable:
 - O(1) piece lookup
-- Parallel move generation via bit operations  
+- Parallel move generation via bit operations
+- Magic bitboard tables for O(1) sliding piece attacks
 - ~100x faster than array-based boards

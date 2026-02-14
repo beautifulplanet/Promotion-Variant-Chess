@@ -4,8 +4,7 @@
 
 🎮 **[▶ PLAY NOW — Live Demo](https://promotion-variant-chess.vercel.app)** 🎮
 
-<!-- TODO: Replace with actual screenshots -->
-<!-- ![Gameplay Screenshot](docs/screenshot.png) -->
+> **Note:** This project is in active development — screenshots are coming soon. The live demo above reflects the latest build.
 
 ---
 
