@@ -12,6 +12,11 @@ primary_region = "iad"
 [env]
   PORT = "3001"
   NODE_ENV = "production"
+  DATABASE_URL = "file:/data/chess.db"
+
+[mounts]
+  source = "chess_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 3001

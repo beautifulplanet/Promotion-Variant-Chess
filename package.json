@@ -9,9 +9,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/jsdom": "^27.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "happy-dom": "^20.3.4",
@@ -25,7 +29,6 @@
     "chess.js": "^1.4.0",
     "socket.io-client": "^4.8.3",
     "stockfish.js": "^10.0.2",
-    "three": "^0.182.0",
-    "zod": "^4.3.6"
+    "three": "^0.182.0"
   }
 }

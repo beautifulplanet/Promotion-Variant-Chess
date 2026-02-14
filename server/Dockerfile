@@ -15,9 +15,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy Prisma schema + config and generate client
+# Copy Prisma schema and generate client
 COPY prisma ./prisma
-COPY prisma.config.ts ./
 RUN npx prisma generate
 
 # Copy source and build
@@ -36,15 +35,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Copy built output
+# Copy built output and Prisma files
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/prisma ./prisma
-COPY prisma.config.ts ./
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Run migrations then start
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV DATABASE_URL="file:/data/chess.db"
 
 EXPOSE 3001
 
@@ -52,4 +51,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD node -e "fetch('http://localhost:3001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "mkdir -p /data && npx prisma migrate deploy && node dist/index.js"]
