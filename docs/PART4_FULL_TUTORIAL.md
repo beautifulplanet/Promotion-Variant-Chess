@@ -191,19 +191,19 @@ cd server && npm test
 # Rust engine (213 tests, ~2s)
 cd rust-engine && cargo test
 
-# E2E browser tests (4 tests)
+# E2E browser tests (5 tests)
 npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 749 unit/integration tests + 4 E2E tests**
+**Total: 749 unit/integration tests + 5 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 213 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state |
 | Frontend | 382 | Game controller, ELO, era system, save system, chess engine, performance |
 | Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
-| E2E | 4 | App load, canvas interaction, console errors, article rendering |
+| E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
 
@@ -880,7 +880,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Engine | cargo test | 213 |
 | Frontend | Vitest | 382 |
 | Server | Vitest | 154 |
-| E2E | Playwright | 4 |
+| E2E | Playwright | 5 |
 
 **Mocked:** Three.js (no GPU), chess.js, Socket.io, localStorage.
 
@@ -930,7 +930,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 │   └── fly.toml               # Fly.io deployment config
 │
 ├── tests/                     # Frontend test suite (382 tests)
-├── e2e/                       # Playwright E2E tests (4 tests)
+├── e2e/                       # Playwright E2E tests (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
 │   ├── PART1_SUMMARY.md       # Standalone Part 1

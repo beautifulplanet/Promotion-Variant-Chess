@@ -80,4 +80,43 @@ test.describe('Chess Chronicle — Smoke Tests', () => {
     await expect(headline).not.toHaveText('Loading...', { timeout: 5000 });
   });
 
+  test('player can start a game and make a move', async ({ page }) => {
+    await page.goto('/');
+
+    // Wait for board to fully initialize
+    const canvas = page.locator('#game-canvas');
+    await expect(canvas).toBeVisible();
+    await page.waitForTimeout(2000); // Let Three.js finish rendering
+
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Verify initial state: turn is White, move count is 0
+    await expect(page.locator('#sidebar-turn')).toHaveText('White');
+    await expect(page.locator('#move-count')).toHaveText('0');
+
+    // Click a white pawn (bottom half of board, roughly e2 area)
+    // Board center is at ~50% x. White pieces are at ~75% y.
+    // e-file pawn ≈ center-x, rank-2 ≈ 70-75% y
+    const pawnX = box!.width * 0.48;
+    const pawnY = box!.height * 0.72;
+    await canvas.click({ position: { x: pawnX, y: pawnY } });
+
+    // Small wait for selection highlight to render
+    await page.waitForTimeout(300);
+
+    // Click the destination square (e4 area — same file, ~55% y)
+    const destX = box!.width * 0.48;
+    const destY = box!.height * 0.50;
+    await canvas.click({ position: { x: destX, y: destY } });
+
+    // Wait for AI response (turn should eventually come back to White)
+    // First, move count should increase from 0, proving at least 1 move was made
+    await expect(page.locator('#move-count')).not.toHaveText('0', { timeout: 10000 });
+
+    // Game still functional — no crash, sidebar still shows
+    await expect(page.locator('#sidebar-turn')).toBeVisible();
+    await expect(canvas).toBeVisible();
+  });
+
 });

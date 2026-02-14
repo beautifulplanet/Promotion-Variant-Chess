@@ -24,6 +24,8 @@ A chess game that combines:
 - **Progressive Web App** — installable on mobile, offline-capable
 
 🎮 **[▶ PLAY NOW](https://promotion-variant-chess.vercel.app)** 🎮
+🔌 **[Multiplayer Server](https://chess-server.fly.dev)** 🔌
+📈 **[Health Check](https://chess-server.fly.dev/health)** · 📊 **[Metrics](https://chess-server.fly.dev/metrics)**
 
 ---
 

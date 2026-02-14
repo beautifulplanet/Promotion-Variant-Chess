@@ -3,6 +3,8 @@
 **A full-stack 3D chess game where you journey through twenty ages of human history — from the age of dinosaurs to transcendent cosmic realms — powered by a custom Rust chess engine compiled to WebAssembly.**
 
 🎮 **[▶ PLAY NOW](https://promotion-variant-chess.vercel.app)** 🎮
+🔌 **[Multiplayer Server](https://chess-server.fly.dev)** 🔌
+📈 **[Health Check](https://chess-server.fly.dev/health)** · 📊 **[Metrics](https://chess-server.fly.dev/metrics)**
 
 > *749 tests. 3 languages. 1 WebAssembly binary. Zero frameworks.*
 
@@ -404,7 +406,7 @@ npm run e2e
 | Rust engine | 213 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state |
 | Frontend | 382 | Game controller, ELO, era system, save system, chess engine, performance |
 | Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
-| E2E | 4 | App load, canvas interaction, console errors, article rendering |
+| E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
 
@@ -1081,7 +1083,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Engine | cargo test | 213 |
 | Frontend | Vitest | 382 |
 | Server | Vitest | 154 |
-| E2E | Playwright | 4 |
+| E2E | Playwright | 5 |
 
 **Mocked:** Three.js (no GPU), chess.js, Socket.io, localStorage.
 
@@ -1131,7 +1133,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 │   └── fly.toml               # Fly.io deployment config
 │
 ├── tests/                     # Frontend test suite (382 tests)
-├── e2e/                       # Playwright E2E tests (4 tests)
+├── e2e/                       # Playwright E2E tests (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
 │   ├── PART1_SUMMARY.md       # Standalone Part 1
