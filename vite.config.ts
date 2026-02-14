@@ -2,7 +2,8 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES ? '/Promotion-Variant-Chess/' : '/',
+  // Vercel & local dev use '/', GitHub Pages needs the repo prefix
+  base: process.env.GITHUB_PAGES && !process.env.VERCEL ? '/Promotion-Variant-Chess/' : '/',
   build: {
     rollupOptions: {
       input: {
