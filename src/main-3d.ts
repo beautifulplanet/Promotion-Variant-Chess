@@ -27,6 +27,7 @@ import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
 import { initEngine, getEngineType } from './engineProvider';
 import type { PieceType } from './types';
+import { initMultiplayerUI } from './multiplayerUI';
 
 // =============================================================================
 // DOM SETUP
@@ -1329,6 +1330,9 @@ initEngine().then(type => {
 // Initialize game
 const initialState = Game.initGame();
 console.log('[Main-3D] Game ready! ELO:', initialState.elo);
+
+// Initialize multiplayer UI
+initMultiplayerUI();
 
 // Start stats session tracking
 Stats.startSession();

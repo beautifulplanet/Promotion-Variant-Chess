@@ -100,6 +100,9 @@ const MAX_EXTRA_PIECES = 24;
 // AI vs AI spectator mode
 let aiVsAiMode = false;
 
+// Multiplayer online mode — when true, AI is disabled and moves go to/from server
+let multiplayerMode = false;
+
 // AI move speed (multiplier, 1 = normal, 0.5 = fast, 2 = slow)
 let aiMoveSpeedMultiplier = 1;
 
@@ -117,6 +120,7 @@ let onGameOver: GameOverCallback | null = null;
 let onAIThinking: AIThinkingCallback | null = null;
 let onWinAnimation: WinAnimationCallback | null = null;
 let onPlayerWin: PlayerWinCallback | null = null;
+let onMultiplayerMove: ((san: string) => void) | null = null;
 
 // Current session save data (in-memory, not persisted until player saves)
 let currentSaveData: SaveData = createDefaultSave();
@@ -495,6 +499,11 @@ export function handleSquareClick(row: number, col: number): boolean {
       if (result) {
         DEBUG_LOG('[Game] Move made:', result.san);
 
+        // In multiplayer mode, send the move to the server
+        if (multiplayerMode && onMultiplayerMove) {
+          onMultiplayerMove(result.san);
+        }
+
         // Analyze the player's move quality
         const playerMove = state.legalMovesForSelected.find(
           m => m.to.row === row && m.to.col === col
@@ -557,6 +566,12 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
 
   if (result) {
     DEBUG_LOG('[Game] Promotion move made:', result.san);
+
+    // In multiplayer mode, send the promotion move to the server
+    if (multiplayerMode && onMultiplayerMove) {
+      onMultiplayerMove(result.san);
+    }
+
     notifyStateChange();
 
     checkGameEnd();
@@ -1213,6 +1228,7 @@ export function registerCallbacks(callbacks: {
   onAIThinking?: AIThinkingCallback;
   onWinAnimation?: () => Promise<void>;
   onPlayerWin?: PlayerWinCallback;
+  onMultiplayerMove?: (san: string) => void;
 }): void {
   if (callbacks.onStateChange) onStateChange = callbacks.onStateChange;
   if (callbacks.onLevelChange) onLevelChange = callbacks.onLevelChange;
@@ -1220,6 +1236,7 @@ export function registerCallbacks(callbacks: {
   if (callbacks.onAIThinking) onAIThinking = callbacks.onAIThinking;
   if (callbacks.onWinAnimation) onWinAnimation = callbacks.onWinAnimation;
   if (callbacks.onPlayerWin) onPlayerWin = callbacks.onPlayerWin;
+  if (callbacks.onMultiplayerMove) onMultiplayerMove = callbacks.onMultiplayerMove;
 }
 
 // =============================================================================
@@ -1414,6 +1431,9 @@ let pendingAIMoveTimeout: number | null = null;
 let moveGeneration = 0;
 
 function scheduleAIMove(): void {
+  // In multiplayer mode, opponent moves come from the server — don't use AI
+  if (multiplayerMode) return;
+
   DEBUG_LOG('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
   if (onAIThinking) onAIThinking(true);
 
@@ -1753,4 +1773,162 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
   } else {
     notifyStateChange();
   }
+}
+
+// =============================================================================
+// MULTIPLAYER MODE
+// =============================================================================
+
+/** Check if we're in multiplayer mode */
+export function isMultiplayerMode(): boolean {
+  return multiplayerMode;
+}
+
+/**
+ * Start a multiplayer game. Called when server sends 'game_found'.
+ * Sets up board for online play with assigned color.
+ */
+export function startMultiplayerGame(color: 'w' | 'b', fen?: string): void {
+  cancelPendingAIMove();
+  multiplayerMode = true;
+  aiVsAiMode = false;
+
+  state.playerColor = color === 'w' ? 'white' : 'black';
+  state.gameOver = false;
+  state.gameStarted = true;
+  state.selectedSquare = null;
+  state.legalMovesForSelected = [];
+  state.pendingPromotion = null;
+  currentGamePromotions = [];
+
+  // Reset to standard board (no custom setup in multiplayer)
+  engine.reset();
+  if (fen && fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+    engine.loadFEN(fen);
+  }
+
+  resetOpeningTracking();
+  resetMoveQualityTracking();
+
+  console.log('[Multiplayer] Game started as', state.playerColor);
+  notifyStateChange();
+}
+
+/**
+ * Apply a move received from the server (opponent's move).
+ * Uses the engine to validate and apply the move locally.
+ */
+export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
+  if (!multiplayerMode || state.gameOver) return false;
+
+  // Try to find a matching legal move by SAN
+  const legalMoves = engine.getLegalMoves();
+
+  // Find move that matches the SAN string
+  for (const move of legalMoves) {
+    // We need to test each legal move to see if its SAN matches
+    // makeMove returns the SAN; but we can't undo since the interface lacks undoMove
+    // So we match by checking if the move's algebraic notation matches
+    const from = move.from;
+    const to = move.to;
+
+    // Build UCI from the move for comparison
+    const fromStr = String.fromCharCode(97 + from.col) + (8 - from.row);
+    const toStr = String.fromCharCode(97 + to.col) + (8 - to.row);
+    const uci = fromStr + toStr + (move.promotion ? move.promotion.toLowerCase() : '');
+
+    // Check if moveStr matches UCI
+    if (moveStr === uci || moveStr === uci.toUpperCase()) {
+      const result = engine.makeMove(from, to, move.promotion);
+      if (result) {
+        console.log('[Multiplayer] Applied opponent move (UCI match):', moveStr);
+        updateOpeningName(engine.getFEN());
+        notifyStateChange();
+        return true;
+      }
+    }
+  }
+
+  // Try applying the move as SAN directly via engine
+  // engine.makeMove works with {from, to} — we can try to parse SAN to find matching move
+  // by matching piece type, destination, etc.
+  for (const move of legalMoves) {
+    const result = engine.makeMove(move.from, move.to, move.promotion);
+    if (result && result.san === moveStr) {
+      console.log('[Multiplayer] Applied opponent move (SAN match):', moveStr);
+      updateOpeningName(engine.getFEN());
+      notifyStateChange();
+      return true;
+    }
+    // If the move was applied but SAN didn't match, we need to reload from FEN
+    if (result) {
+      // This move was applied incorrectly — recover from server FEN
+      if (serverFen) {
+        engine.loadFEN(serverFen);
+        console.log('[Multiplayer] Synced board from server FEN after mismatch');
+        updateOpeningName(engine.getFEN());
+        notifyStateChange();
+        return true;
+      }
+      return false;
+    }
+  }
+
+  // Last resort: sync from server FEN
+  if (serverFen) {
+    engine.loadFEN(serverFen);
+    console.log('[Multiplayer] Synced board from server FEN (fallback)');
+    updateOpeningName(engine.getFEN());
+    notifyStateChange();
+    return true;
+  }
+
+  console.error('[Multiplayer] Could not apply move:', moveStr);
+  return false;
+}
+
+/**
+ * End a multiplayer game. Called when server sends 'game_over'.
+ */
+export function endMultiplayerGame(result: 'white' | 'black' | 'draw', reason: string, eloChange?: number, newElo?: number): void {
+  state.gameOver = true;
+  multiplayerMode = false;
+
+  if (eloChange !== undefined && newElo !== undefined) {
+    state.elo = newElo;
+  }
+
+  let message: string;
+  const playerWon = (result === 'white' && state.playerColor === 'white') ||
+                    (result === 'black' && state.playerColor === 'black');
+  const playerLost = (result === 'white' && state.playerColor === 'black') ||
+                     (result === 'black' && state.playerColor === 'white');
+
+  if (result === 'draw') {
+    message = `Draw by ${reason}`;
+  } else if (playerWon) {
+    message = `You win by ${reason}!`;
+    state.gamesWon++;
+  } else {
+    message = `You lose by ${reason}`;
+    state.gamesLost++;
+  }
+
+  state.gamesPlayed++;
+
+  if (eloChange !== undefined) {
+    message += ` (${eloChange >= 0 ? '+' : ''}${eloChange} ELO → ${newElo})`;
+  }
+
+  if (onGameOver) onGameOver(message);
+  notifyStateChange();
+}
+
+/**
+ * Leave multiplayer mode (cancel / disconnect).
+ */
+export function leaveMultiplayer(): void {
+  multiplayerMode = false;
+  cancelPendingAIMove();
+  notifyStateChange();
 }
