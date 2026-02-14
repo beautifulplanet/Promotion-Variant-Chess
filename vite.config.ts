@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  base: '/Promotion-Variant-Chess/',
+  base: process.env.GITHUB_PAGES ? '/Promotion-Variant-Chess/' : '/',
   build: {
     rollupOptions: {
       input: {
