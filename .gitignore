@@ -1,3 +1,6 @@
+# Local planning (private, never push)
+.planning/
+
 # Dependencies
 node_modules/
 .pnpm-store/

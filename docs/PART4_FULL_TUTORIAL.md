@@ -1,214 +1,13 @@
-# The Chess Chronicle ♟️
-
-**A full-stack 3D chess game where you journey through twenty ages of human history — from the age of dinosaurs to transcendent cosmic realms — powered by a custom Rust chess engine compiled to WebAssembly.**
-
-🎮 **[▶ PLAY NOW](https://promotion-variant-chess.vercel.app)** 🎮
-
-> *749 tests. 3 languages. 1 WebAssembly binary. Zero frameworks.*
-
-<!-- Screenshot placeholder: Replace with actual screenshot -->
-<!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
-
----
-
-## How to Read This README
-
-This document serves **four audiences**. Jump to what you need:
-
-| You are... | Start here | Time |
-|---|---|---|
-| **Hiring manager** wanting the highlights | [Part 1: Summary](#part-1-summary) | 30 seconds |
-| **Senior engineer** evaluating the architecture | [Part 2: Tech Stack & Architecture](#part-2-tech-stack--architecture) | 1 minute |
-| **Developer** wanting to run it locally | [Part 3: Quick Start](#part-3-quick-start) | 2 minutes |
-| **Learner** wanting to understand everything | [Part 4: Full Tutorial](#part-4-full-tutorial--deep-dive) | 30+ minutes |
-
-Each part is also available as a **standalone document** if you only want one section:
-
-| Part | In this README | Standalone doc |
-|---|---|---|
-| Summary | [Jump ↓](#part-1-summary) | [docs/PART1_SUMMARY.md](docs/PART1_SUMMARY.md) |
-| Tech Stack | [Jump ↓](#part-2-tech-stack--architecture) | [docs/PART2_TECH_STACK.md](docs/PART2_TECH_STACK.md) |
-| Quick Start | [Jump ↓](#part-3-quick-start) | [docs/PART3_QUICK_START.md](docs/PART3_QUICK_START.md) |
-| Full Tutorial | [Jump ↓](#part-4-full-tutorial--deep-dive) | [docs/PART4_FULL_TUTORIAL.md](docs/PART4_FULL_TUTORIAL.md) |
-
----
-
-# Part 1: Summary
-
-*30 seconds. What this is, what it does, why it matters.*
-
-### What
-
-A chess game that combines:
-- **Custom Rust chess engine** compiled to WebAssembly (bitboards, magic bitboards, alpha-beta search, transposition tables)
-- **3D rendering** with Three.js — 20 procedurally generated era environments
-- **Real-time multiplayer** via Socket.io with ELO matchmaking, JWT auth, game persistence
-- **Progressive Web App** — installable on mobile, offline-capable
-
-### Why It's Interesting (for Interviewers)
-
-| Talking Point | Detail |
-|---|---|
-| Systems programming | Rust engine: bitboard move gen, magic bitboard lookups, Zobrist hashing — all compiled to WASM |
-| Full-stack ownership | Frontend (TS + Three.js), backend (Node + Express + Prisma), engine (Rust), infra (Docker + Fly.io) |
-| Testing discipline | 749 tests: 213 Rust (cargo test) + 382 frontend (Vitest) + 154 server (Vitest) |
-| Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
-| Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
-
-### Key Numbers
-
-| Metric | Value |
-|---|---|
-| Rust engine source | 11 files, ~6,000 lines |
-| Frontend source | 20+ files, TypeScript |
-| Server source | 10+ files, 979-line main server |
-| Perft correctness | Matches all standard values through depth 5 (4,865,609 nodes) |
-| WASM binary | ~170 KB gzipped |
-| Test count | 749 total across 3 languages |
-
----
-
-# Part 2: Tech Stack & Architecture
-
-*1 minute. What's used, how it fits together, and the key design decisions.*
-
-### Stack
-
-| Layer | Technology | Why |
-|---|---|---|
-| Frontend | TypeScript, Three.js, Vite | WebGL 3D rendering, zero-framework for canvas-heavy app |
-| Chess Engine | Rust → WebAssembly (wasm-bindgen) | 10–100× faster than JS, runs client-side for zero server cost |
-| Multiplayer | Node.js, Express, Socket.io | Real-time WebSocket with HTTP long-polling fallback |
-| Database | Prisma ORM, SQLite (dev/prod) | Type-safe queries, zero-config dev, persistent volume in prod |
-| Auth | JWT + bcryptjs | Stateless auth, guest accounts with optional registration |
-| Metrics | Prometheus (prom-client) | `/metrics` endpoint for Grafana dashboards |
-| Testing | Vitest + cargo test + Playwright | Unit, integration, E2E across all 3 languages |
-| Deploy | Vercel (frontend), Docker + Fly.io (server) | Edge CDN for static, persistent VM for WebSocket server |
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                     Browser                          │
-│                                                      │
-│  ┌──────────┐   ┌────────────┐   ┌──────────────┐   │
-│  │ Three.js │   │   Game     │   │  Socket.io   │   │
-│  │ Renderer │◄──┤ Controller ├──►│   Client     │   │
-│  └──────────┘   └─────┬──────┘   └──────┬───────┘   │
-│                       │                  │           │
-│               ┌───────▼────────┐         │           │
-│               │  Engine Bridge │         │           │
-│               │  (TypeScript)  │         │           │
-│               └───────┬────────┘         │           │
-│                       │                  │           │
-│               ┌───────▼────────┐         │           │
-│               │  Rust Engine   │         │           │
-│               │    (WASM)      │         │           │
-│               └────────────────┘         │           │
-└──────────────────────────────────────────┼───────────┘
-                                           │ WebSocket
-                                  ┌────────▼─────────┐
-                                  │   Chess Server    │
-                                  │  Express + WS     │
-                                  ├──────────────────-┤
-                                  │ Matchmaker  │ ELO │
-                                  │ Game Rooms  │ Auth│
-                                  ├──────────────────-┤
-                                  │   Prisma + SQLite  │
-                                  └────────────────────┘
-```
-
-### AI Fallback Chain
-
-The engine runs **in the browser**, not on the server. Three engines cascade for 100% availability:
-
-```
-Request → Rust WASM (~1M+ NPS)
-             ↓ if WASM fails to load
-          Stockfish.js Worker (~200K NPS, skill 0-20)
-             ↓ if Worker fails
-          TypeScript minimax (~10K NPS, always works)
-```
-
-### Key Design Decisions
-
-| Decision | Rationale |
-|---|---|
-| Engine in browser, not server | Zero latency for single-player, zero server cost for AI, scales to infinite players |
-| Vanilla TS, no React | App is 80% canvas. React's virtual DOM adds overhead for `<canvas>` updates |
-| SQLite in production | Portfolio-scale traffic. Persistent Fly.io volume. Avoids Postgres complexity |
-| Bitboard representation | O(1) attack lookups via magic bitboards. Industry standard for chess engines |
-| 16-bit move encoding | 2 bytes per move. 256-move list fits in 512 bytes (L1 cache) |
-
----
-
-# Part 3: Quick Start
-
-*2 minutes. Clone, install, play.*
-
-### Prerequisites
-
-- **Node.js 18+**
-- **Rust + wasm-pack** *(only if rebuilding the WASM engine — pre-built binary included)*
-
-### Frontend (play the game)
-
-```bash
-git clone https://github.com/beautifulplanet/Promotion-Variant-Chess.git
-cd "Promotion-Variant-Chess/version 1"
-npm install
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173). That's it.
-
-### Multiplayer Server (optional)
-
-```bash
-cd server
-npm install
-cp .env.example .env
-npx prisma migrate dev
-npm run dev
-```
-
-Server starts on `http://localhost:3001`.
-
-### Run Tests
-
-```bash
-npm test                          # 382 frontend tests
-cd server && npm test             # 154 server tests
-cd rust-engine && cargo test      # 213 Rust engine tests
-```
-
-### Build for Production
-
-```bash
-npm run build                     # TypeScript check + Vite → dist/
-```
-
-### Rebuild the WASM Engine (optional)
-
-```bash
-cd rust-engine
-wasm-pack build --target web --release --out-dir ../public/wasm
-```
-
-> **Need more detail?** See [Part 4: Full Tutorial](#part-4-full-tutorial--deep-dive) for step-by-step setup with explanations, or the [standalone tutorial doc](docs/PART4_FULL_TUTORIAL.md).
-
----
-
 # Part 4: Full Tutorial & Deep Dive
 
 *The IKEA manual. Step-by-step setup, complete engine reference, system design Q&A. Everything you need to understand, modify, or rebuild any part of this project.*
 
-> **This section is large.** Use the table of contents below to jump to what you need.
-> It's also available as a [standalone document → docs/PART4_FULL_TUTORIAL.md](docs/PART4_FULL_TUTORIAL.md) with its own table of contents.
+> This is a standalone version of Part 4 from the [main README](../README.md).
+> [← Back to main README](../README.md#part-4-full-tutorial--deep-dive)
 
 ---
 
-## Part 4 — Table of Contents
+## Table of Contents
 
 ### Section A: Setup Guide (IKEA-Style)
 
@@ -562,7 +361,7 @@ Sliding pieces (rook, bishop, queen) attack depends on blockers. Magic bitboards
 
 ~5M legal positions/sec in WASM. Stack-allocated MoveList (512 bytes, L1-cache-friendly).
 
-Perft verified: depth 5 = 4,865,609 nodes ✅
+Perft verified: depth 5 = 4,865,609 nodes.
 
 ---
 
@@ -1147,8 +946,12 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](../LICENSE)
 
 ---
 
 *Built with Rust, TypeScript, and Three.js. 749 tests. Zero frameworks. One `<canvas>`.*
+
+---
+
+*[← Part 3: Quick Start](PART3_QUICK_START.md) · [Back to main README](../README.md)*
