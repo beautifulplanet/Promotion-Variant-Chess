@@ -1,0 +1,25 @@
+{
+  "name": "War Chess - The Chess Chronicle",
+  "short_name": "War Chess",
+  "description": "A chess game with 20 procedural 3D eras, custom Rust WASM engine, and Stockfish AI",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf6ed",
+  "theme_color": "#faf6ed",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

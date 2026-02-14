@@ -869,12 +869,34 @@ function renderSetupBoard(): void {
         square.classList.add('drop-target');
       }
 
-      // Left click for move/select, right click for remove to bank
+      // Left click/tap for move/select, right click OR long-press for remove to bank
       square.addEventListener('click', () => handleSetupSquareClick(row, actualCol, idx));
       square.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         handleSetupSquareRightClick(row, actualCol, pieceHere);
       });
+
+      // Long-press support for touch (replaces right-click)
+      let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+      let longPressFired = false;
+      square.addEventListener('touchstart', (e) => {
+        longPressFired = false;
+        longPressTimer = setTimeout(() => {
+          longPressFired = true;
+          e.preventDefault();
+          handleSetupSquareRightClick(row, actualCol, pieceHere);
+          // Visual feedback — brief vibration if supported
+          if (navigator.vibrate) navigator.vibrate(50);
+        }, 500);
+      }, { passive: false });
+      square.addEventListener('touchend', (e) => {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        if (longPressFired) { e.preventDefault(); } // Prevent click from also firing
+      });
+      square.addEventListener('touchmove', () => {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      });
+
       setupBoard.appendChild(square);
     }
   }

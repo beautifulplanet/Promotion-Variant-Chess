@@ -59,10 +59,14 @@ let orbitTheta = 0;
 let orbitPhi = Math.PI / 4;
 let orbitTarget = new THREE.Vector3(0, 0, 0);
 
-// Mouse state for camera control
+// Mouse/touch state for camera control
 let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+let isTouchDevice = false;
+let pinchStartDist = 0;
 
 // ELO-based era state
 let currentElo: number = 400;
@@ -172,16 +176,17 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     );
     console.log('[Renderer3D] Camera created');
 
-    // Create WebGL renderer with ADVANCED HIGH-END settings
+    // Create WebGL renderer with settings adapted for desktop/mobile
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
     try {
         renderer = new THREE.WebGLRenderer({
             canvas,
-            antialias: true,
+            antialias: !isMobileDevice,  // Disable on mobile for performance
             alpha: false,
-            powerPreference: 'high-performance',
-            precision: 'mediump', // PERF: mediump is sufficient for chess scene
-            stencil: false,       // PERF: not used, save GPU memory
-            logarithmicDepthBuffer: false, // PERF: removes per-fragment log2() cost
+            powerPreference: isMobileDevice ? 'default' : 'high-performance',
+            precision: 'mediump',
+            stencil: false,
+            logarithmicDepthBuffer: false,
         });
     } catch (e) {
         console.error('[Renderer3D] WebGL initialization failed:', e);
@@ -260,14 +265,111 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     // Setup click handling for square selection
     setupClickHandler();
 
+    // Setup responsive resize
+    setupResize();
+
     // Set initial camera position
     updateCameraPosition();
 
     // Start render loop
     startRenderLoop();
 
+    // Detect mobile and adjust quality
+    detectMobileAndOptimize();
+
     console.log('[Renderer3D] Initialized - ELO-Based Era System with PBR');
     console.log('[Renderer3D] Current Era:', getEraForElo(currentElo).name);
+}
+
+// =============================================================================
+// RESPONSIVE CANVAS RESIZE
+// =============================================================================
+
+let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function setupResize(): void {
+    const handleResize = () => {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(doResize, 100);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+    // Initial size
+    doResize();
+}
+
+function doResize(): void {
+    if (!canvas || !renderer || !camera) return;
+
+    const wrapper = canvas.parentElement;
+    if (!wrapper) return;
+
+    // Get available space from parent container
+    const containerWidth = wrapper.parentElement?.clientWidth || window.innerWidth;
+    const containerHeight = wrapper.parentElement?.clientHeight || window.innerHeight;
+
+    // On mobile, use nearly full viewport width; on desktop, cap at reasonable size
+    const isMobile = window.innerWidth < 768;
+    const maxWidth = isMobile ? containerWidth - 10 : Math.min(containerWidth - 40, 1150);
+    // Keep aspect ratio ~2:1 for the chess board
+    const width = Math.floor(maxWidth);
+    const height = Math.floor(isMobile ? width * 0.6 : Math.min(width * 0.478, containerHeight - 200));
+
+    // Update canvas HTML attributes (drawing buffer)
+    const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+
+    // Update canvas CSS size
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+
+    // Update overlay canvas if it exists
+    const overlayCanvas = document.getElementById('overlay-canvas') as HTMLCanvasElement | null;
+    if (overlayCanvas) {
+        overlayCanvas.width = Math.floor(width * dpr);
+        overlayCanvas.height = Math.floor(height * dpr);
+        overlayCanvas.style.width = width + 'px';
+        overlayCanvas.style.height = height + 'px';
+    }
+
+    // Update wrapper size
+    wrapper.style.width = width + 'px';
+    wrapper.style.height = height + 'px';
+
+    // Update Three.js renderer and camera
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(dpr);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    // Invalidate caches
+    _cachedSquares = null;
+
+    console.log('[Renderer3D] Resized to', width, 'x', height, '@ DPR', dpr.toFixed(1));
+}
+
+export function getCanvasSize(): { width: number; height: number } {
+    return { width: canvas?.clientWidth || 1150, height: canvas?.clientHeight || 550 };
+}
+
+// =============================================================================
+// MOBILE PERFORMANCE DETECTION
+// =============================================================================
+
+function detectMobileAndOptimize(): void {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+    if (isMobile) {
+        console.log('[Renderer3D] Mobile detected — optimizing performance');
+        // Disable expensive features on mobile
+        renderer.shadowMap.enabled = false;
+        shadowsEnabled = false;
+        // Lower pixel ratio for performance
+        const mobileDpr = Math.min(window.devicePixelRatio, 1.5);
+        renderer.setPixelRatio(mobileDpr);
+        // Disable antialias can't be done after init, but we can reduce tonemap exposure
+        renderer.toneMappingExposure = 1.0;
+    }
 }
 
 // =============================================================================
@@ -730,38 +832,53 @@ function createFadedBoard(zOffset: number, opacity: number, style?: BoardStyleCo
 }
 
 // =============================================================================
-// CAMERA CONTROLS
+// CAMERA CONTROLS (Mouse + Touch)
 // =============================================================================
 
+// Minimum drag distance (px) before we consider it a drag vs a tap/click
+const DRAG_THRESHOLD = 8;
+
 function setupCameraControls(): void {
+    // --- MOUSE EVENTS ---
     canvas.addEventListener('mousedown', (e) => {
         if (currentViewMode === 'pan') {
-            isDragging = true;
+            isDragging = false; // Will become true if threshold exceeded
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         }
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (isDragging && currentViewMode === 'pan') {
-            const deltaX = e.clientX - lastMouseX;
-            const deltaY = e.clientY - lastMouseY;
-
-            orbitTheta -= deltaX * 0.01;
-            orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
-
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-
-            updateCameraPosition();
+        if (currentViewMode === 'pan' && (dragStartX !== 0 || dragStartY !== 0)) {
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            if (!isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+                isDragging = true;
+            }
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                orbitTheta -= deltaX * 0.01;
+                orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                updateCameraPosition();
+            }
         }
     });
 
     canvas.addEventListener('mouseup', () => {
-        isDragging = false;
+        dragStartX = 0;
+        dragStartY = 0;
+        // isDragging stays true briefly so click handler can check it
+        setTimeout(() => { isDragging = false; }, 50);
     });
 
     canvas.addEventListener('mouseleave', () => {
+        dragStartX = 0;
+        dragStartY = 0;
         isDragging = false;
     });
 
@@ -772,6 +889,82 @@ function setupCameraControls(): void {
             updateCameraPosition();
         }
     }, { passive: false });
+
+    // --- TOUCH EVENTS ---
+    canvas.addEventListener('touchstart', (e) => {
+        isTouchDevice = true;
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            dragStartX = t.clientX;
+            dragStartY = t.clientY;
+            lastMouseX = t.clientX;
+            lastMouseY = t.clientY;
+            isDragging = false;
+        } else if (e.touches.length === 2 && currentViewMode === 'pan') {
+            // Pinch-to-zoom start
+            e.preventDefault();
+            pinchStartDist = getTouchDistance(e.touches);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            const dx = t.clientX - dragStartX;
+            const dy = t.clientY - dragStartY;
+
+            if (!isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+                isDragging = true;
+            }
+
+            if (isDragging && currentViewMode === 'pan') {
+                e.preventDefault();
+                const deltaX = t.clientX - lastMouseX;
+                const deltaY = t.clientY - lastMouseY;
+                orbitTheta -= deltaX * 0.01;
+                orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
+                lastMouseX = t.clientX;
+                lastMouseY = t.clientY;
+                updateCameraPosition();
+            }
+        } else if (e.touches.length === 2 && currentViewMode === 'pan') {
+            // Pinch-to-zoom
+            e.preventDefault();
+            const dist = getTouchDistance(e.touches);
+            const scale = pinchStartDist / dist;
+            orbitRadius = Math.max(8, Math.min(40, orbitRadius * scale));
+            pinchStartDist = dist;
+            updateCameraPosition();
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+            // Single finger lift — if it was a tap (not a drag), fire click
+            if (!isDragging && e.changedTouches.length === 1) {
+                const t = e.changedTouches[0];
+                const boardPos = screenToBoard(t.clientX, t.clientY);
+                if (boardPos && onSquareClickCallback) {
+                    onSquareClickCallback(boardPos.row, boardPos.col);
+                }
+            }
+            dragStartX = 0;
+            dragStartY = 0;
+            isDragging = false;
+        }
+    });
+
+    canvas.addEventListener('touchcancel', () => {
+        dragStartX = 0;
+        dragStartY = 0;
+        isDragging = false;
+    });
+}
+
+function getTouchDistance(touches: TouchList): number {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
 }
 
 function updateCameraPosition(): void {
