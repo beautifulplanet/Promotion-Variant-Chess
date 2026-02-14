@@ -1,8 +1,10 @@
 // =============================================================================
 // Chess Multiplayer Server — Main Entry Point
 // Express + Socket.io WebSocket server
+// With Prisma DB, JWT Auth, and Prometheus Metrics
 // =============================================================================
 
+import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -12,11 +14,27 @@ import { v4 as uuidv4 } from 'uuid';
 import { ClientMessageSchema, PROTOCOL_VERSION } from './protocol.js';
 import type {
   ServerMessage, GameFound, OpponentMove, MoveAck, GameOver, DrawOffer,
-  DrawDeclined, QueueStatus, ServerError, TimeControl,
+  DrawDeclined, QueueStatus, ServerError, TimeControl, GameResult, GameEndReason,
 } from './protocol.js';
 import { GameRoom, type Player } from './GameRoom.js';
 import { Matchmaker, type QueueEntry } from './Matchmaker.js';
 import { calculateMatchElo } from './elo.js';
+import {
+  findPlayerByUsername, findPlayerById, createPlayer, updatePlayerAfterGame,
+  upgradeGuestAccount, getLeaderboard, saveGame, getPlayerGames, getTotalGames,
+  getPrisma, disconnectDB, type PlayerRecord,
+} from './database.js';
+import {
+  hashPassword, verifyPassword, generateToken, verifyToken,
+  extractToken, isValidUsername, isValidPassword,
+  requireAuth, optionalAuth, type AuthenticatedRequest,
+} from './auth.js';
+import {
+  registry, connectedPlayersGauge, activeGamesGauge, gamesStartedCounter,
+  gamesCompletedCounter, queueLengthGauge, queueWaitHistogram,
+  movesCounter, moveLatencyHistogram, authCounter, errorsCounter,
+  timeDbQuery,
+} from './metrics.js';
 
 // =============================================================================
 // SERVER SETUP
@@ -37,7 +55,7 @@ const io = new Server(httpServer, {
 });
 
 // =============================================================================
-// STATE
+// STATE (in-memory for active sessions — DB for persistence)
 // =============================================================================
 
 const rooms = new Map<string, GameRoom>();          // gameId → GameRoom
@@ -45,40 +63,381 @@ const playerRooms = new Map<string, string>();      // socketId → gameId
 const playerTokens = new Map<string, string>();     // socketId → playerToken
 const matchmaker = new Matchmaker();
 
-// In-memory player data (replace with DB in Phase 6)
+// Map socket → authenticated player ID (from DB)
+const socketPlayerIds = new Map<string, string>();  // socketId → player.id (DB)
+
+// Legacy in-memory fallback (for backward compat during migration)
 const playerData = new Map<string, { name: string; elo: number; games: number }>();
 
 // =============================================================================
-// HEALTH CHECK
+// HEALTH & MONITORING ENDPOINTS
 // =============================================================================
 
-app.get('/health', (_req, res) => {
+app.get('/health', async (_req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    const db = getPrisma();
+    await db.$queryRaw`SELECT 1`;
+    dbStatus = 'connected';
+  } catch {
+    dbStatus = 'disconnected';
+  }
+
+  const totalGamesDB = dbStatus === 'connected' ? await getTotalGames().catch(() => -1) : -1;
+
   res.json({
     status: 'ok',
     uptime: process.uptime(),
     activeGames: rooms.size,
     queueLength: matchmaker.length,
     connectedPlayers: io.engine.clientsCount,
+    database: dbStatus,
+    totalGamesRecorded: totalGamesDB,
     timestamp: new Date().toISOString(),
   });
 });
 
-app.get('/api/leaderboard', (_req, res) => {
-  const page = parseInt((_req.query.page as string) || '1', 10);
-  const limit = Math.min(parseInt((_req.query.limit as string) || '20', 10), 100);
-  const offset = (page - 1) * limit;
+// Prometheus metrics endpoint
+app.get('/metrics', async (_req, res) => {
+  try {
+    // Update gauges before scrape
+    connectedPlayersGauge.set(io.engine.clientsCount);
+    activeGamesGauge.set(rooms.size);
+    queueLengthGauge.set(matchmaker.length);
 
-  const sorted = [...playerData.entries()]
-    .sort((a, b) => b[1].elo - a[1].elo)
-    .slice(offset, offset + limit)
-    .map(([key, data], i) => ({
-      rank: offset + i + 1,
-      name: data.name,
-      elo: data.elo,
-      gamesPlayed: data.games,
+    res.set('Content-Type', registry.contentType);
+    res.end(await registry.metrics());
+  } catch (err) {
+    res.status(500).end(String(err));
+  }
+});
+
+// =============================================================================
+// AUTH ENDPOINTS
+// =============================================================================
+
+/**
+ * POST /api/auth/guest — Create a guest account with auto-generated name.
+ * Returns JWT token + player info.
+ */
+app.post('/api/auth/guest', async (req, res) => {
+  try {
+    const { name } = req.body as { name?: string };
+    const guestName = name || `Guest_${uuidv4().slice(0, 8)}`;
+
+    // Check if name already taken
+    const existing = await timeDbQuery('findPlayer', () => findPlayerByUsername(guestName));
+    if (existing) {
+      res.status(409).json({ error: 'Name already taken', code: 'NAME_TAKEN' });
+      authCounter.inc({ type: 'guest', result: 'name_taken' });
+      return;
+    }
+
+    const player = await timeDbQuery('createPlayer', () => createPlayer({
+      username: guestName,
+      isGuest: true,
     }));
 
-  res.json({ page, limit, total: playerData.size, players: sorted });
+    const token = generateToken({
+      playerId: player.id,
+      username: player.username,
+      isGuest: true,
+    });
+
+    authCounter.inc({ type: 'guest', result: 'success' });
+    res.status(201).json({
+      token,
+      player: {
+        id: player.id,
+        username: player.username,
+        elo: player.elo,
+        isGuest: player.isGuest,
+      },
+    });
+  } catch (err) {
+    errorsCounter.inc({ code: 'AUTH_ERROR' });
+    res.status(500).json({ error: 'Failed to create guest account', code: 'INTERNAL' });
+  }
+});
+
+/**
+ * POST /api/auth/register — Register a new account with username + password.
+ */
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body as { username?: string; password?: string };
+
+    if (!username || !password) {
+      res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
+      return;
+    }
+
+    const usernameCheck = isValidUsername(username);
+    if (!usernameCheck.valid) {
+      res.status(400).json({ error: usernameCheck.error, code: 'INVALID_USERNAME' });
+      return;
+    }
+
+    const passwordCheck = isValidPassword(password);
+    if (!passwordCheck.valid) {
+      res.status(400).json({ error: passwordCheck.error, code: 'INVALID_PASSWORD' });
+      return;
+    }
+
+    const existing = await timeDbQuery('findPlayer', () => findPlayerByUsername(username));
+    if (existing) {
+      res.status(409).json({ error: 'Username already taken', code: 'USERNAME_TAKEN' });
+      authCounter.inc({ type: 'register', result: 'username_taken' });
+      return;
+    }
+
+    const hashed = await hashPassword(password);
+    const player = await timeDbQuery('createPlayer', () => createPlayer({
+      username,
+      password: hashed,
+      isGuest: false,
+    }));
+
+    const token = generateToken({
+      playerId: player.id,
+      username: player.username,
+      isGuest: false,
+    });
+
+    authCounter.inc({ type: 'register', result: 'success' });
+    res.status(201).json({
+      token,
+      player: {
+        id: player.id,
+        username: player.username,
+        elo: player.elo,
+        isGuest: player.isGuest,
+      },
+    });
+  } catch (err) {
+    errorsCounter.inc({ code: 'AUTH_ERROR' });
+    res.status(500).json({ error: 'Registration failed', code: 'INTERNAL' });
+  }
+});
+
+/**
+ * POST /api/auth/login — Log in with username + password.
+ */
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body as { username?: string; password?: string };
+
+    if (!username || !password) {
+      res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
+      return;
+    }
+
+    const player = await timeDbQuery('findPlayer', () => findPlayerByUsername(username));
+    if (!player || !player.password) {
+      res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+      authCounter.inc({ type: 'login', result: 'invalid' });
+      return;
+    }
+
+    const valid = await verifyPassword(password, player.password);
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+      authCounter.inc({ type: 'login', result: 'invalid' });
+      return;
+    }
+
+    const token = generateToken({
+      playerId: player.id,
+      username: player.username,
+      isGuest: player.isGuest,
+    });
+
+    authCounter.inc({ type: 'login', result: 'success' });
+    res.json({
+      token,
+      player: {
+        id: player.id,
+        username: player.username,
+        elo: player.elo,
+        isGuest: player.isGuest,
+        gamesPlayed: player.gamesPlayed,
+        wins: player.wins,
+        losses: player.losses,
+        draws: player.draws,
+      },
+    });
+  } catch (err) {
+    errorsCounter.inc({ code: 'AUTH_ERROR' });
+    res.status(500).json({ error: 'Login failed', code: 'INTERNAL' });
+  }
+});
+
+/**
+ * POST /api/auth/upgrade — Convert a guest account to a registered account.
+ * Requires valid guest JWT.
+ */
+app.post('/api/auth/upgrade', requireAuth as any, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.player?.isGuest) {
+      res.status(400).json({ error: 'Account is already registered', code: 'ALREADY_REGISTERED' });
+      return;
+    }
+
+    const { username, password } = req.body as { username?: string; password?: string };
+
+    if (!username || !password) {
+      res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
+      return;
+    }
+
+    const usernameCheck = isValidUsername(username);
+    if (!usernameCheck.valid) {
+      res.status(400).json({ error: usernameCheck.error, code: 'INVALID_USERNAME' });
+      return;
+    }
+
+    const passwordCheck = isValidPassword(password);
+    if (!passwordCheck.valid) {
+      res.status(400).json({ error: passwordCheck.error, code: 'INVALID_PASSWORD' });
+      return;
+    }
+
+    const existing = await timeDbQuery('findPlayer', () => findPlayerByUsername(username));
+    if (existing) {
+      res.status(409).json({ error: 'Username already taken', code: 'USERNAME_TAKEN' });
+      return;
+    }
+
+    const hashed = await hashPassword(password);
+    const player = await timeDbQuery('upgradeGuest', () =>
+      upgradeGuestAccount(req.player!.playerId, username, hashed)
+    );
+
+    const token = generateToken({
+      playerId: player.id,
+      username: player.username,
+      isGuest: false,
+    });
+
+    authCounter.inc({ type: 'upgrade', result: 'success' });
+    res.json({
+      token,
+      player: {
+        id: player.id,
+        username: player.username,
+        elo: player.elo,
+        isGuest: player.isGuest,
+      },
+    });
+  } catch (err) {
+    errorsCounter.inc({ code: 'AUTH_ERROR' });
+    res.status(500).json({ error: 'Upgrade failed', code: 'INTERNAL' });
+  }
+});
+
+/**
+ * GET /api/auth/me — Get current player info from JWT.
+ */
+app.get('/api/auth/me', requireAuth as any, async (req: AuthenticatedRequest, res) => {
+  try {
+    const player = await timeDbQuery('findPlayer', () => findPlayerById(req.player!.playerId));
+    if (!player) {
+      res.status(404).json({ error: 'Player not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    res.json({
+      id: player.id,
+      username: player.username,
+      elo: player.elo,
+      isGuest: player.isGuest,
+      gamesPlayed: player.gamesPlayed,
+      wins: player.wins,
+      losses: player.losses,
+      draws: player.draws,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch profile', code: 'INTERNAL' });
+  }
+});
+
+// =============================================================================
+// LEADERBOARD & GAME HISTORY
+// =============================================================================
+
+app.get('/api/leaderboard', async (_req, res) => {
+  try {
+    const page = parseInt((_req.query.page as string) || '1', 10);
+    const limit = Math.min(parseInt((_req.query.limit as string) || '20', 10), 100);
+
+    const { players, total } = await timeDbQuery('leaderboard', () => getLeaderboard(page, limit));
+
+    const offset = (page - 1) * limit;
+    res.json({
+      page,
+      limit,
+      total,
+      players: players.map((p, i) => ({
+        rank: offset + i + 1,
+        name: p.username,
+        elo: p.elo,
+        gamesPlayed: p.gamesPlayed,
+        wins: p.wins,
+        losses: p.losses,
+        draws: p.draws,
+      })),
+    });
+  } catch (err) {
+    // Fallback to in-memory data if DB is unavailable
+    const page = parseInt((_req.query.page as string) || '1', 10);
+    const limit = Math.min(parseInt((_req.query.limit as string) || '20', 10), 100);
+    const offset = (page - 1) * limit;
+
+    const sorted = [...playerData.entries()]
+      .sort((a, b) => b[1].elo - a[1].elo)
+      .slice(offset, offset + limit)
+      .map(([key, data], i) => ({
+        rank: offset + i + 1,
+        name: data.name,
+        elo: data.elo,
+        gamesPlayed: data.games,
+      }));
+
+    res.json({ page, limit, total: playerData.size, players: sorted });
+  }
+});
+
+app.get('/api/games/:playerId', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt((req.query.limit as string) || '20', 10), 100);
+    const games = await timeDbQuery('playerGames', () => getPlayerGames(req.params.playerId, limit));
+    res.json({ games });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch games', code: 'INTERNAL' });
+  }
+});
+
+app.get('/api/player/:username', async (req, res) => {
+  try {
+    const player = await timeDbQuery('findPlayer', () => findPlayerByUsername(req.params.username));
+    if (!player) {
+      res.status(404).json({ error: 'Player not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    res.json({
+      id: player.id,
+      username: player.username,
+      elo: player.elo,
+      gamesPlayed: player.gamesPlayed,
+      wins: player.wins,
+      losses: player.losses,
+      draws: player.draws,
+      createdAt: player.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch player', code: 'INTERNAL' });
+  }
 });
 
 // =============================================================================
@@ -87,6 +446,16 @@ app.get('/api/leaderboard', (_req, res) => {
 
 io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
+  connectedPlayersGauge.inc();
+
+  // Authenticate socket via JWT in handshake query/auth
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (token && typeof token === 'string') {
+    const payload = verifyToken(token);
+    if (payload) {
+      socketPlayerIds.set(socket.id, payload.playerId);
+    }
+  }
 
   socket.on('message', (rawData: unknown) => {
     // Parse and validate
@@ -96,11 +465,13 @@ io.on('connection', (socket) => {
       const result = ClientMessageSchema.safeParse(parsed);
       if (!result.success) {
         sendError(socket, 'INVALID_MESSAGE', result.error.issues[0]?.message || 'Invalid message');
+        errorsCounter.inc({ code: 'INVALID_MESSAGE' });
         return;
       }
       data = result.data;
     } catch {
       sendError(socket, 'PARSE_ERROR', 'Invalid JSON');
+      errorsCounter.inc({ code: 'PARSE_ERROR' });
       return;
     }
 
@@ -134,7 +505,9 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`[disconnect] ${socket.id}`);
+    connectedPlayersGauge.dec();
     matchmaker.removePlayer(socket.id);
+    socketPlayerIds.delete(socket.id);
 
     const gameId = playerRooms.get(socket.id);
     if (gameId) {
@@ -158,7 +531,7 @@ function handleJoinQueue(
 ) {
   const tc = timeControl ?? { initial: 600, increment: 0 };
 
-  // Store/update player data
+  // Store/update player data (in-memory fallback)
   if (!playerData.has(playerName)) {
     playerData.set(playerName, { name: playerName, elo, games: 0 });
   }
@@ -171,9 +544,16 @@ function handleJoinQueue(
     joinedAt: Date.now(),
   };
 
+  queueLengthGauge.set(matchmaker.length + 1);
+
   const match = matchmaker.addPlayer(entry);
 
   if (match) {
+    // Record queue wait time
+    const waitTime = (Date.now() - match.player1.joinedAt) / 1000;
+    queueWaitHistogram.observe(waitTime);
+    queueLengthGauge.set(matchmaker.length);
+
     createGame(match.player1, match.player2, tc);
   } else {
     const pos = matchmaker.getPosition(socket.id);
@@ -187,21 +567,29 @@ function handleJoinQueue(
 
 function handleLeaveQueue(socket: { id: string }) {
   matchmaker.removePlayer(socket.id);
+  queueLengthGauge.set(matchmaker.length);
 }
 
 function handleMakeMove(socket: { id: string; emit: Function }, gameId: string, moveStr: string) {
   const room = rooms.get(gameId);
   if (!room) {
     sendError(socket, 'GAME_NOT_FOUND', 'Game not found');
+    errorsCounter.inc({ code: 'GAME_NOT_FOUND' });
     return;
   }
 
+  const moveStart = performance.now();
   const result = room.makeMove(socket.id, moveStr);
+  const moveEnd = performance.now();
+  moveLatencyHistogram.observe((moveEnd - moveStart) / 1000);
 
   if (!result.ok) {
     sendError(socket, 'ILLEGAL_MOVE', result.error);
+    errorsCounter.inc({ code: 'ILLEGAL_MOVE' });
     return;
   }
+
+  movesCounter.inc();
 
   // Send acknowledgement to moving player
   send(socket, {
@@ -358,6 +746,10 @@ function createGame(p1: QueueEntry, p2: QueueEntry, timeControl: TimeControl) {
   playerTokens.set(white.id, whiteToken);
   playerTokens.set(black.id, blackToken);
 
+  // Metrics
+  gamesStartedCounter.inc();
+  activeGamesGauge.set(rooms.size);
+
   // Notify both players
   const whiteSocket = io.sockets.sockets.get(white.id);
   const blackSocket = io.sockets.sockets.get(black.id);
@@ -385,8 +777,8 @@ function createGame(p1: QueueEntry, p2: QueueEntry, timeControl: TimeControl) {
   console.log(`[game] ${room.id} — ${white.name} (${white.elo}) vs ${black.name} (${black.elo})`);
 }
 
-function endGame(room: GameRoom, result: 'white' | 'black' | 'draw', reason: string) {
-  // Calculate ELO changes
+async function endGame(room: GameRoom, result: GameResult, reason: GameEndReason) {
+  // Calculate ELO changes (in-memory)
   const whiteData = playerData.get(room.white.name) ?? { name: room.white.name, elo: room.white.elo, games: 0 };
   const blackData = playerData.get(room.black.name) ?? { name: room.black.name, elo: room.black.elo, games: 0 };
 
@@ -401,12 +793,21 @@ function endGame(room: GameRoom, result: 'white' | 'black' | 'draw', reason: str
   playerData.set(room.white.name, whiteData);
   playerData.set(room.black.name, blackData);
 
+  // Persist to database (fire-and-forget for speed, log errors)
+  persistGameResult(room, result, reason, eloResult).catch(err => {
+    console.error('[db] Failed to persist game result:', err);
+  });
+
+  // Metrics
+  gamesCompletedCounter.inc({ result, reason });
+  activeGamesGauge.set(rooms.size - 1); // room is about to be removed
+
   // Notify white
   const whiteSocket = io.sockets.sockets.get(room.white.id);
   if (whiteSocket) {
     send(whiteSocket, {
       type: 'game_over', v: PROTOCOL_VERSION,
-      gameId: room.id, result, reason: reason as any,
+      gameId: room.id, result, reason,
       winner: result === 'draw' ? undefined : (result === 'white' ? room.white.name : room.black.name),
       eloChange: eloResult.white.change,
       newElo: eloResult.white.newElo,
@@ -418,7 +819,7 @@ function endGame(room: GameRoom, result: 'white' | 'black' | 'draw', reason: str
   if (blackSocket) {
     send(blackSocket, {
       type: 'game_over', v: PROTOCOL_VERSION,
-      gameId: room.id, result, reason: reason as any,
+      gameId: room.id, result, reason,
       winner: result === 'draw' ? undefined : (result === 'white' ? room.white.name : room.black.name),
       eloChange: eloResult.black.change,
       newElo: eloResult.black.newElo,
@@ -432,9 +833,60 @@ function endGame(room: GameRoom, result: 'white' | 'black' | 'draw', reason: str
   playerTokens.delete(room.black.id);
 
   // Keep room for a bit for potential reconnect/review, then delete
-  setTimeout(() => rooms.delete(room.id), 60_000);
+  setTimeout(() => {
+    rooms.delete(room.id);
+    activeGamesGauge.set(rooms.size);
+  }, 60_000);
 
   console.log(`[game over] ${room.id} — ${result} by ${reason}`);
+}
+
+/**
+ * Persist game result to database — updates player ELOs and saves game record.
+ */
+async function persistGameResult(
+  room: GameRoom,
+  result: GameResult,
+  reason: string,
+  eloResult: { white: { newElo: number }; black: { newElo: number } },
+) {
+  // Try to find players in DB by name
+  const [whitePlayer, blackPlayer] = await Promise.all([
+    timeDbQuery('findPlayer', () => findPlayerByUsername(room.white.name)),
+    timeDbQuery('findPlayer', () => findPlayerByUsername(room.black.name)),
+  ]);
+
+  // Update player records if they exist in DB
+  if (whitePlayer) {
+    const whiteResult = result === 'white' ? 'win' : result === 'black' ? 'loss' : 'draw';
+    await timeDbQuery('updatePlayer', () =>
+      updatePlayerAfterGame(whitePlayer.id, eloResult.white.newElo, whiteResult as 'win' | 'loss' | 'draw')
+    );
+  }
+
+  if (blackPlayer) {
+    const blackResult = result === 'black' ? 'win' : result === 'white' ? 'loss' : 'draw';
+    await timeDbQuery('updatePlayer', () =>
+      updatePlayerAfterGame(blackPlayer.id, eloResult.black.newElo, blackResult as 'win' | 'loss' | 'draw')
+    );
+  }
+
+  // Save game record
+  if (whitePlayer && blackPlayer) {
+    const duration = Math.floor((Date.now() - room.createdAt) / 1000);
+    await timeDbQuery('saveGame', () =>
+      saveGame({
+        whiteId: whitePlayer.id,
+        blackId: blackPlayer.id,
+        result,
+        reason,
+        fen: room.fen,
+        moves: room.moveHistory.length,
+        timeControl: room.timeControl,
+        duration,
+      })
+    );
+  }
 }
 
 // =============================================================================
@@ -442,9 +894,13 @@ function endGame(room: GameRoom, result: 'white' | 'black' | 'draw', reason: str
 // =============================================================================
 
 // Scan for matches every 5 seconds (expanding ELO windows)
-setInterval(() => {
+const matchScanInterval = setInterval(() => {
   const matches = matchmaker.scanForMatches();
   for (const match of matches) {
+    // Record queue wait time
+    const waitTime = (Date.now() - match.player1.joinedAt) / 1000;
+    queueWaitHistogram.observe(waitTime);
+
     createGame(match.player1, match.player2, match.player1.timeControl);
   }
 
@@ -456,10 +912,12 @@ setInterval(() => {
       sendError(socket, 'QUEUE_TIMEOUT', 'No opponent found — try again or play vs AI');
     }
   }
+
+  queueLengthGauge.set(matchmaker.length);
 }, 5_000);
 
 // Check disconnection timeouts every 10 seconds
-setInterval(() => {
+const disconnectCheckInterval = setInterval(() => {
   for (const [gameId, room] of rooms) {
     if (room.state !== 'playing') continue;
     const timeout = room.checkDisconnectTimeout();
@@ -482,16 +940,35 @@ function sendError(socket: { emit: Function }, code: string, message: string) {
 }
 
 // =============================================================================
-// START
+// EXPORTS & START
 // =============================================================================
 
-export { app, httpServer, io, rooms, matchmaker, playerData };
+export {
+  app, httpServer, io, rooms, matchmaker, playerData, socketPlayerIds,
+  matchScanInterval, disconnectCheckInterval,
+};
 
-export function startServer(port: number = PORT) {
+export async function startServer(port: number = PORT) {
+  // Ensure DB connection works
+  try {
+    const db = getPrisma();
+    await db.$queryRaw`SELECT 1`;
+    console.log('📦 Database connected');
+  } catch (err) {
+    console.warn('⚠️  Database not available — running with in-memory only');
+  }
+
   httpServer.listen(port, () => {
     console.log(`♟️  Chess server listening on port ${port}`);
   });
   return httpServer;
+}
+
+export async function stopServer() {
+  clearInterval(matchScanInterval);
+  clearInterval(disconnectCheckInterval);
+  await disconnectDB();
+  httpServer.close();
 }
 
 // Only auto-start if run directly (not imported for testing)

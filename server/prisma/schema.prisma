@@ -1,0 +1,62 @@
+// =============================================================================
+// Chess Server — Prisma Schema
+// SQLite for development, PostgreSQL for production
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// =============================================================================
+// PLAYERS
+// =============================================================================
+
+model Player {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String?  // null for guest accounts
+  isGuest     Boolean  @default(true)
+  elo         Int      @default(1200)
+  gamesPlayed Int      @default(0) @map("games_played")
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  draws       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  whiteGames  Game[]   @relation("WhitePlayer")
+  blackGames  Game[]   @relation("BlackPlayer")
+
+  @@map("players")
+}
+
+// =============================================================================
+// GAMES
+// =============================================================================
+
+model Game {
+  id          String   @id @default(uuid())
+  whiteId     String   @map("white_id")
+  blackId     String   @map("black_id")
+  result      String   // 'white' | 'black' | 'draw'
+  reason      String   // 'checkmate' | 'resignation' | 'timeout' | etc.
+  pgn         String?  // PGN notation of the game
+  fen         String?  // Final position FEN
+  moves       Int      @default(0) // Number of moves
+  timeControl String   @map("time_control") // JSON: { initial, increment }
+  duration    Int      @default(0) // Game duration in seconds
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  white       Player   @relation("WhitePlayer", fields: [whiteId], references: [id])
+  black       Player   @relation("BlackPlayer", fields: [blackId], references: [id])
+
+  @@index([whiteId])
+  @@index([blackId])
+  @@index([createdAt])
+  @@map("games")
+}
