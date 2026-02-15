@@ -1449,6 +1449,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── INCIDENT_RESPONSE.md   # P0-P3 incident runbook
 │   ├── LOAD_TEST_PLAN.md      # k6 methodology, SLOs, capacity planning
 │   ├── PRODUCTION_RESILIENCE.md # Defense-in-depth, failure modes, SLOs
+│   ├── ARCHITECTURE_FAQ.md    # "Why X over Y?" for every decision
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
 └── index.html                 # Single-page app entry (1638 lines)
@@ -1639,6 +1640,7 @@ Tournament Runner                             Tournament SQLite DB
 | [docs/PRODUCTION_RESILIENCE.md](docs/PRODUCTION_RESILIENCE.md) | SLOs, defense-in-depth, failure modes | SRE / DevOps |
 | [docs/LOAD_TEST_PLAN.md](docs/LOAD_TEST_PLAN.md) | k6 methodology, capacity planning, CI integration | Performance engineers |
 | [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) | P0–P3 runbook, diagnostic commands, rollback | On-call engineers |
+| [docs/ARCHITECTURE_FAQ.md](docs/ARCHITECTURE_FAQ.md) | "Why did you choose X?" — every architectural trade-off explained | Staff+ interviewers |
 
 ---
 

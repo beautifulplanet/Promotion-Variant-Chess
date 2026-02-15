@@ -1060,6 +1060,7 @@ k6 run load-tests/stress-test.js
 │   ├── INCIDENT_RESPONSE.md   # P0-P3 incident runbook
 │   ├── LOAD_TEST_PLAN.md      # k6 methodology, SLOs, capacity planning
 │   ├── PRODUCTION_RESILIENCE.md # Defense-in-depth, failure modes, SLOs
+│   ├── ARCHITECTURE_FAQ.md    # "Why X over Y?" for every decision
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
 └── index.html                 # Single-page app entry (1638 lines)
@@ -1129,6 +1130,7 @@ k6 run load-tests/stress-test.js
 | [PRODUCTION_RESILIENCE.md](PRODUCTION_RESILIENCE.md) | SLOs, defense-in-depth, failure modes | SRE / DevOps |
 | [LOAD_TEST_PLAN.md](LOAD_TEST_PLAN.md) | k6 methodology, capacity planning | Performance engineers |
 | [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md) | P0–P3 runbook, diagnostics, rollback | On-call engineers |
+| [ARCHITECTURE_FAQ.md](ARCHITECTURE_FAQ.md) | "Why did you choose X?" — every trade-off explained | Staff+ interviewers |
 
 ---
 
