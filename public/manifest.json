@@ -1,13 +1,22 @@
 {
   "name": "War Chess - The Chess Chronicle",
   "short_name": "War Chess",
-  "description": "A chess game with 20 procedural 3D eras, custom Rust WASM engine, and Stockfish AI",
+  "description": "A chess game with 20 procedural 3D eras, custom Rust WASM engine, and Stockfish AI. Travel through time from the Stone Age to the Future, battling AI opponents in stunning 3D worlds.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
   "orientation": "any",
+  "dir": "ltr",
+  "lang": "en",
   "background_color": "#faf6ed",
   "theme_color": "#faf6ed",
   "categories": ["games", "entertainment"],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "icons": [
     {
       "src": "/assets/icons/icon-192.png",
@@ -33,5 +42,43 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/screenshots/desktop-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "War Chess — 3D chess across 20 historical eras"
+    },
+    {
+      "src": "/assets/screenshots/mobile-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "War Chess — Mobile gameplay"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Game",
+      "short_name": "New Game",
+      "url": "/?action=new",
+      "description": "Start a new chess game"
+    },
+    {
+      "name": "Privacy Policy",
+      "short_name": "Privacy",
+      "url": "/privacy.html",
+      "description": "View privacy policy"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "url": "url"
+    }
+  }
 }
