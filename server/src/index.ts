@@ -73,6 +73,22 @@ const playerData = new Map<string, { name: string; elo: number; games: number }>
 // HEALTH & MONITORING ENDPOINTS
 // =============================================================================
 
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'The Chess Chronicle — Multiplayer Server',
+    status: 'online',
+    frontend: 'https://promotion-variant-chess.vercel.app',
+    endpoints: {
+      health: '/health',
+      metrics: '/metrics',
+      register: 'POST /api/auth/register',
+      login: 'POST /api/auth/login',
+      leaderboard: '/api/leaderboard',
+      websocket: 'wss://chess-server-falling-lake-2071.fly.dev',
+    },
+  });
+});
+
 app.get('/health', async (_req, res) => {
   let dbStatus = 'unknown';
   try {
@@ -958,8 +974,9 @@ export async function startServer(port: number = PORT) {
     console.warn('⚠️  Database not available — running with in-memory only');
   }
 
-  httpServer.listen(port, () => {
-    console.log(`♟️  Chess server listening on port ${port}`);
+  const host = '0.0.0.0';
+  httpServer.listen(port, host, () => {
+    console.log(`♟️  Chess server listening on ${host}:${port}`);
   });
   return httpServer;
 }
