@@ -1250,5 +1250,5 @@ PHASE 12: Polish & Portfolio (Months 36-40)
 *Phase 3 complete (Tasks 3.1-3.9 done)*
 *Optimizations: TT (256K entries), killer moves (2/ply), NMP (R=2), LMR, iterative deepening + time mgmt*
 *Benchmarks: perft.html, search.html, results.html — all auto-run JS vs WASM comparison*
-*Test counts: 213 Rust tests, 382 TypeScript tests*
+*Test counts: 218 Rust tests, 420 TypeScript tests*
 *Next: Phase 4 — Technical Blog Post*

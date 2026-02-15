@@ -11,7 +11,18 @@ import type { Request, Response, NextFunction } from 'express';
 // CONFIGURATION
 // =============================================================================
 
-const JWT_SECRET = process.env.JWT_SECRET || 'chess-server-dev-secret-change-in-production';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET environment variable is required. ' +
+      'Set it in .env or your deployment environment.'
+    );
+  }
+  return secret;
+}
+
+const JWT_SECRET: string = getJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 const BCRYPT_ROUNDS = 10;
 

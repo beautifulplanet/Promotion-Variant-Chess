@@ -57,9 +57,9 @@ Server starts on `http://localhost:3001`.
 ## Run Tests
 
 ```bash
-npm test                          # 382 frontend tests
+npm test                          # 420 frontend tests
 cd server && npm test             # 154 server tests
-cd rust-engine && cargo test      # 213 Rust engine tests
+cd rust-engine && cargo test      # 218 Rust engine tests
 ```
 
 ---

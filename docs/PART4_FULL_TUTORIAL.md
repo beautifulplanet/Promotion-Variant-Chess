@@ -193,7 +193,7 @@ Server runs on `http://localhost:3001`.
 ## A5. Run All Tests
 
 ```bash
-# Frontend (382 tests, ~5s)
+# Frontend (420 tests, ~5s)
 npm test
 
 # Server (154 tests, ~8s)
@@ -207,12 +207,12 @@ npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 749 unit/integration tests + 5 E2E tests**
+**Total: 792 unit/integration tests + 5 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
-| Rust engine | 213 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state |
-| Frontend | 382 | Game controller, ELO, era system, save system, chess engine, performance |
+| Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
+| Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
 | Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
@@ -770,7 +770,7 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
 | Starting | 5 | 4,865,609 | ✅ |
 | Kiwipete | 4 | 4,085,603 | ✅ |
 
-**213 Rust tests:** bitboards, attacks, magic validation, move gen, make/unmake, search, TT, Zobrist, game state, perft.
+**218 Rust tests:** bitboards, attacks, magic validation, move gen, make/unmake, search, TT, Zobrist, game state, perft, tournament runner.
 
 ---
 
@@ -908,7 +908,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Layer | Tool | Count |
 |---|---|---|
 | Engine | cargo test | 213 |
-| Frontend | Vitest | 382 |
+| Frontend | Vitest | 420 |
 | Server | Vitest | 154 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
@@ -1049,7 +1049,7 @@ k6 run load-tests/stress-test.js
 │   ├── websocket-load-test.js # WebSocket: gameplay sim, 200 concurrent
 │   └── stress-test.js         # Breaking point: 500 RPS, 250 WS connections
 │
-├── tests/                     # Frontend test suite (382 tests)
+├── tests/                     # Frontend test suite (420 tests)
 ├── e2e/                       # Playwright E2E tests (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
@@ -1140,7 +1140,7 @@ k6 run load-tests/stress-test.js
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 749 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 792 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
 
 ---
 

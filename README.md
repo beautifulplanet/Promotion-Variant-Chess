@@ -6,7 +6,7 @@
 🔌 **[Multiplayer Server](https://chess-server-falling-lake-2071.fly.dev)** 🔌
 📈 **[Health Check](https://chess-server-falling-lake-2071.fly.dev/health)** · 📊 **[Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics)**
 
-> *749 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
+> *792 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
 
 <!-- Screenshot placeholder: Replace with actual screenshot -->
 <!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
@@ -44,6 +44,7 @@ Each part is also available as a **standalone document** if you only want one se
 A chess game that combines:
 - **Custom Rust chess engine** compiled to WebAssembly (bitboards, magic bitboards, alpha-beta search, transposition tables)
 - **3D rendering** with Three.js — 20 procedurally generated era environments
+- **AI Aggression system** — 20-level slider controlling bonus pieces, board rearrangement, and pawn upgrades
 - **Real-time multiplayer** via Socket.io with ELO matchmaking, JWT auth, game persistence
 - **Progressive Web App** — installable on mobile, offline-capable
 
@@ -53,7 +54,7 @@ A chess game that combines:
 |---|---|
 | Systems programming | Rust engine: bitboard move gen, magic bitboard lookups, Zobrist hashing — all compiled to WASM |
 | Full-stack ownership | Frontend (TS + Three.js), backend (Node + Express + Prisma), engine (Rust), infra (Docker + Fly.io) |
-| Testing discipline | 749 tests: 213 Rust (cargo test) + 382 frontend (Vitest) + 154 server (Vitest) |
+| Testing discipline | 792 tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 154 server (Vitest) |
 | Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
 | Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
@@ -69,7 +70,7 @@ A chess game that combines:
 | Load test scripts | 3 k6 scripts (HTTP, WebSocket, stress) |
 | Perft correctness | Matches all standard values through depth 5 (4,865,609 nodes) |
 | WASM binary | ~170 KB gzipped |
-| Test count | 749 total across 3 languages |
+| Test count | 792 total across 3 languages |
 | Prometheus metrics | 16 custom metrics + Node.js defaults |
 
 ---
@@ -186,9 +187,9 @@ Server starts on `http://localhost:3001`.
 ### Run Tests
 
 ```bash
-npm test                          # 382 frontend tests
+npm test                          # 420 frontend tests
 cd server && npm test             # 154 server tests
-cd rust-engine && cargo test      # 213 Rust engine tests
+cd rust-engine && cargo test      # 218 Rust engine tests
 ```
 
 ### Build for Production
@@ -403,13 +404,13 @@ Server runs on `http://localhost:3001`.
 ## A5. Run All Tests
 
 ```bash
-# Frontend (382 tests, ~5s)
+# Frontend (420 tests, ~5s)
 npm test
 
 # Server (154 tests, ~8s)
 cd server && npm test
 
-# Rust engine (213 tests, ~2s)
+# Rust engine (218 tests, ~2s)
 cd rust-engine && cargo test
 
 # E2E browser tests (4 tests)
@@ -417,12 +418,12 @@ npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 749 unit/integration tests + 4 E2E tests**
+**Total: 792 unit/integration tests + 4 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
-| Rust engine | 213 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state |
-| Frontend | 382 | Game controller, ELO, era system, save system, chess engine, performance |
+| Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
+| Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
 | Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
@@ -447,7 +448,7 @@ cd rust-engine
 wasm-pack build --target web --release --out-dir ../public/wasm
 
 # Verify
-cargo test    # All 213 tests
+cargo test    # All 218 tests
 ```
 
 Output goes to `public/wasm/` — a `.wasm` binary (~170 KB gzipped) + JavaScript glue code.
@@ -980,7 +981,7 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
 | Starting | 5 | 4,865,609 | ✅ |
 | Kiwipete | 4 | 4,085,603 | ✅ |
 
-**213 Rust tests:** bitboards, attacks, magic validation, move gen, make/unmake, search, TT, Zobrist, game state, perft.
+**218 Rust tests:** bitboards, attacks, magic validation, move gen, make/unmake, search, TT, Zobrist, game state, perft, tournament runner.
 
 ---
 
@@ -1138,8 +1139,8 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 
 | Layer | Tool | Count |
 |---|---|---|
-| Engine | cargo test | 213 |
-| Frontend | Vitest | 382 |
+| Engine | cargo test | 218 |
+| Frontend | Vitest | 420 |
 | Server | Vitest | 154 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
@@ -1438,7 +1439,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── websocket-load-test.js # WebSocket: gameplay sim, 200 concurrent
 │   └── stress-test.js         # Breaking point: 500 RPS, 250 WS connections
 │
-├── tests/                     # Frontend test suite (382 tests)
+├── tests/                     # Frontend test suite (420 tests)
 ├── e2e/                       # Playwright E2E tests (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
@@ -1650,4 +1651,4 @@ Tournament Runner                             Tournament SQLite DB
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 749 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 792 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
