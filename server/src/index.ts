@@ -9,6 +9,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { resolveCorsOrigins } from './corsConfig';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
@@ -48,7 +49,7 @@ import {
 // =============================================================================
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const allowedOrigins = resolveCorsOrigins(process.env.CORS_ORIGIN);
 
 const app = express();
 
@@ -58,10 +59,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Allow WASM/cross-origin resources
 }));
 
-// CORS — restrict in production, permissive in dev
-const allowedOrigins = CORS_ORIGIN === '*'
-  ? '*'
-  : CORS_ORIGIN.split(',').map(o => o.trim());
+// CORS — consistent for Express + Socket.io
 app.use(cors({ origin: allowedOrigins }));
 
 // Body parsing with size limit (prevent large payload attacks)
@@ -100,7 +98,7 @@ if (!isTestEnv) {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
   pingInterval: 10_000,
   pingTimeout: 5_000,
 });
