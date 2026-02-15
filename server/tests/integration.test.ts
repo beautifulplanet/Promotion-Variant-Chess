@@ -62,7 +62,8 @@ describe('Server Integration', () => {
     const res = await fetch(`http://localhost:${port}/health`);
     const data = await res.json();
     expect(data.status).toBe('ok');
-    expect(data.activeGames).toBeDefined();
+    expect(data.database).toBeDefined();
+    expect(data.uptime).toBeDefined();
   });
 
   it('two players join queue and get matched', async () => {

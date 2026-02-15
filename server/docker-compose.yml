@@ -11,7 +11,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: chess
-      POSTGRES_PASSWORD: chess_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chess_dev_password}
       POSTGRES_DB: chess_server
     ports:
       - "5432:5432"
@@ -30,9 +30,9 @@ services:
       - "3001:3001"
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://chess:chess_dev_password@db:5432/chess_server
-      JWT_SECRET: docker-dev-secret-change-in-production
-      CORS_ORIGIN: "*"
+      DATABASE_URL: postgresql://chess:${POSTGRES_PASSWORD:-chess_dev_password}@db:5432/chess_server
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
       NODE_ENV: development
     depends_on:
       db:

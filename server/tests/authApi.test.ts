@@ -30,7 +30,7 @@ async function api(method: string, path: string, body?: any, token?: string) {
 }
 
 beforeAll(async () => {
-  process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-unit-tests-only-0123456789abcdef';
   prisma = getPrisma();
 
   httpServer = createServer(app);
@@ -288,7 +288,7 @@ describe('API Endpoints', () => {
     expect(status).toBe(200);
     expect(data.status).toBe('ok');
     expect(data.database).toBe('connected');
-    expect(typeof data.totalGamesRecorded).toBe('number');
+    expect(typeof data.uptime).toBe('number');
   });
 
   it('GET /metrics — returns prometheus format', async () => {

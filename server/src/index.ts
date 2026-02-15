@@ -126,14 +126,11 @@ app.get('/', (_req, res) => {
   res.json({
     name: 'The Chess Chronicle — Multiplayer Server',
     status: 'online',
-    frontend: 'https://promotion-variant-chess.vercel.app',
     endpoints: {
       health: '/health',
-      metrics: '/metrics',
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
       leaderboard: '/api/leaderboard',
-      websocket: 'wss://chess-server-falling-lake-2071.fly.dev',
     },
   });
 });
@@ -148,22 +145,25 @@ app.get('/health', async (_req, res) => {
     dbStatus = 'disconnected';
   }
 
-  const totalGamesDB = dbStatus === 'connected' ? await getTotalGames().catch(() => -1) : -1;
-
   res.json({
     status: 'ok',
     uptime: process.uptime(),
-    activeGames: rooms.size,
-    queueLength: matchmaker.length,
-    connectedPlayers: io.engine.clientsCount,
     database: dbStatus,
-    totalGamesRecorded: totalGamesDB,
     timestamp: new Date().toISOString(),
   });
 });
 
-// Prometheus metrics endpoint
-app.get('/metrics', async (_req, res) => {
+// Prometheus metrics endpoint (protected — requires METRICS_TOKEN or internal request)
+app.get('/metrics', async (req, res) => {
+  const metricsToken = process.env.METRICS_TOKEN;
+  if (metricsToken) {
+    const auth = req.headers.authorization;
+    if (!auth || auth !== `Bearer ${metricsToken}`) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+  }
+
   try {
     // Update gauges before scrape
     connectedPlayersGauge.set(io.engine.clientsCount);
@@ -188,6 +188,17 @@ app.get('/metrics', async (_req, res) => {
 app.post('/api/auth/guest', async (req, res) => {
   try {
     const { name } = req.body as { name?: string };
+
+    // Validate custom guest name if provided (H5: prevent XSS via stored name)
+    if (name) {
+      const validation = isValidUsername(name);
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.error, code: 'INVALID_NAME' });
+        authCounter.inc({ type: 'guest', result: 'invalid_name' });
+        return;
+      }
+    }
+
     const guestName = name || `Guest_${uuidv4().slice(0, 8)}`;
 
     // Check if name already taken
@@ -1049,11 +1060,18 @@ export async function startServer(port: number = PORT) {
   // Setup crash recovery FIRST (before anything can throw)
   setupCrashRecovery();
 
-  // Ensure DB connection works
+  // Ensure DB connection works + enable WAL mode for concurrent reads
   try {
     const db = getPrisma();
     await db.$queryRaw`SELECT 1`;
-    console.log('📦 Database connected');
+    // Enable WAL mode for better concurrent performance (M8)
+    if (process.env.DATABASE_URL?.startsWith('file:')) {
+      await db.$executeRawUnsafe('PRAGMA journal_mode=WAL');
+      await db.$executeRawUnsafe('PRAGMA busy_timeout=5000');
+      console.log('📦 Database connected (SQLite WAL mode)');
+    } else {
+      console.log('📦 Database connected');
+    }
   } catch (err) {
     console.warn('⚠️  Database not available — running with in-memory only');
   }

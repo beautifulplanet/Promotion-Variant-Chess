@@ -19,6 +19,12 @@ function getJwtSecret(): string {
       'Set it in .env or your deployment environment.'
     );
   }
+  if (secret.length < 32) {
+    throw new Error(
+      'JWT_SECRET must be at least 32 characters. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
   return secret;
 }
 
@@ -58,7 +64,7 @@ export interface TokenPayload {
  * Generate a JWT token for a player.
  */
 export function generateToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
+  return jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
 }
 
 /**
@@ -66,7 +72,7 @@ export function generateToken(payload: TokenPayload): string {
  */
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
     return decoded;
   } catch {
     return null;

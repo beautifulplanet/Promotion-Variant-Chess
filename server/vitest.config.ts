@@ -15,7 +15,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./dev.db',
-      JWT_SECRET: 'test-secret-key',
+      JWT_SECRET: 'test-secret-key-for-unit-tests-only-0123456789abcdef',
     },
   },
 });

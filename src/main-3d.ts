@@ -1060,7 +1060,7 @@ function confirmSetup(): void {
   const arrangement = setupArrangement.map(p => ({
     row: p.row,
     col: p.col,
-    type: p.type.toUpperCase() as any
+    type: p.type.toUpperCase() as PieceType
   }));
 
   // Validate that exactly ONE King exists
@@ -1185,7 +1185,7 @@ function saveCurrentProfile(): void {
   }
 
   // Save using gameController (which updates currentSaveData)
-  Game.setCustomArrangement(arrangement.map(p => ({ ...p, type: p.type as any })));
+  Game.setCustomArrangement(arrangement.map(p => ({ ...p, type: p.type as PieceType })));
   if (Game.saveCurrentBoardProfile(name.trim())) {
     alert(`Profile "${name.trim()}" saved! Remember to download your save file to keep it permanently.`);
     updateProfileDropdown();
@@ -1257,7 +1257,7 @@ if (profileDeleteBtn) {
 
 // Update dropdown when setup mode opens
 const originalOpenSetupMode = openSetupMode;
-(window as any)._openSetupModeOriginal = openSetupMode;
+(window as unknown as Record<string, unknown>)._openSetupModeOriginal = openSetupMode;
 
 // =============================================================================
 // GAME CALLBACKS
