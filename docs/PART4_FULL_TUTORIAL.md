@@ -266,8 +266,8 @@ fly secrets set JWT_SECRET=$(openssl rand -hex 32)
 fly deploy
 
 # Verify
-curl https://chess-server.fly.dev/health
-curl https://chess-server.fly.dev/metrics
+curl https://chess-server-falling-lake-2071.fly.dev/health
+curl https://chess-server-falling-lake-2071.fly.dev/metrics
 ```
 
 ---

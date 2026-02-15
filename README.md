@@ -3,8 +3,8 @@
 **A full-stack 3D chess game where you journey through twenty ages of human history — from the age of dinosaurs to transcendent cosmic realms — powered by a custom Rust chess engine compiled to WebAssembly.**
 
 🎮 **[▶ PLAY NOW](https://promotion-variant-chess.vercel.app)** 🎮
-🔌 **[Multiplayer Server](https://chess-server.fly.dev)** 🔌
-📈 **[Health Check](https://chess-server.fly.dev/health)** · 📊 **[Metrics](https://chess-server.fly.dev/metrics)**
+🔌 **[Multiplayer Server](https://chess-server-falling-lake-2071.fly.dev)** 🔌
+📈 **[Health Check](https://chess-server-falling-lake-2071.fly.dev/health)** · 📊 **[Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics)**
 
 > *749 tests. 3 languages. 1 WebAssembly binary. Zero frameworks.*
 
@@ -469,8 +469,8 @@ fly secrets set JWT_SECRET=$(openssl rand -hex 32)
 fly deploy
 
 # Verify
-curl https://chess-server.fly.dev/health
-curl https://chess-server.fly.dev/metrics
+curl https://chess-server-falling-lake-2071.fly.dev/health
+curl https://chess-server-falling-lake-2071.fly.dev/metrics
 ```
 
 ---
