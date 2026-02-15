@@ -4,6 +4,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' blob: 'wasm-unsafe-eval';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    img-src 'self' data: blob:;
+    connect-src 'self' https://chess-server-falling-lake-2071.fly.dev wss://chess-server-falling-lake-2071.fly.dev blob:;
+    worker-src 'self' blob:;
+    media-src 'self';
+  ">
   <meta name="theme-color" content="#faf6ed">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,17 +25,12 @@
   <title>The Chess Chronicle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Non-blocking font load: renders immediately with fallback fonts, swaps when ready -->
+  <!-- Google Fonts (display=swap ensures text renders immediately with fallback) -->
   <link rel="preload" as="style"
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap">
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
-    rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
-      rel="stylesheet">
-  </noscript>
+    rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -374,6 +379,74 @@
       border: 3px solid #2a2a2a;
       background: #000;
       flex-shrink: 0;
+      position: relative;
+    }
+
+    /* ─── Loading Screen ─── */
+    #loading-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      background: var(--bg-color, #faf6ed);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #loading-screen h2 {
+      font-family: 'Playfair Display', 'Georgia', serif;
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--text-color, #2a2a2a);
+      letter-spacing: 1px;
+    }
+    #loading-screen p {
+      font-family: 'Old Standard TT', 'Georgia', serif;
+      font-size: 14px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      font-style: italic;
+    }
+    .loading-pieces {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .loading-piece {
+      font-size: 28px;
+      animation: piece-bounce 1.4s ease-in-out infinite;
+    }
+    .loading-piece:nth-child(2) { animation-delay: 0.15s; }
+    .loading-piece:nth-child(3) { animation-delay: 0.30s; }
+    .loading-piece:nth-child(4) { animation-delay: 0.45s; }
+    .loading-piece:nth-child(5) { animation-delay: 0.60s; }
+    @keyframes piece-bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-12px); opacity: 1; }
+    }
+    .loading-bar-track {
+      width: 180px;
+      height: 3px;
+      background: var(--border-color, #c0b090);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loading-bar-fill {
+      width: 30%;
+      height: 100%;
+      background: var(--accent-color, #8b4513);
+      border-radius: 2px;
+      animation: loading-slide 1.5s ease-in-out infinite;
+    }
+    @keyframes loading-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(500%); }
     }
 
     #game-canvas {
@@ -1597,6 +1670,19 @@
 
         <!-- GAME CANVAS -->
         <div id="canvas-wrapper" style="position: relative;">
+          <!-- Loading screen (removed by main-3d.ts once 3D engine is ready) -->
+          <div id="loading-screen">
+            <h2>The Chess Chronicle</h2>
+            <div class="loading-pieces">
+              <span class="loading-piece">♜</span>
+              <span class="loading-piece">♞</span>
+              <span class="loading-piece">♚</span>
+              <span class="loading-piece">♞</span>
+              <span class="loading-piece">♜</span>
+            </div>
+            <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+            <p>Setting up the board...</p>
+          </div>
           <canvas id="game-canvas" width="1150" height="550"></canvas>
           <canvas id="overlay-canvas" width="1150" height="550"
             style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
@@ -1707,44 +1793,8 @@
     </div>
   </div> <!-- End Main Content -->
 
-  <script>
-    const dateElem = document.getElementById('newspaper-date');
-    if (dateElem) {
-      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      dateElem.textContent = new Date().toLocaleDateString('en-US', options);
-    }
-
-    // Hamburger menu toggle
-    const hamburgerBtn = document.getElementById('hamburger-btn');
-    const sidebar = document.querySelector('.left-sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
-    if (hamburgerBtn && sidebar && backdrop) {
-      function toggleSidebar() {
-        const isOpen = sidebar.classList.toggle('open');
-        backdrop.classList.toggle('active', isOpen);
-        hamburgerBtn.textContent = isOpen ? '✕' : '☰';
-        hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
-      }
-      hamburgerBtn.addEventListener('click', toggleSidebar);
-      backdrop.addEventListener('click', toggleSidebar);
-      // Close sidebar when a button inside it is clicked (on mobile)
-      sidebar.addEventListener('click', (e) => {
-        if (window.innerWidth < 768 && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) {
-          // Close after a short delay so the button action fires first
-          setTimeout(toggleSidebar, 300);
-        }
-      });
-    }
-  </script>
+  <script src="/init.js"></script>
   <script type="module" src="/src/main-3d.ts"></script>
-  <script>
-    // Register service worker for PWA / offline support
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js').catch(function() {});
-      });
-    }
-  </script>
 </body>
 
 </html>

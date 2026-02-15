@@ -1439,6 +1439,14 @@ updateStartButton();
 console.log('[Main-3D] Current Era:', Renderer.getCurrentWorldName());
 console.log('[Main-3D] Ready to play!');
 
+// Dismiss loading screen with a smooth fade
+const loadingScreen = document.getElementById('loading-screen');
+if (loadingScreen) {
+  loadingScreen.classList.add('hidden');
+  // Remove from DOM after fade animation completes
+  loadingScreen.addEventListener('transitionend', () => loadingScreen.remove(), { once: true });
+}
+
 // =============================================================================
 // NEW FEATURES: Undo, Sound, Theme, Stats
 // =============================================================================
