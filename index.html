@@ -56,6 +56,7 @@
       --btn-muted: #4a4238;
       --btn-muted-text: #ede6d8;
       --game-area-bg: #f0ead8;
+      --surface-alt: #f0ebe0;
       --scrollbar-track: #e8dcc8;
       --scrollbar-thumb: #c0a880;
     }
@@ -343,14 +344,14 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #666;
+      color: var(--sidebar-text-muted);
       margin: 0;
     }
 
     .stat-value {
       font-size: 22px;
       font-weight: bold;
-      color: #1a1a1a;
+      color: var(--sidebar-text);
     }
 
     .stat-row {
@@ -426,8 +427,8 @@
       top: 140px;
       width: 280px;
       max-height: 500px;
-      background: #faf6ed;
-      border: 2px solid #2a2a2a;
+      background: var(--sidebar-bg);
+      border: 2px solid var(--sidebar-border);
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
       z-index: 100;
@@ -437,8 +438,8 @@
 
     #move-list-header {
       padding: 10px 15px;
-      background: #2a2a2a;
-      color: #faf6ed;
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
       font-family: 'Playfair Display', serif;
       font-size: 16px;
       font-weight: 700;
@@ -451,8 +452,8 @@
       justify-content: center;
       gap: 20px;
       padding: 10px 15px;
-      background: #f0ebe0;
-      border-bottom: 1px solid #c0b090;
+      background: var(--surface-alt);
+      border-bottom: 1px solid var(--sidebar-border);
       font-size: 14px;
     }
 
@@ -462,7 +463,7 @@
 
     .timer-label {
       font-size: 11px;
-      color: #666;
+      color: var(--sidebar-text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
     }
@@ -489,7 +490,7 @@
     .move-row {
       display: flex;
       padding: 3px 0;
-      border-bottom: 1px solid #e0d8c8;
+      border-bottom: 1px solid var(--sidebar-border);
     }
 
     .move-row:last-child {
@@ -498,18 +499,18 @@
 
     .move-number {
       width: 30px;
-      color: #888;
+      color: var(--sidebar-text-muted);
       font-weight: bold;
     }
 
     .move-white {
       width: 80px;
-      color: #2a2a2a;
+      color: var(--sidebar-text);
     }
 
     .move-black {
       width: 80px;
-      color: #333;
+      color: var(--sidebar-text);
     }
 
     .move-white.current,
@@ -521,17 +522,17 @@
 
     #move-list-footer {
       padding: 8px 15px;
-      background: #f0ebe0;
-      border-top: 1px solid #c0b090;
+      background: var(--surface-alt);
+      border-top: 1px solid var(--sidebar-border);
       font-size: 12px;
-      color: #666;
+      color: var(--sidebar-text-muted);
       text-align: center;
       border-radius: 0 0 6px 6px;
     }
 
     #move-count {
       font-weight: bold;
-      color: #2a2a2a;
+      color: var(--sidebar-text);
     }
 
     #game-time-total {
@@ -608,8 +609,8 @@
     }
 
     #setup-panel {
-      background: #faf6ed;
-      border: 3px solid #2a2a2a;
+      background: var(--sidebar-bg);
+      border: 3px solid var(--sidebar-border);
       border-radius: 10px;
       padding: 25px 35px;
       text-align: center;
@@ -620,19 +621,19 @@
       font-family: 'Playfair Display', serif;
       font-size: 28px;
       margin-bottom: 10px;
-      color: #2a2a2a;
+      color: var(--sidebar-text);
     }
 
     #setup-info {
       font-size: 14px;
-      color: #555;
+      color: var(--sidebar-text-muted);
       margin-bottom: 20px;
       line-height: 1.5;
     }
 
     #bonus-count {
       font-weight: bold;
-      color: #2a6a2a;
+      color: var(--sidebar-accent);
     }
 
     #setup-board {
@@ -641,7 +642,7 @@
       grid-template-rows: repeat(3, 50px);
       gap: 2px;
       margin: 20px auto;
-      background: #2a2a2a;
+      background: var(--sidebar-text);
       padding: 4px;
       border-radius: 4px;
     }
@@ -701,8 +702,8 @@
 
     /* PIECE INVENTORY */
     #piece-inventory {
-      background: #e8e0d0;
-      border: 2px solid #2a2a2a;
+      background: var(--surface-alt);
+      border: 2px solid var(--sidebar-border);
       border-radius: 8px;
       padding: 12px 20px;
       margin-bottom: 15px;
@@ -711,7 +712,7 @@
     .inventory-label {
       font-weight: bold;
       font-size: 14px;
-      color: #333;
+      color: var(--sidebar-text);
       margin-bottom: 8px;
     }
 
@@ -726,8 +727,8 @@
       flex-direction: column;
       align-items: center;
       padding: 8px 12px;
-      background: #faf6ed;
-      border: 2px solid #ccc;
+      background: var(--sidebar-bg);
+      border: 2px solid var(--sidebar-border);
       border-radius: 6px;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -735,13 +736,13 @@
     }
 
     .inventory-item:hover:not(.disabled) {
-      border-color: #4a90d9;
-      background: #e8f4ff;
+      border-color: var(--sidebar-accent);
+      background: var(--surface-alt);
     }
 
     .inventory-item.selected {
-      border-color: #2a6a2a;
-      background: #d8f0d8;
+      border-color: var(--sidebar-accent);
+      background: var(--surface-alt);
       box-shadow: 0 0 8px rgba(42, 106, 42, 0.5);
     }
 
@@ -758,24 +759,24 @@
     .inv-count {
       font-size: 14px;
       font-weight: bold;
-      color: #2a6a2a;
+      color: var(--sidebar-accent);
       margin-top: 4px;
     }
 
     .inv-count.zero {
-      color: #999;
+      color: var(--sidebar-text-muted);
     }
 
     #inventory-hint {
       font-size: 12px;
-      color: #777;
+      color: var(--sidebar-text-muted);
       margin-top: 8px;
       font-style: italic;
     }
 
     #retract-hint {
       font-size: 12px;
-      color: #2a6a2a;
+      color: var(--sidebar-accent);
       margin-top: 10px;
     }
 
@@ -872,8 +873,8 @@
     }
 
     #promotion-panel {
-      background: #faf6ed;
-      border: 3px solid #2a2a2a;
+      background: var(--sidebar-bg);
+      border: 3px solid var(--sidebar-border);
       border-radius: 10px;
       padding: 20px 30px;
       text-align: center;
@@ -883,7 +884,7 @@
       font-family: 'Playfair Display', serif;
       font-size: 22px;
       margin-bottom: 15px;
-      color: #2a2a2a;
+      color: var(--sidebar-text);
     }
 
     #promotion-choices {
@@ -1576,7 +1577,7 @@
   <div id="promotion-overlay" style="display: none;">
     <div id="promotion-panel">
       <h3>🎉 Pawn Promotion!</h3>
-      <p style="margin-bottom: 15px; color: #555;">Choose your new piece:</p>
+      <p style="margin-bottom: 15px; color: var(--sidebar-text-muted);">Choose your new piece:</p>
       <div id="promotion-choices">
         <div class="promotion-choice" data-piece="Q" title="Queen">♕</div>
         <div class="promotion-choice" data-piece="R" title="Rook">♖</div>

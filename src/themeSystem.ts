@@ -36,6 +36,7 @@ export interface Theme {
     buttonMutedText: string;
     // Game area
     gameAreaBg: string;
+    surfaceAlt: string;
     // Scrollbar
     scrollbarTrack: string;
     scrollbarThumb: string;
@@ -62,6 +63,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#4a4238',
         buttonMutedText: '#ede6d8',
         gameAreaBg: '#f0ead8',
+        surfaceAlt: '#f0ebe0',
         scrollbarTrack: '#e8dcc8',
         scrollbarThumb: '#c0a880',
     },
@@ -81,6 +83,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#2a2a34',
         buttonMutedText: '#a09a90',
         gameAreaBg: '#141418',
+        surfaceAlt: '#24242c',
         scrollbarTrack: '#1c1c22',
         scrollbarThumb: '#3a3a48',
     },
@@ -100,6 +103,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#334155',
         buttonMutedText: '#cbd5e1',
         gameAreaBg: '#f1f5f9',
+        surfaceAlt: '#e8edf5',
         scrollbarTrack: '#e2e8f0',
         scrollbarThumb: '#94a3b8',
     },
@@ -119,6 +123,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#5a3e30',
         buttonMutedText: '#e8d4c0',
         gameAreaBg: '#f4ece0',
+        surfaceAlt: '#f0e4d6',
         scrollbarTrack: '#ecdcc8',
         scrollbarThumb: '#c4a080',
     },
@@ -138,6 +143,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#3a4e38',
         buttonMutedText: '#c0d8b8',
         gameAreaBg: '#eaf2e8',
+        surfaceAlt: '#e0eedc',
         scrollbarTrack: '#d4e0cc',
         scrollbarThumb: '#8aaa80',
     },
@@ -157,6 +163,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#2c2240',
         buttonMutedText: '#a898b8',
         gameAreaBg: '#161020',
+        surfaceAlt: '#241c30',
         scrollbarTrack: '#1e1828',
         scrollbarThumb: '#3e3050',
     },
@@ -176,6 +183,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#605850',
         buttonMutedText: '#e8e0d8',
         gameAreaBg: '#faf7f2',
+        surfaceAlt: '#f5f0ea',
         scrollbarTrack: '#ebe4da',
         scrollbarThumb: '#c8beb0',
     },
@@ -195,6 +203,7 @@ const themes: Record<ThemeName, Theme> = {
         buttonMuted: '#162a44',
         buttonMutedText: '#80a8cc',
         gameAreaBg: '#080e1a',
+        surfaceAlt: '#10182a',
         scrollbarTrack: '#0c1424',
         scrollbarThumb: '#1e3a5f',
     },
@@ -242,6 +251,7 @@ function applyTheme(theme: Theme): void {
     root.style.setProperty('--btn-muted', theme.buttonMuted);
     root.style.setProperty('--btn-muted-text', theme.buttonMutedText);
     root.style.setProperty('--game-area-bg', theme.gameAreaBg);
+    root.style.setProperty('--surface-alt', theme.surfaceAlt);
     root.style.setProperty('--scrollbar-track', theme.scrollbarTrack);
     root.style.setProperty('--scrollbar-thumb', theme.scrollbarThumb);
 

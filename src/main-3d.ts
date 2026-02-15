@@ -18,6 +18,7 @@ import * as Renderer from './renderer3d';
 import { getLevelForElo, getLevelProgress } from './levelSystem';
 import { TIMING, COLORS } from './constants';
 import { ARTICLES } from './newspaperArticles';
+import { getGameReactiveArticle, type GamePerformanceData } from './gameReactiveArticles';
 import * as MoveListUI from './moveListUI';
 import * as Sound from './soundSystem';
 import * as Stats from './statsSystem';
@@ -124,12 +125,13 @@ promotionChoices.forEach(choice => {
 // NEWSPAPER ARTICLES
 // =============================================================================
 
-function loadRandomArticles(): void {
+function loadRandomArticles(reactiveArticle?: { headline: string; snippet: string }): void {
   // Shuffle and pick 6 random articles
   const shuffled = [...ARTICLES].sort(() => Math.random() - 0.5);
 
   for (let i = 1; i <= 6; i++) {
-    const article = shuffled[i - 1]; // Wraps if we run out (undefined check handles it)
+    // Slot 1 gets the reactive article (if any), rest are random
+    const article = (i === 1 && reactiveArticle) ? reactiveArticle : shuffled[i - 1];
     const headlineElem = document.getElementById(`article-${i}-headline`);
     const snippetElem = document.getElementById(`article-${i}-snippet`);
 
@@ -139,6 +141,9 @@ function loadRandomArticles(): void {
     }
   }
 }
+
+// Track last game performance for reactive articles
+let lastGamePerformance: GamePerformanceData | null = null;
 
 // Load articles on page load
 loadRandomArticles();
@@ -1238,6 +1243,29 @@ Game.registerCallbacks({
   },
 
   onGameOver: (message) => {
+    // Determine game result from message for reactive articles
+    const isWin = message.includes('You Win');
+    const isLoss = message.includes('You Lose');
+    const result: 'win' | 'loss' | 'draw' = isWin ? 'win' : isLoss ? 'loss' : 'draw';
+
+    // Detect draw type from message
+    let drawType: string | undefined;
+    if (message.includes('Stalemate')) drawType = 'stalemate';
+    else if (message.includes('repetition')) drawType = 'repetition';
+    else if (message.includes('insufficient')) drawType = 'insufficient';
+    else if (message.includes('50')) drawType = 'fifty-move';
+
+    // Store performance data for reactive articles
+    lastGamePerformance = {
+      result,
+      moveCount: Game.getMoveCount(),
+      drawType,
+    };
+
+    // Load reactive article immediately into slot 1
+    const reactive = getGameReactiveArticle(lastGamePerformance);
+    loadRandomArticles(reactive);
+
     Renderer.showGameOverOverlay(message);
     updateStartButton();
     updateAiSpeedButton();
@@ -1256,9 +1284,14 @@ Game.registerCallbacks({
   },
 
   onPlayerWin: () => {
-    // Refresh newspaper articles with new random selection on each win
+    // Refresh newspaper articles with reactive article in slot 1
     console.log('[Main] Player won! Refreshing newspaper articles...');
-    loadRandomArticles();
+    if (lastGamePerformance) {
+      const reactive = getGameReactiveArticle(lastGamePerformance);
+      loadRandomArticles(reactive);
+    } else {
+      loadRandomArticles();
+    }
   }
 });
 
