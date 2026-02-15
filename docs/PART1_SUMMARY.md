@@ -38,6 +38,8 @@ A chess game that combines:
 | Testing discipline | 749 tests: 213 Rust (cargo test) + 382 frontend (Vitest) + 154 server (Vitest) |
 | Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
+| Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
+| Large-scale AI experimentation | 1-million-player tournament runner with Swiss pairing, A/B testing, rayon parallelism, SQLite analytics |
 
 ---
 
@@ -45,12 +47,14 @@ A chess game that combines:
 
 | Metric | Value |
 |---|---|
-| Rust engine source | 11 files, ~6,000 lines |
+| Rust engine source | 12 files, ~7,000 lines (includes 866-line tournament runner) |
 | Frontend source | 20+ files, TypeScript |
-| Server source | 10+ files, 979-line main server |
+| Server source | 10+ files, 1,090-line main server + resilience module |
+| Load test scripts | 3 k6 scripts (HTTP, WebSocket, stress) |
 | Perft correctness | Matches all standard values through depth 5 (4,865,609 nodes) |
 | WASM binary | ~170 KB gzipped |
 | Test count | 749 total across 3 languages |
+| Prometheus metrics | 16 custom metrics + Node.js defaults |
 
 ---
 

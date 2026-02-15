@@ -25,7 +25,10 @@
 | Multiplayer | Node.js, Express, Socket.io | Real-time WebSocket with HTTP long-polling fallback |
 | Database | Prisma ORM, SQLite (dev/prod) | Type-safe queries, zero-config dev, persistent volume in prod |
 | Auth | JWT + bcryptjs | Stateless auth, guest accounts with optional registration |
-| Metrics | Prometheus (prom-client) | `/metrics` endpoint for Grafana dashboards |
+| Security | Helmet.js, express-rate-limit, CORS | Security headers, brute-force protection, origin whitelisting |
+| Metrics | Prometheus (prom-client) | 16 custom metrics + Node.js defaults, `/metrics` endpoint |
+| Load Testing | k6 (Grafana) | HTTP, WebSocket, and stress test scripts with SLO thresholds |
+| AI Tournament | Rust (rayon, clap, rusqlite) | 1M-player Swiss tournament with A/B testing and parallel execution |
 | Testing | Vitest + cargo test + Playwright | Unit, integration, E2E across all 3 languages |
 | Deploy | Vercel (frontend), Docker + Fly.io (server) | Edge CDN for static, persistent VM for WebSocket server |
 

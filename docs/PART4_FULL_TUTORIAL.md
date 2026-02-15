@@ -51,7 +51,7 @@
 
 ### Section D: System Design FAQ
 
-- [D1. How would you scale to 10,000 concurrent players?](#d1-how-would-you-scale-to-10000-concurrent-players)
+- [D1. How would you scale to 10 billion users?](#d1-how-would-you-scale-to-10-billion-users)
 - [D2. How do you detect and handle cheating?](#d2-how-do-you-detect-and-handle-cheating)
 - [D3. Why Three.js instead of native mobile rendering?](#d3-why-threejs-instead-of-native-mobile-rendering)
 - [D4. Why do you have multiple AI engines?](#d4-why-do-you-have-multiple-ai-engines)
@@ -61,10 +61,21 @@
 - [D8. How does the ELO system work?](#d8-how-does-the-elo-system-work)
 - [D9. What would you do differently if you started over?](#d9-what-would-you-do-differently-if-you-started-over)
 - [D10. How do you test a 3D game?](#d10-how-do-you-test-a-3d-game)
+- [D11. What is the AI Tournament System?](#d11-what-is-the-ai-tournament-system)
+- [D12. What metrics do you capture and why?](#d12-what-metrics-do-you-capture-and-why)
+- [D13. What is your production resilience strategy?](#d13-what-is-your-production-resilience-strategy)
+- [D14. What are your load testing methodology and SLOs?](#d14-what-are-your-load-testing-methodology-and-slos)
 
 ### Section E: Project Structure
 
 - [E1. File Map](#e1-file-map)
+
+### Section F: Operations & Scaling Reference
+
+- [F1. Bottleneck Analysis by User Scale](#f1-bottleneck-analysis-by-user-scale)
+- [F2. Scaling Roadmap: 100 to 10 Billion Users](#f2-scaling-roadmap-100-to-10-billion-users)
+- [F3. Statistics Captured and How They Drive Decisions](#f3-statistics-captured-and-how-they-drive-decisions)
+- [F4. Documentation Index](#f4-documentation-index)
 
 ---
 
@@ -763,30 +774,49 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
 
 ---
 
-## D1. How would you scale to 10,000 concurrent players?
+## D1. How would you scale to 10 billion users?
 
-**Current:** Single Node.js, in-memory Map. ~500 connections.
+This project is designed with a scaling roadmap from portfolio-scale to planetary-scale. Each tier identifies the bottleneck, the fix, and the infrastructure change.
 
-**Tier 1 (500–2K):** Bigger instance. PostgreSQL.
+**Current Production (Tier 0 — up to ~100 concurrent):**
+Single Node.js process on Fly.io `shared-cpu-1x` (256MB). In-memory `Map` for game rooms. SQLite on a 1GB persistent volume. All AI runs client-side (WASM). Rate-limited: 100 req/min HTTP, 20 msg/sec WebSocket, 10 connections/IP, 500 room cap. Graceful shutdown with 15-second drain.
 
-**Tier 2 (2K–10K):**
+**Tier 1 (100–1K concurrent):**
+*Bottleneck:* Memory exhaustion from 500+ game rooms in Map. SQLite write lock contention.
+*Fix:* Scale to `shared-cpu-2x` 512MB. Add WAL mode to SQLite. Optimize Map cleanup. Deploy Litestream for continuous DB backup to S3.
 
+**Tier 2 (1K–10K concurrent):**
+*Bottleneck:* Single-threaded event loop saturates at ~200 WebSocket messages/sec sustained. Single machine = single point of failure.
+*Fix:*
 ```
-     Load Balancer (sticky sessions)
-     ┌──────┬──────┬──────┐
-     ▼      ▼      ▼      ▼
-  Server1 Server2 Server3 Server4
-     └──────┴──────┴──────┘
-                │
-          Redis Pub/Sub
-                │
-           PostgreSQL
-          (read replicas)
+     Load Balancer (sticky sessions via cookie)
+     ┌──────────┬──────────┬──────────┐
+     ▼          ▼          ▼          ▼
+  Server 1   Server 2   Server 3   Server 4
+     └──────────┴──────────┴──────────┘
+                    │
+              Redis Pub/Sub (Socket.io adapter)
+                    │
+               PostgreSQL (write) + Read Replica
 ```
+Migrate to PostgreSQL with connection pooling (PgBouncer). Redis Pub/Sub for cross-server Socket.io. Separate matchmaker service. CDN for all static assets. Horizontal auto-scale 2–10 machines.
 
-Sticky sessions, Redis adapter for Socket.io cross-server, separate matchmaker service, CDN for static assets.
+**Tier 3 (10K–100K concurrent):**
+*Bottleneck:* Matchmaker becomes hot path. PostgreSQL single-writer bottleneck. WebSocket connection distribution uneven across regions.
+*Fix:* Dedicated matchmaker microservice with Redis Streams work queue. Multi-region deployment (US-East, EU-West, APAC). PostgreSQL with Citus for sharding. Game state in Redis (TTL-based expiry). API Gateway for WebSocket routing.
 
-**Tier 3 (10K+):** Regional deploy, Redis game state, API Gateway WebSocket, Kubernetes.
+**Tier 4 (100K–10M concurrent):**
+*Bottleneck:* Monolithic game server can’t specialize. Redis single-instance limits. ELO calculations become bottleneck at millions of concurrent rating updates.
+*Fix:* Kubernetes with horizontal pod autoscaling. Redis Cluster (16+ shards). ELO updates batched via Apache Kafka event stream → async workers. Dedicated services: Auth, Matchmaker, GameRoom, ELO, Replay, Analytics. gRPC between services. Circuit breakers (Istio service mesh).
+
+**Tier 5 (10M–1B concurrent):**
+*Bottleneck:* Database writes at billions of game records/day. Global latency for real-time moves.
+*Fix:* Event sourcing — games stored as move streams in Kafka, materialized views for queries. CRDT-based game state for conflict-free multi-region writes. Edge compute for move validation close to players. Tiered storage: hot (Redis) → warm (PostgreSQL) → cold (S3 Parquet).
+
+**Tier 6 (1B–10B total registered users):**
+The key architectural advantage: because our AI engine runs **client-side in WASM**, the compute cost for AI games is **always zero** regardless of user count. Only multiplayer sessions require server resources. At 10B users with 1–5% concurrent, that’s ~50M–500M concurrent connections — achievable with Tier 5 architecture.
+
+> **Full scaling analysis** → [Section F1](#f1-bottleneck-analysis-by-user-scale) and [Section F2](#f2-scaling-roadmap-100-to-10-billion-users)
 
 ---
 
@@ -881,12 +911,93 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Frontend | Vitest | 382 |
 | Server | Vitest | 154 |
 | E2E | Playwright | 5 |
+| Load (HTTP) | k6 | 6 scenarios |
+| Load (WebSocket) | k6 | ramp to 200 VUs |
+| Stress | k6 | 500 RPS / 250 WS |
 
 **Mocked:** Three.js (no GPU), chess.js, Socket.io, localStorage.
 
-**Not yet:** Visual regression, load testing, Lighthouse CI, GPU tests.
+**Load testing:** 3 k6 scripts validate SLOs under pressure — HTTP API (P95 < 500ms, <5% error rate), WebSocket gameplay simulation (200 concurrent, <2s connect), and stress/breaking point discovery (500 RPS, 250 concurrent WS). See [D14](#d14-what-are-your-load-testing-methodology-and-slos).
 
-**Priority:** Correctness (engine) > Functionality (game) > Reliability (server) > Appearance (renderer).
+**Priority:** Correctness (engine) > Functionality (game) > Reliability (server) > Load (capacity) > Appearance (renderer).
+
+---
+
+## D11. What is the AI Tournament System?
+
+A standalone **1-million-player AI tournament runner** (`rust-engine/src/bin/tournament.rs`, 866 lines) exercises the chess engine at scale for statistical analysis and A/B testing.
+
+**Architecture:** `CLI (clap) → Generate AI Personas → Swiss Pairing → Parallel Games (rayon) → SQLite Results`
+
+Each AI player has unique personality traits: `search_depth` (1–6), `aggression` (0.0–1.0), `opening_style` (King's Pawn / Queen's Pawn / English / Réti / Random), `blunder_rate` (0.0–0.15).
+
+**A/B Testing:** Players split into Group A (control) and Group B (treatment — reward bonuses). Measures: mean ELO, win/loss/draw ratios, average game length, blunder frequency, opening effectiveness.
+
+**Scale:** 1K players in ~2 min, 100K in ~30 min, 1M in ~5 hours using all cores via rayon.
+
+```bash
+cargo run --release --bin tournament -- --players 1000000 --rounds 20 --threads 0
+```
+
+> Full details in the [main README Section D11](../README.md#d11-what-is-the-ai-tournament-system)
+
+---
+
+## D12. What metrics do you capture and why?
+
+16 custom Prometheus metrics + Node.js defaults. Each metric answers a specific operational question:
+
+| Metric | Type | Question |
+|---|---|---|
+| `chess_connected_players` | Gauge | How many users online? |
+| `chess_active_games` | Gauge | How many rooms consuming memory? |
+| `chess_games_started_total` | Counter | Game creation rate? |
+| `chess_games_completed_total` | Counter | Completion rate by result/reason? |
+| `chess_queue_length` | Gauge | Are players waiting too long? |
+| `chess_queue_wait_seconds` | Histogram | P50/P95/P99 matchmaking wait |
+| `chess_moves_total` | Counter | Total move throughput |
+| `chess_move_processing_seconds` | Histogram | Move validation latency |
+| `chess_auth_total` | Counter | Auth rate by type/result |
+| `chess_errors_total` | Counter | Error rate by code |
+| `chess_db_query_seconds` | Histogram | SQLite bottleneck detection |
+| `chess_rate_limit_hits_total` | Counter | False positive rate |
+| `chess_ws_rate_limit_total` | Counter | WebSocket abuse rate |
+| `chess_shutdown_in_progress` | Gauge | Deploy awareness |
+| `chess_process_crashes_total` | Counter | Crash frequency |
+
+> Full details in the [main README Section D12](../README.md#d12-what-metrics-do-you-capture-and-why)
+
+---
+
+## D13. What is your production resilience strategy?
+
+Seven layers of defense:
+
+1. **Fly.io Edge** → TLS termination, DDoS protection, auto-start
+2. **Helmet.js** → Security headers (HSTS, X-Frame-Options, nosniff)
+3. **Rate Limiting** → 100 req/min HTTP, 20 msg/sec WS, 10 conn/IP
+4. **Input Validation** → Zod schemas, chess.js move validation, size limits
+5. **Resource Protection** → 500 room cap, stale cleanup, 16KB body limit
+6. **Observability** → 16 Prometheus metrics, health check with DB test
+7. **Recovery** → Graceful shutdown (15s drain), crash handlers, memory alerts
+
+> Full details in the [main README Section D13](../README.md#d13-what-is-your-production-resilience-strategy) and [docs/PRODUCTION_RESILIENCE.md](PRODUCTION_RESILIENCE.md)
+
+---
+
+## D14. What are your load testing methodology and SLOs?
+
+**SLOs:** 99.5% availability, HTTP P95 < 500ms, P99 < 1000ms, <5% error rate, WS connect P95 < 2s, WS message P95 < 500ms, >90% connection success.
+
+**Test scripts:** `http-load-test.js` (6 scenarios, ramp to 100 VUs), `websocket-load-test.js` (gameplay sim, 200 concurrent), `stress-test.js` (500 RPS, 250 WS).
+
+```bash
+k6 run load-tests/http-load-test.js
+k6 run load-tests/websocket-load-test.js
+k6 run load-tests/stress-test.js
+```
+
+> Full details in the [main README Section D14](../README.md#d14-what-are-your-load-testing-methodology-and-slos) and [docs/LOAD_TEST_PLAN.md](LOAD_TEST_PLAN.md)
 
 ---
 
@@ -915,11 +1026,15 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 │       ├── attacks.rs         # Precomputed attack tables
 │       ├── bitboard.rs        # 64-bit board representation
 │       ├── position.rs        # Board state + make/unmake
-│       └── types.rs           # Piece, Square, Move encoding
+│       ├── types.rs           # Piece, Square, Move encoding
+│       └── bin/
+│           └── tournament.rs  # 1M AI tournament runner (866 lines)
 │
 ├── server/                    # Multiplayer backend
 │   ├── src/
-│   │   ├── index.ts           # Express + Socket.io (979 lines)
+│   │   ├── index.ts           # Express + Socket.io (1090 lines)
+│   │   ├── resilience.ts      # Graceful shutdown, crash recovery, rate limiting
+│   │   ├── metrics.ts         # 16 Prometheus metrics
 │   │   ├── GameRoom.ts        # Game session management
 │   │   ├── Matchmaker.ts      # Ranked queue + pairing
 │   │   ├── auth.ts            # JWT authentication
@@ -929,6 +1044,11 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 │   ├── Dockerfile             # Multi-stage production build
 │   └── fly.toml               # Fly.io deployment config
 │
+├── load-tests/                # k6 load testing suite
+│   ├── http-load-test.js      # HTTP API: 6 scenarios, ramp to 100 VUs
+│   ├── websocket-load-test.js # WebSocket: gameplay sim, 200 concurrent
+│   └── stress-test.js         # Breaking point: 500 RPS, 250 WS connections
+│
 ├── tests/                     # Frontend test suite (382 tests)
 ├── e2e/                       # Playwright E2E tests (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
@@ -937,10 +1057,78 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 │   ├── PART2_TECH_STACK.md    # Standalone Part 2
 │   ├── PART3_QUICK_START.md   # Standalone Part 3
 │   ├── PART4_FULL_TUTORIAL.md # Standalone Part 4
+│   ├── INCIDENT_RESPONSE.md   # P0-P3 incident runbook
+│   ├── LOAD_TEST_PLAN.md      # k6 methodology, SLOs, capacity planning
+│   ├── PRODUCTION_RESILIENCE.md # Defense-in-depth, failure modes, SLOs
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
 └── index.html                 # Single-page app entry (1638 lines)
 ```
+
+---
+
+## F1. Bottleneck Analysis by User Scale
+
+| Concurrent Users | First Bottleneck | Symptom | Detection Metric |
+|---|---|---|---|
+| **50–100** | Memory (256MB) | Slow responses, OOM | `process_resident_memory_bytes` |
+| **100–500** | SQLite write lock | Auth/leaderboard timeout | `chess_db_query_seconds P95` |
+| **500–2K** | Single-core CPU | Event loop lag > 100ms | `nodejs_eventloop_lag_seconds` |
+| **2K–10K** | Single machine | Total outage on crash | `chess_process_crashes_total` |
+| **10K–100K** | Matchmaker latency | Queue wait > 30s | `chess_queue_wait_seconds P95` |
+| **100K–1M** | Redis memory | Stale game state | Redis `used_memory` |
+| **1M–100M** | DB write throughput | Write conflicts | Kafka consumer lag |
+| **100M–10B** | Organizational | Feature velocity drops | Deployment frequency |
+
+---
+
+## F2. Scaling Roadmap: 100 to 10 Billion Users
+
+| Phase | Concurrent | Monthly Cost | Key Changes |
+|---|---|---|---|
+| **0 (current)** | 10–100 | $0–6 | Single Node.js + SQLite, Vercel CDN |
+| **1** | 100–1K | $15–30 | Bigger instance, SQLite WAL, Litestream |
+| **2** | 1K–10K | $100–300 | PostgreSQL, Redis, 2–4 servers, load balancer |
+| **3** | 10K–100K | $1K–5K | Multi-region, Kubernetes, dedicated matchmaker |
+| **4** | 100K–10M | $10K–100K | CockroachDB, Redis Cluster, Kafka, microservices |
+| **5** | 10M–1B | $500K–5M | Event sourcing, CRDTs, edge compute, tiered storage |
+| **6** | 1B–10B | $10M+ | Multi-cloud, custom CDN, data sovereignty |
+
+**Key insight:** AI runs client-side in WASM. 10B single-player sessions = $0 server cost. Server only scales with multiplayer — typically 1–5% of registered users.
+
+---
+
+## F3. Statistics Captured and How They Drive Decisions
+
+| Source | Statistic | Decision It Drives |
+|---|---|---|
+| Server | `chess_connected_players` trend | When to scale up |
+| Server | `chess_queue_wait_seconds` P95 | Matchmaker optimization timing |
+| Server | `chess_db_query_seconds` P95 | When to migrate SQLite → PostgreSQL |
+| Server | `chess_rate_limit_hits_total` rate | Rate limit calibration |
+| Server | `nodejs_eventloop_lag_seconds` | Horizontal scaling trigger |
+| Tournament | ELO distribution by A/B group | Do reward bonuses improve play? |
+| Tournament | Win rate by `search_depth` | Adaptive difficulty tuning |
+| Tournament | Win rate by `opening_style` | Engine balance validation |
+| Tournament | Average game length | Memory budget per game room |
+| k6 | HTTP P95 at 50/100 VUs | SLO compliance |
+| k6 | First failure VU count | Maximum safe concurrent users |
+| k6 | WS connection success at 200 | Concurrent player capacity |
+
+---
+
+## F4. Documentation Index
+
+| Document | Purpose | Audience |
+|---|---|---|
+| [README.md](../README.md) | Everything — summary through deep dive | Everyone |
+| [PART1_SUMMARY.md](PART1_SUMMARY.md) | 30-second project summary | Hiring managers |
+| [PART2_TECH_STACK.md](PART2_TECH_STACK.md) | Architecture and stack decisions | Senior engineers |
+| [PART3_QUICK_START.md](PART3_QUICK_START.md) | Clone, install, run in 2 minutes | Developers |
+| [PART4_FULL_TUTORIAL.md](PART4_FULL_TUTORIAL.md) | Complete engine manual + system design | Learners |
+| [PRODUCTION_RESILIENCE.md](PRODUCTION_RESILIENCE.md) | SLOs, defense-in-depth, failure modes | SRE / DevOps |
+| [LOAD_TEST_PLAN.md](LOAD_TEST_PLAN.md) | k6 methodology, capacity planning | Performance engineers |
+| [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md) | P0–P3 runbook, diagnostics, rollback | On-call engineers |
 
 ---
 
@@ -950,7 +1138,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 749 tests. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 749 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
 
 ---
 
