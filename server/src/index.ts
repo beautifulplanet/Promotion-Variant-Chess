@@ -42,13 +42,14 @@ import {
   checkWsRateLimit, clearWsRateLimit, trackConnection, releaseConnection,
   canCreateRoom, rateLimitCounter,
 } from './resilience.js';
+import { resolveCorsOrigins } from './cors.js';
 
 // =============================================================================
 // SERVER SETUP
 // =============================================================================
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN = process.env.CORS_ORIGIN;
 
 const app = express();
 
@@ -59,9 +60,7 @@ app.use(helmet({
 }));
 
 // CORS — restrict in production, permissive in dev
-const allowedOrigins = CORS_ORIGIN === '*'
-  ? '*'
-  : CORS_ORIGIN.split(',').map(o => o.trim());
+const allowedOrigins = resolveCorsOrigins(CORS_ORIGIN);
 app.use(cors({ origin: allowedOrigins }));
 
 // Body parsing with size limit (prevent large payload attacks)
@@ -100,7 +99,7 @@ if (!isTestEnv) {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CORS_ORIGIN, methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
   pingInterval: 10_000,
   pingTimeout: 5_000,
 });
