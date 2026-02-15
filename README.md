@@ -6,7 +6,7 @@
 🔌 **[Multiplayer Server](https://chess-server-falling-lake-2071.fly.dev)** 🔌
 📈 **[Health Check](https://chess-server-falling-lake-2071.fly.dev/health)** · 📊 **[Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics)**
 
-> *792 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
+> *803 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
 
 <!-- Screenshot placeholder: Replace with actual screenshot -->
 <!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
@@ -54,7 +54,7 @@ A chess game that combines:
 |---|---|
 | Systems programming | Rust engine: bitboard move gen, magic bitboard lookups, Zobrist hashing — all compiled to WASM |
 | Full-stack ownership | Frontend (TS + Three.js), backend (Node + Express + Prisma), engine (Rust), infra (Docker + Fly.io) |
-| Testing discipline | 792 tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 154 server (Vitest) |
+| Testing discipline | 803 tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 165 server (Vitest) |
 | Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
 | Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
@@ -70,7 +70,7 @@ A chess game that combines:
 | Load test scripts | 3 k6 scripts (HTTP, WebSocket, stress) |
 | Perft correctness | Matches all standard values through depth 5 (4,865,609 nodes) |
 | WASM binary | ~170 KB gzipped |
-| Test count | 792 total across 3 languages |
+| Test count | 803 total across 3 languages |
 | Prometheus metrics | 16 custom metrics + Node.js defaults |
 
 ---
@@ -188,7 +188,7 @@ Server starts on `http://localhost:3001`.
 
 ```bash
 npm test                          # 420 frontend tests
-cd server && npm test             # 154 server tests
+cd server && npm test             # 165 server tests
 cd rust-engine && cargo test      # 218 Rust engine tests
 ```
 
@@ -407,7 +407,7 @@ Server runs on `http://localhost:3001`.
 # Frontend (420 tests, ~5s)
 npm test
 
-# Server (154 tests, ~8s)
+# Server (165 tests, ~8s)
 cd server && npm test
 
 # Rust engine (218 tests, ~2s)
@@ -418,13 +418,13 @@ npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 792 unit/integration tests + 4 E2E tests**
+**Total: 803 unit/integration tests + 4 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
-| Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
+| Server | 165 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
@@ -1141,7 +1141,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 |---|---|---|
 | Engine | cargo test | 218 |
 | Frontend | Vitest | 420 |
-| Server | Vitest | 154 |
+| Server | Vitest | 165 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
@@ -1651,4 +1651,4 @@ Tournament Runner                             Tournament SQLite DB
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 792 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 803 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*

@@ -36,7 +36,7 @@
   - [Why Prometheus metrics instead of Datadog/New Relic?](#why-prometheus-metrics-instead-of-datadognew-relic)
   - [Why custom rate limiting instead of Cloudflare/API gateway?](#why-custom-rate-limiting-instead-of-cloudflareapi-gateway)
 - [Testing & Quality](#testing--quality)
-  - [Why 792 tests for a portfolio project?](#why-792-tests-for-a-portfolio-project)
+  - [Why 803 tests for a portfolio project?](#why-803-tests-for-a-portfolio-project)
   - [Why Vitest over Jest?](#why-vitest-over-jest)
   - [Why k6 over Artillery or Locust?](#why-k6-over-artillery-or-locust)
 - [Rust & WASM](#rust--wasm)
@@ -373,12 +373,12 @@ Two layers of rate limiting exist:
 
 ## Testing & Quality
 
-### Why 792 tests for a portfolio project?
+### Why 803 tests for a portfolio project?
 
 Because the number of tests is the fastest proxy a reviewer has for code quality.
 
 - **420 frontend tests** cover game logic, era progression, save/load, AI integration, aggression slider
-- **153 server tests** cover auth, matchmaking, protocol validation, database operations
+- **165 server tests** cover auth, matchmaking, protocol validation, database operations, CORS config
 - **218 Rust engine tests** cover move generation, search correctness, perft (position enumeration), tournament runner
 
 A reviewer opens the repo, sees the test count, and immediately knows this isn't a tutorial copy-paste. The actual testing showed real bugs — off-by-one errors in castling rights, en passant square corruption after null moves, ELO calculation edge cases with zero draws.

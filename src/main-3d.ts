@@ -17,8 +17,7 @@ import * as Game from './gameController';
 import * as Renderer from './renderer3d';
 import { getLevelForElo, getLevelProgress } from './levelSystem';
 import { TIMING, COLORS } from './constants';
-import { ARTICLES } from './newspaperArticles';
-import { getGameReactiveArticle, type GamePerformanceData } from './gameReactiveArticles';
+import type { GamePerformanceData } from './gameReactiveArticles';
 import * as MoveListUI from './moveListUI';
 import * as Sound from './soundSystem';
 import * as Stats from './statsSystem';
@@ -28,7 +27,6 @@ import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
 import { initEngine, getEngineType } from './engineProvider';
 import type { PieceType } from './types';
-import { initMultiplayerUI } from './multiplayerUI';
 
 // =============================================================================
 // DOM SETUP
@@ -122,12 +120,24 @@ promotionChoices.forEach(choice => {
 });
 
 // =============================================================================
-// NEWSPAPER ARTICLES
+// NEWSPAPER ARTICLES (lazy-loaded — ~230 KB of pure data deferred from initial bundle)
 // =============================================================================
 
-function loadRandomArticles(reactiveArticle?: { headline: string; snippet: string }): void {
-  // Shuffle and pick 6 random articles
-  const shuffled = [...ARTICLES].sort(() => Math.random() - 0.5);
+// Cache the article data after first lazy load
+let _cachedArticles: { headline: string; snippet: string }[] | null = null;
+
+async function getArticles(): Promise<{ headline: string; snippet: string }[]> {
+  if (!_cachedArticles) {
+    const { ARTICLES } = await import('./newspaperArticles');
+    _cachedArticles = ARTICLES;
+  }
+  return _cachedArticles;
+}
+
+async function loadRandomArticles(reactiveArticle?: { headline: string; snippet: string }): Promise<void> {
+  // Lazy-load articles on first call
+  const articles = await getArticles();
+  const shuffled = [...articles].sort(() => Math.random() - 0.5);
 
   for (let i = 1; i <= 6; i++) {
     // Slot 1 gets the reactive article (if any), rest are random
@@ -1270,7 +1280,7 @@ Game.registerCallbacks({
     showLevelNotification(levelName, isUp);
   },
 
-  onGameOver: (message) => {
+  onGameOver: async (message) => {
     // Determine game result from message for reactive articles
     const isWin = message.includes('You Win');
     const isLoss = message.includes('You Lose');
@@ -1290,7 +1300,8 @@ Game.registerCallbacks({
       drawType,
     };
 
-    // Load reactive article immediately into slot 1
+    // Load reactive article immediately into slot 1 (lazy-loaded)
+    const { getGameReactiveArticle } = await import('./gameReactiveArticles');
     const reactive = getGameReactiveArticle(lastGamePerformance);
     loadRandomArticles(reactive);
 
@@ -1311,10 +1322,11 @@ Game.registerCallbacks({
     return Renderer.playWinAnimation();
   },
 
-  onPlayerWin: () => {
+  onPlayerWin: async () => {
     // Refresh newspaper articles with reactive article in slot 1
     console.log('[Main] Player won! Refreshing newspaper articles...');
     if (lastGamePerformance) {
+      const { getGameReactiveArticle } = await import('./gameReactiveArticles');
       const reactive = getGameReactiveArticle(lastGamePerformance);
       loadRandomArticles(reactive);
     } else {
@@ -1414,8 +1426,8 @@ initEngine().then(type => {
 const initialState = Game.initGame();
 console.log('[Main-3D] Game ready! ELO:', initialState.elo);
 
-// Initialize multiplayer UI
-initMultiplayerUI();
+// Initialize multiplayer UI (lazy-loaded — socket.io-client deferred until needed)
+import('./multiplayerUI').then(({ initMultiplayerUI }) => initMultiplayerUI());
 
 // Start stats session tracking
 Stats.startSession();

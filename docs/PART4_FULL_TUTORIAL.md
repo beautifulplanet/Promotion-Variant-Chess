@@ -196,7 +196,7 @@ Server runs on `http://localhost:3001`.
 # Frontend (420 tests, ~5s)
 npm test
 
-# Server (154 tests, ~8s)
+# Server (165 tests, ~8s)
 cd server && npm test
 
 # Rust engine (213 tests, ~2s)
@@ -207,13 +207,13 @@ npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 792 unit/integration tests + 5 E2E tests**
+**Total: 803 unit/integration tests + 5 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
-| Server | 154 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol |
+| Server | 165 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
@@ -909,7 +909,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 |---|---|---|
 | Engine | cargo test | 213 |
 | Frontend | Vitest | 420 |
-| Server | Vitest | 154 |
+| Server | Vitest | 165 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
@@ -1140,7 +1140,7 @@ k6 run load-tests/stress-test.js
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 792 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 803 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
 
 ---
 
