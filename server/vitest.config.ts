@@ -7,6 +7,11 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     testTimeout: 10000,
     pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,  // Run test files sequentially — shared SQLite DB
+      },
+    },
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./dev.db',

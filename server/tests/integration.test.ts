@@ -191,6 +191,7 @@ describe('Server Integration', () => {
   it('leaderboard endpoint returns sorted players', async () => {
     // Seed the database with test players
     const db = getPrisma();
+    await db.game.deleteMany();
     await db.player.deleteMany();
     await createPlayer({ username: 'Alice', elo: 1500, isGuest: true });
     await createPlayer({ username: 'Bob', elo: 1300, isGuest: true });

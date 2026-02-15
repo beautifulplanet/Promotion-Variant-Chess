@@ -53,12 +53,11 @@ jobs:
       - name: Create test database
         run: npx prisma db push --force-reset
         env:
-          DATABASE_URL: 'file:./test.db'
+          DATABASE_URL: 'file:./dev.db'
 
       - name: Run tests
         run: npm test
         env:
-          DATABASE_URL: 'file:./test.db'
           JWT_SECRET: 'ci-test-secret'
 
   rust-tests:
