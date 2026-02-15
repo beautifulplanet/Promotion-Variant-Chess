@@ -106,6 +106,10 @@ let multiplayerMode = false;
 // AI move speed (multiplier, 1 = normal, 0.5 = fast, 2 = slow)
 let aiMoveSpeedMultiplier = 1;
 
+// AI Aggression slider (1-20, default 10)
+// 1 = vanilla chess (no AI bonus), 10 = current balanced behavior, 20 = brutal
+let aiAggressionLevel = 10;
+
 // Callbacks for UI updates (renderer will register these)
 type StateChangeCallback = (state: GameState) => void;
 type LevelChangeCallback = (levelName: string, isUp: boolean) => void;
@@ -183,6 +187,8 @@ export function saveProgress(): void {
     // Save custom board arrangement (from setup mode)
     customArrangement: currentArrangement.map(p => ({ row: p.row, col: p.col, type: p.type as string })),
     deployedFromInventory: { ...deployedFromInventory },
+    // Save AI aggression setting
+    aiAggressionLevel: aiAggressionLevel,
   };
   downloadSave(currentSaveData);
 }
@@ -209,6 +215,9 @@ export async function loadProgress(): Promise<boolean> {
       type: p.type as PieceType
     }));
     console.log('[Game] Restored arrangement:', currentArrangement.length, 'pieces, deployed:', deployedFromInventory);
+
+    // Restore AI aggression setting
+    aiAggressionLevel = data.aiAggressionLevel ?? 10;
 
     // Reset current game state
     state.gameOver = false;
@@ -715,6 +724,65 @@ export function getAiSpeed(): number {
   return aiMoveSpeedMultiplier;
 }
 
+/**
+ * Set AI aggression level (1-20)
+ * 1 = vanilla chess, AI gets no bonus pieces
+ * 10 = current balanced behavior (default)
+ * 20 = brutal — AI gets 2x bonus, rearranges pieces, lower ELO threshold
+ */
+export function setAiAggression(level: number): void {
+  aiAggressionLevel = Math.max(1, Math.min(20, Math.round(level)));
+  console.log('[Game] AI aggression set to:', aiAggressionLevel);
+}
+
+/**
+ * Get current AI aggression level (1-20)
+ */
+export function getAiAggression(): number {
+  return aiAggressionLevel;
+}
+
+/**
+ * Get the AI bonus material multiplier for the current aggression level.
+ * Level 1 = 0.0 (no bonus), Level 10 = 1.0 (standard), Level 20 = 2.0 (double)
+ */
+export function getAggressionBonusMultiplier(level?: number): number {
+  const l = level ?? aiAggressionLevel;
+  if (l <= 1) return 0.0;
+  if (l <= 10) return (l - 1) / 9;       // 1→0.0, 2→0.111, 5→0.444, 10→1.0
+  return 1.0 + (l - 10) * 0.1;           // 11→1.1, 15→1.5, 20→2.0
+}
+
+/**
+ * Get the ELO threshold for AI bonus pieces at the current aggression level.
+ * Levels 1-10: standard threshold (3000)
+ * Levels 11-20: progressively lower (2800 down to 1000)
+ */
+export function getAggressionEloThreshold(level?: number): number {
+  const l = level ?? aiAggressionLevel;
+  if (l <= 10) return BALANCE.aiBonusThresholdElo;  // 3000
+  // Levels 11-20: lower by 200 per level above 10
+  return Math.max(1000, BALANCE.aiBonusThresholdElo - (l - 10) * 200);
+}
+
+/**
+ * Get description text for the current aggression level
+ */
+export function getAggressionDescription(level?: number): string {
+  const l = level ?? aiAggressionLevel;
+  if (l <= 1) return 'Passive — AI uses standard pieces only';
+  if (l <= 3) return 'Gentle — AI gets minimal bonus pieces';
+  if (l <= 5) return 'Easy — AI gets reduced bonus pieces';
+  if (l <= 7) return 'Moderate — AI gets most of its bonus pieces';
+  if (l <= 9) return 'Balanced — AI nearly matches your advantage';
+  if (l === 10) return 'Fair — AI fully matches your deployed pieces';
+  if (l <= 12) return 'Tough — AI gets extra bonus + shuffles pieces';
+  if (l <= 14) return 'Hard — AI gets 1.4x bonus + piece upgrades';
+  if (l <= 16) return 'Very Hard — AI gets 1.6x bonus + pawn upgrades';
+  if (l <= 18) return 'Extreme — AI gets 1.8x bonus + full rearrangement';
+  return 'Brutal — AI gets 2x bonus + maximum rearrangement';
+}
+
 // =============================================================================
 // LEARNING AI TRAINING
 // =============================================================================
@@ -912,8 +980,11 @@ function setupBoardWithPromotions(): void {
   // Apply AI bonus pieces to opponent's side
   applyAIBonusPieces(board, aiBonusPieces, opponentColor);
 
+  // === AI REARRANGEMENT (Aggression levels 11-20) ===
+  const aiRearranged = applyAIRearrangement(board, opponentColor);
+
   // Load the modified position
-  const useManualLoad = currentArrangement.length > 0 || totalDeployed > 0 || aiBonusPieces.length > 0;
+  const useManualLoad = currentArrangement.length > 0 || totalDeployed > 0 || aiBonusPieces.length > 0 || aiRearranged;
 
   console.log(`[Game] useManualLoad: ${useManualLoad} (customArrangement: ${currentArrangement.length}, deployed: ${totalDeployed}, aiBonusPieces: ${aiBonusPieces.length})`);
 
@@ -1251,6 +1322,132 @@ function getPieceValue(type: string): number {
 }
 
 /**
+ * Apply AI piece rearrangement based on aggression level (11-20).
+ * Levels 1-10: No rearrangement.
+ * Levels 11-13: Shuffle AI's knights and bishops on back rank.
+ * Levels 14-16: Shuffle all back rank (except king) + upgrade 1-2 pawns to minor pieces.
+ * Levels 17-19: Shuffle + upgrade 2-4 pawns to random pieces.
+ * Level 20: Full Chess960-style shuffle + up to 4 pawn upgrades.
+ * Returns true if any rearrangement was applied.
+ */
+function applyAIRearrangement(board: (Piece | null)[][], aiColor: PieceColor): boolean {
+  if (aiAggressionLevel <= 10) return false;
+
+  const isBlack = aiColor === 'black';
+  const backRow = isBlack ? 0 : 7;
+  const pawnRow = isBlack ? 1 : 6;
+
+  DEBUG_LOG(`[AI REARRANGE] Aggression level ${aiAggressionLevel}, applying rearrangement for ${aiColor}`);
+
+  // Helper: Fisher-Yates shuffle for an array of indices
+  function shuffleArray<T>(arr: T[]): T[] {
+    const result = [...arr];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  // --- BACK RANK SHUFFLING ---
+  // Find the king's column (must not move)
+  let kingCol = -1;
+  for (let c = 0; c < 8; c++) {
+    const piece = board[backRow][c];
+    if (piece && piece.type === 'K' && piece.color === aiColor) {
+      kingCol = c;
+      break;
+    }
+  }
+
+  if (kingCol === -1) {
+    DEBUG_LOG('[AI REARRANGE] Warning: King not found on AI back rank, skipping rearrangement');
+    return false;
+  }
+
+  if (aiAggressionLevel <= 13) {
+    // Levels 11-13: Shuffle only knights and bishops (minor pieces)
+    // Find columns that have N or B on AI back rank (not at king or queen col)
+    const minorCols: number[] = [];
+    for (let c = 0; c < 8; c++) {
+      const piece = board[backRow][c];
+      if (piece && piece.color === aiColor && (piece.type === 'N' || piece.type === 'B')) {
+        minorCols.push(c);
+      }
+    }
+
+    if (minorCols.length >= 2) {
+      // Collect the piece types, shuffle them, put them back
+      const minorTypes = minorCols.map(c => board[backRow][c]!.type);
+      const shuffled = shuffleArray(minorTypes);
+      for (let i = 0; i < minorCols.length; i++) {
+        board[backRow][minorCols[i]] = { type: shuffled[i], color: aiColor };
+      }
+      DEBUG_LOG(`[AI REARRANGE] Shuffled minor pieces on columns:`, minorCols);
+    }
+
+  } else {
+    // Levels 14-20: Shuffle all back rank pieces except King
+    const nonKingCols: number[] = [];
+    for (let c = 0; c < 8; c++) {
+      if (c === kingCol) continue;
+      const piece = board[backRow][c];
+      if (piece && piece.color === aiColor) {
+        nonKingCols.push(c);
+      }
+    }
+
+    if (nonKingCols.length >= 2) {
+      const types = nonKingCols.map(c => board[backRow][c]!.type);
+      const shuffled = shuffleArray(types);
+      for (let i = 0; i < nonKingCols.length; i++) {
+        board[backRow][nonKingCols[i]] = { type: shuffled[i], color: aiColor };
+      }
+      DEBUG_LOG(`[AI REARRANGE] Shuffled all back rank pieces (except King) on columns:`, nonKingCols);
+    }
+  }
+
+  // --- PAWN UPGRADES (Levels 14+) ---
+  if (aiAggressionLevel >= 14) {
+    // How many pawns to upgrade
+    let upgradeCount: number;
+    if (aiAggressionLevel <= 16) {
+      upgradeCount = aiAggressionLevel - 13;  // 14→1, 15→2, 16→3
+    } else {
+      upgradeCount = Math.min(4, aiAggressionLevel - 14);  // 17→3, 18→4, 19→4+, 20→4
+    }
+    upgradeCount = Math.min(upgradeCount, 4);
+
+    // Find pawn columns on AI's pawn row (shuffle to pick random ones)
+    const pawnCols: number[] = [];
+    for (let c = 0; c < 8; c++) {
+      const piece = board[pawnRow][c];
+      if (piece && piece.color === aiColor && piece.type === 'P') {
+        pawnCols.push(c);
+      }
+    }
+
+    const shuffledPawnCols = shuffleArray(pawnCols);
+    const toUpgrade = shuffledPawnCols.slice(0, upgradeCount);
+
+    // Upgrade type depends on aggression level
+    const upgradePool: PieceType[] = aiAggressionLevel <= 16
+      ? ['N', 'B']                      // Minor pieces only for moderate aggression
+      : ['N', 'B', 'R', 'Q'];           // All piece types for extreme aggression
+
+    for (const col of toUpgrade) {
+      const newType = upgradePool[Math.floor(Math.random() * upgradePool.length)];
+      board[pawnRow][col] = { type: newType, color: aiColor };
+      DEBUG_LOG(`[AI REARRANGE] Upgraded pawn at ${String.fromCharCode(97 + col)}${8 - pawnRow} to ${newType}`);
+    }
+
+    DEBUG_LOG(`[AI REARRANGE] Upgraded ${toUpgrade.length} pawns`);
+  }
+
+  return true;
+}
+
+/**
  * Calculate AI bonus pieces based on ELO (≥threshold) OR player having advantage
  * Returns array of piece types (Q/R/B/N) for AI to have as extras
  * Uses MATERIAL VALUE to ensure fairness
@@ -1259,8 +1456,17 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   DEBUG_LOG('=== [AI BONUS] Calculating AI bonus pieces ===');
   DEBUG_LOG('[AI BONUS] Input ELO:', elo);
   DEBUG_LOG('[AI BONUS] Player pieces count:', playerPieces.length);
+  DEBUG_LOG('[AI BONUS] AI Aggression level:', aiAggressionLevel);
 
   const bonusPieces: PieceType[] = [];
+
+  // At aggression level 1, AI gets zero bonus pieces — vanilla chess
+  const bonusMultiplier = getAggressionBonusMultiplier();
+  if (bonusMultiplier === 0) {
+    DEBUG_LOG('[AI BONUS] Aggression level 1 — no bonus pieces');
+    DEBUG_LOG('=== [AI BONUS] Final result: 0 pieces: [] ===');
+    return bonusPieces;
+  }
 
   // Calculate player's bonus material value
   let playerMaterialValue = 0;
@@ -1272,16 +1478,18 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
   DEBUG_LOG('[AI BONUS] Total player material value:', playerMaterialValue);
 
   // Calculate base AI material value based on ELO
+  // Use aggression-adjusted ELO threshold
   let aiMaterialValue = 0;
+  const eloThreshold = getAggressionEloThreshold();
 
   // ELO Scaling (Base difficulty) - Continuous ramping using constants
-  if (elo >= BALANCE.aiBonusThresholdElo) {
-    const eloDiff = elo - BALANCE.aiBonusThresholdElo;
+  if (elo >= eloThreshold) {
+    const eloDiff = elo - eloThreshold;
     const extraValue = Math.floor(eloDiff / 50) * BALANCE.aiBonusPointsPer50Elo;
     aiMaterialValue += extraValue;
-    DEBUG_LOG(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above ${BALANCE.aiBonusThresholdElo}`);
+    DEBUG_LOG(`[AI BONUS] High ELO Bonus: +${extraValue} points for ${eloDiff} ELO above ${eloThreshold}`);
   } else {
-    DEBUG_LOG(`[AI BONUS] ELO ${elo} is below ${BALANCE.aiBonusThresholdElo} - no ELO bonus`);
+    DEBUG_LOG(`[AI BONUS] ELO ${elo} is below ${eloThreshold} - no ELO bonus`);
   }
 
   // Compensation: Match player's bonus value (if player has advantage)
@@ -1291,7 +1499,11 @@ function getAIBonusPieces(elo: number, playerPieces: PromotedPiece[]): PieceType
     DEBUG_LOG(`[AI BONUS] Compensation for player advantage: +${valueNeededToMatch} points`);
   }
 
-  DEBUG_LOG('[AI BONUS] Total AI material value before cap:', aiMaterialValue);
+  DEBUG_LOG('[AI BONUS] Total AI material value before multiplier:', aiMaterialValue);
+
+  // Apply aggression multiplier
+  aiMaterialValue = Math.round(aiMaterialValue * bonusMultiplier);
+  DEBUG_LOG(`[AI BONUS] After aggression multiplier (${bonusMultiplier.toFixed(2)}): ${aiMaterialValue}`);
 
   // Cap max value using constant
   aiMaterialValue = Math.min(BALANCE.aiBonusMaxMaterial, aiMaterialValue);

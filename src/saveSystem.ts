@@ -27,6 +27,8 @@ export interface SaveData {
   deployedFromInventory?: PieceInventory;  // Pieces deployed from inventory in setup mode
   // Move quality tracking (optional - defaults to zeros for old saves)
   moveQualityStats?: MoveQualityStats;
+  // AI aggression setting (1-20, default 10)
+  aiAggressionLevel?: number;
   saveVersion: number;  // For future compatibility
   savedAt: string;  // ISO timestamp
 }
@@ -175,6 +177,9 @@ function validateAndSanitizeSaveData(data: unknown): SaveData | null {
     playerColor: (d.playerColor === 'white' || d.playerColor === 'black')
       ? d.playerColor
       : 'white',  // Default for old saves
+    aiAggressionLevel: isValidNumber(d.aiAggressionLevel, 1, 20)
+      ? Math.round(d.aiAggressionLevel as number)
+      : 10,  // Default for old saves
     saveVersion: isPositiveInt(d.saveVersion) ? d.saveVersion : SAVE_VERSION,
     savedAt: typeof d.savedAt === 'string' ? d.savedAt : new Date().toISOString(),
   };
@@ -228,6 +233,7 @@ export function createDefaultSave(): SaveData {
     pieceStyle3D: 'staunton3d',
     pieceStyle2D: 'classic2d',
     boardStyle: 'classic',
+    aiAggressionLevel: 10,
     saveVersion: SAVE_VERSION,
     savedAt: new Date().toISOString()
   };

@@ -370,6 +370,8 @@ if (loadBtn) {
         Renderer.setBoardStyle(saveData.boardStyle);
         if (boardStyleBtn) boardStyleBtn.textContent = `🏁 ${saveData.boardStyle}`;
       }
+      // Restore AI aggression slider
+      updateAggressionDisplay();
     }
     syncRendererState();
   });
@@ -664,6 +666,32 @@ if (aiSpeedBtn) {
     updateAiSpeedButton();
   });
 }
+
+// =============================================================================
+// AI AGGRESSION SLIDER
+// =============================================================================
+
+const aggressionSlider = document.getElementById('ai-aggression-slider') as HTMLInputElement | null;
+const aggressionLevelDisplay = document.getElementById('aggression-level-display');
+const aggressionDescDisplay = document.getElementById('aggression-desc-display');
+
+function updateAggressionDisplay(): void {
+  const level = Game.getAiAggression();
+  if (aggressionLevelDisplay) aggressionLevelDisplay.textContent = String(level);
+  if (aggressionDescDisplay) aggressionDescDisplay.textContent = Game.getAggressionDescription(level);
+  if (aggressionSlider) aggressionSlider.value = String(level);
+}
+
+if (aggressionSlider) {
+  aggressionSlider.addEventListener('input', () => {
+    const level = parseInt(aggressionSlider.value, 10);
+    Game.setAiAggression(level);
+    updateAggressionDisplay();
+  });
+}
+
+// Initialize display on load
+updateAggressionDisplay();
 
 // =============================================================================
 // SETUP MODE - Rearrange pieces and deploy from inventory
