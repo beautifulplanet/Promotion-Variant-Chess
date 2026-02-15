@@ -8,6 +8,7 @@ export default defineConfig({
     testTimeout: 10000,
     pool: 'forks',
     env: {
+      NODE_ENV: 'test',
       DATABASE_URL: 'file:./dev.db',
       JWT_SECRET: 'test-secret-key',
     },

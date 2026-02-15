@@ -9,6 +9,8 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ClientMessageSchema, PROTOCOL_VERSION } from './protocol.js';
@@ -35,6 +37,11 @@ import {
   movesCounter, moveLatencyHistogram, authCounter, errorsCounter,
   timeDbQuery,
 } from './metrics.js';
+import {
+  setupGracefulShutdown, setupCrashRecovery, isServerShuttingDown,
+  checkWsRateLimit, clearWsRateLimit, trackConnection, releaseConnection,
+  canCreateRoom, rateLimitCounter,
+} from './resilience.js';
 
 // =============================================================================
 // SERVER SETUP
@@ -44,8 +51,52 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 const app = express();
-app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json());
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP handled by frontend
+  crossOriginEmbedderPolicy: false, // Allow WASM/cross-origin resources
+}));
+
+// CORS — restrict in production, permissive in dev
+const allowedOrigins = CORS_ORIGIN === '*'
+  ? '*'
+  : CORS_ORIGIN.split(',').map(o => o.trim());
+app.use(cors({ origin: allowedOrigins }));
+
+// Body parsing with size limit (prevent large payload attacks)
+app.use(express.json({ limit: '16kb' }));
+
+// Rate limiting — disabled in test environment to avoid flaky tests
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+if (!isTestEnv) {
+  // Global rate limiter — 100 requests per minute per IP
+  const globalLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      rateLimitCounter.inc({ endpoint: 'global' });
+      res.status(429).json({ error: 'Too many requests', code: 'RATE_LIMITED' });
+    },
+  });
+  app.use('/api/', globalLimiter);
+
+  // Auth-specific rate limiter — 10 per minute (prevent brute-force)
+  const authLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      rateLimitCounter.inc({ endpoint: 'auth' });
+      res.status(429).json({ error: 'Too many auth attempts — try again in a minute', code: 'AUTH_RATE_LIMITED' });
+    },
+  });
+  app.use('/api/auth/', authLimiter);
+}
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -461,7 +512,22 @@ app.get('/api/player/:username', async (req, res) => {
 // =============================================================================
 
 io.on('connection', (socket) => {
-  console.log(`[connect] ${socket.id}`);
+  // Reject connections during shutdown
+  if (isServerShuttingDown()) {
+    socket.emit('message', { type: 'error', v: PROTOCOL_VERSION, code: 'SHUTTING_DOWN', message: 'Server is restarting' });
+    socket.disconnect(true);
+    return;
+  }
+
+  // Per-IP connection limiting (max 10 sockets per IP)
+  const clientIp = socket.handshake.headers['x-forwarded-for'] as string || socket.handshake.address;
+  if (!trackConnection(clientIp)) {
+    socket.emit('message', { type: 'error', v: PROTOCOL_VERSION, code: 'TOO_MANY_CONNECTIONS', message: 'Too many connections from your IP' });
+    socket.disconnect(true);
+    return;
+  }
+
+  console.log(`[connect] ${socket.id} from ${clientIp}`);
   connectedPlayersGauge.inc();
 
   // Authenticate socket via JWT in handshake query/auth
@@ -474,6 +540,12 @@ io.on('connection', (socket) => {
   }
 
   socket.on('message', (rawData: unknown) => {
+    // WebSocket rate limiting — max 20 messages per second
+    if (!checkWsRateLimit(socket.id)) {
+      sendError(socket, 'RATE_LIMITED', 'Too many messages — slow down');
+      return;
+    }
+
     // Parse and validate
     let data;
     try {
@@ -524,6 +596,8 @@ io.on('connection', (socket) => {
     connectedPlayersGauge.dec();
     matchmaker.removePlayer(socket.id);
     socketPlayerIds.delete(socket.id);
+    clearWsRateLimit(socket.id);
+    releaseConnection(clientIp);
 
     const gameId = playerRooms.get(socket.id);
     if (gameId) {
@@ -730,6 +804,15 @@ function handleReconnect(
 // =============================================================================
 
 function createGame(p1: QueueEntry, p2: QueueEntry, timeControl: TimeControl) {
+  // Room limit check — prevent unbounded memory growth
+  if (!canCreateRoom(rooms.size)) {
+    const s1 = io.sockets.sockets.get(p1.socketId);
+    const s2 = io.sockets.sockets.get(p2.socketId);
+    if (s1) sendError(s1, 'SERVER_FULL', 'Server at capacity — try again shortly');
+    if (s2) sendError(s2, 'SERVER_FULL', 'Server at capacity — try again shortly');
+    return;
+  }
+
   // Randomly assign colors
   const isP1White = Math.random() < 0.5;
 
@@ -965,6 +1048,9 @@ export {
 };
 
 export async function startServer(port: number = PORT) {
+  // Setup crash recovery FIRST (before anything can throw)
+  setupCrashRecovery();
+
   // Ensure DB connection works
   try {
     const db = getPrisma();
@@ -977,6 +1063,18 @@ export async function startServer(port: number = PORT) {
   const host = '0.0.0.0';
   httpServer.listen(port, host, () => {
     console.log(`♟️  Chess server listening on ${host}:${port}`);
+
+    // Setup graceful shutdown (needs httpServer to be listening)
+    setupGracefulShutdown({
+      httpServer,
+      io,
+      drainTimeoutMs: 15_000,
+      onBeforeShutdown: async () => {
+        clearInterval(matchScanInterval);
+        clearInterval(disconnectCheckInterval);
+        await disconnectDB();
+      },
+    });
   });
   return httpServer;
 }
