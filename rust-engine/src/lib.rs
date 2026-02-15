@@ -3,13 +3,13 @@
 
 mod attacks;
 mod bitboard;
-mod eval;
+pub mod eval;
 mod magic;
-mod movegen;
-mod position;
-mod search;
+pub mod movegen;
+pub mod position;
+pub mod search;
 mod tt;
-mod types;
+pub mod types;
 mod zobrist;
 
 use wasm_bindgen::prelude::*;
