@@ -1413,41 +1413,70 @@
         </div>
       </div>
 
-      <!-- Multiplayer Controls (Premium — Coming Soon) -->
-      <div class="sidebar-section" id="multiplayer-section" style="position:relative;">
+      <!-- Multiplayer Controls -->
+      <div class="sidebar-section" id="multiplayer-section">
         <h3>🌐 Multiplayer</h3>
-        <div style="text-align:center; padding:16px 12px;">
-          <div style="font-size:32px; margin-bottom:8px;">👑</div>
-          <div style="font-size:15px; font-weight:bold; margin-bottom:6px; color:var(--sidebar-text);">Premium Feature</div>
-          <div style="font-size:12px; color:var(--sidebar-text-muted); line-height:1.5; margin-bottom:12px;">
-            Real-time online play with ELO matchmaking, multiple time controls, and a global leaderboard.
+
+        <!-- State: Offline / Ready to connect -->
+        <div id="mp-offline">
+          <input id="mp-player-name" type="text" placeholder="Your name…"
+            style="width:100%; padding:10px; margin-bottom:8px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
+          <select id="mp-time-control"
+            style="width:100%; padding:10px; margin-bottom:10px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
+            <option value="180|0">3+0 Blitz</option>
+            <option value="180|2">3+2 Blitz</option>
+            <option value="300|0">5+0 Blitz</option>
+            <option value="300|3">5+3 Blitz</option>
+            <option value="600|0" selected>10+0 Rapid</option>
+            <option value="600|5">10+5 Rapid</option>
+            <option value="900|10">15+10 Rapid</option>
+            <option value="1800|0">30+0 Classical</option>
+          </select>
+          <button id="mp-play-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">
+            ⚔️ Find Opponent
+          </button>
+        </div>
+
+        <!-- State: In queue -->
+        <div id="mp-queue" style="display:none; text-align:center; padding:12px 0;">
+          <div style="font-size:14px; color:var(--sidebar-text); margin-bottom:8px;">Searching for opponent…</div>
+          <div id="mp-queue-pos" style="font-size:12px; color:var(--sidebar-text-muted); margin-bottom:12px;"></div>
+          <button id="mp-cancel-btn" class="btn-secondary" style="width:100%; padding:10px; font-size:14px;">
+            ✖ Cancel
+          </button>
+        </div>
+
+        <!-- State: In game -->
+        <div id="mp-ingame" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:8px 10px; background:var(--sidebar-hover, rgba(0,0,0,0.04)); border-radius:6px;">
+            <div>
+              <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text);">vs <span id="mp-opponent-name">—</span></div>
+              <div id="mp-opponent-elo" style="font-size:11px; color:var(--sidebar-text-muted);">ELO: —</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <div id="white-time" style="padding:4px 8px; background:#fff; color:#333; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold; border:1px solid #ddd;">—</div>
+              <div id="black-time" style="padding:4px 8px; background:#333; color:#fff; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold;">—</div>
+            </div>
           </div>
-          <div style="display:inline-block; padding:8px 20px; background:linear-gradient(135deg, #c9a84c, #a8893a); color:#fff; border-radius:20px; font-size:13px; font-weight:bold; letter-spacing:0.5px;">
-            COMING SOON
-          </div>
-          <div style="font-size:11px; color:var(--sidebar-text-muted); margin-top:10px;">
-            Free preview — enjoy single-player for now!
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button id="mp-resign-btn" class="btn-secondary" style="padding:10px; font-size:13px;">🏳️ Resign</button>
+            <button id="mp-draw-btn" class="btn-secondary" style="padding:10px; font-size:13px;">🤝 Draw</button>
           </div>
         </div>
-        <!-- Hidden elements to prevent JS errors from multiplayerUI.ts -->
-        <div style="display:none;">
-          <div id="mp-offline"></div>
-          <div id="mp-queue"></div>
-          <div id="mp-ingame"></div>
-          <div id="mp-status"></div>
-          <button id="mp-play-btn"></button>
-          <button id="mp-cancel-btn"></button>
-          <button id="mp-resign-btn"></button>
-          <button id="mp-draw-btn"></button>
-          <input id="mp-player-name" type="text">
-          <select id="mp-time-control"><option value="600|0">10+0</option></select>
-          <div id="mp-queue-pos"></div>
-          <div id="mp-opponent-name"></div>
-          <div id="mp-opponent-elo"></div>
-          <div id="draw-offer-overlay"></div>
-          <button id="draw-accept-btn"></button>
-          <button id="draw-decline-btn"></button>
-          <div id="draw-offer-from"></div>
+
+        <!-- Status message -->
+        <div id="mp-status" style="display:none; margin-top:8px; padding:8px 10px; border-radius:6px; font-size:12px; text-align:center;"></div>
+
+        <!-- Draw offer overlay -->
+        <div id="draw-offer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
+          <div style="background:var(--sidebar-bg, #fff); padding:24px 32px; border-radius:12px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <div style="font-size:16px; font-weight:bold; margin-bottom:6px; color:var(--sidebar-text);">Draw Offered</div>
+            <div id="draw-offer-from" style="font-size:13px; color:var(--sidebar-text-muted); margin-bottom:16px;"></div>
+            <div style="display:flex; gap:12px; justify-content:center;">
+              <button id="draw-accept-btn" class="btn-primary" style="padding:10px 24px; font-size:14px;">✓ Accept</button>
+              <button id="draw-decline-btn" class="btn-secondary" style="padding:10px 24px; font-size:14px;">✗ Decline</button>
+            </div>
+          </div>
         </div>
       </div>
 

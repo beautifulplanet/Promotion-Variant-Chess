@@ -277,9 +277,10 @@ export function initMultiplayerUI() {
     },
   });
 
-  // Auto-detect server URL (same host for production)
+  // Auto-detect server URL for production
+  // Vercel frontend → Fly.io backend
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    serverUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
+    serverUrl = 'https://chess-server-falling-lake-2071.fly.dev';
   }
 
   console.log('[MP UI] Multiplayer UI initialized');
