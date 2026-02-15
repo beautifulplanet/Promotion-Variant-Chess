@@ -1451,6 +1451,32 @@ if (loadingScreen) {
 // NEW FEATURES: Undo, Sound, Theme, Stats
 // =============================================================================
 
+// --- Newspaper pop-out overlay ---
+const newsBtn = document.getElementById('news-btn');
+const newspaperOverlay = document.getElementById('newspaper-overlay');
+const newspaperCloseBtn = document.getElementById('newspaper-close-btn');
+
+if (newsBtn && newspaperOverlay) {
+  newsBtn.addEventListener('click', () => {
+    newspaperOverlay.classList.add('open');
+  });
+  newspaperCloseBtn?.addEventListener('click', () => {
+    newspaperOverlay.classList.remove('open');
+  });
+  // Close on backdrop click
+  newspaperOverlay.addEventListener('click', (e) => {
+    if (e.target === newspaperOverlay) {
+      newspaperOverlay.classList.remove('open');
+    }
+  });
+  // Close on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && newspaperOverlay.classList.contains('open')) {
+      newspaperOverlay.classList.remove('open');
+    }
+  });
+}
+
 const undoBtn = document.getElementById('undo-btn');
 const soundBtn = document.getElementById('sound-btn');
 const themeBtn = document.getElementById('theme-btn');

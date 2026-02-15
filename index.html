@@ -103,34 +103,9 @@
       /* Make space for absolute sidebar */
     }
 
-    /* HEADER - Inside game-area, stops at sidebar */
+    /* HEADER - Hidden by default, shown inside newspaper overlay */
     #newspaper-header {
-      text-align: center;
-      border-bottom: 3px double #2a2a2a;
-      padding: 20px 30px 16px;
-      background: #faf6ed;
-      flex-shrink: 0;
-    }
-
-    #newspaper-header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 48px;
-      font-weight: 900;
-      letter-spacing: 8px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-
-    #newspaper-header .tagline {
-      font-style: italic;
-      font-size: 18px;
-      color: #444;
-    }
-
-    #newspaper-header .date {
-      font-size: 14px;
-      margin-top: 6px;
-      color: #555;
+      display: none;
     }
 
     /* MAIN CONTENT - Full viewport */
@@ -301,38 +276,22 @@
       line-height: 1.3;
     }
 
-    /* GAME AREA - Right Side */
+    /* GAME AREA - Right Side — canvas fills entire area */
     .game-area {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 15px;
-      gap: 15px;
-      overflow-y: auto;
+      justify-content: center;
+      padding: 0;
+      gap: 0;
+      overflow: hidden;
       background: var(--game-area-bg);
     }
 
-    /* ARTICLE COLUMNS (Horizontal Strips) */
+    /* ARTICLE COLUMNS — hidden from main flow, shown inside newspaper overlay */
     .article-column {
-      width: 100%;
-      max-width: 1150px;
-      display: flex;
-      flex-direction: row;
-      gap: 20px;
-      justify-content: space-between;
-      flex-shrink: 0;
-      padding: 10px 0;
-      border-top: 2px solid #c0b090;
-      border-bottom: 2px solid #c0b090;
-    }
-
-    .article-column.top-strip {
-      border-top: none;
-    }
-
-    .article-column.bottom-strip {
-      border-bottom: none;
+      display: none;
     }
 
     .article {
@@ -365,6 +324,117 @@
       letter-spacing: 0.2px;
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       NEWSPAPER POP-OUT OVERLAY
+       ═══════════════════════════════════════════════════════════════════ */
+    #newspaper-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      animation: overlay-fade-in 0.2s ease;
+    }
+    #newspaper-overlay.open {
+      display: flex;
+    }
+    @keyframes overlay-fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    #newspaper-panel {
+      background: var(--bg-color, #faf6ed);
+      background-image:
+        repeating-linear-gradient(to right, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px),
+        repeating-linear-gradient(to bottom, transparent, transparent 1px, rgba(0,0,0,0.015) 1px, rgba(0,0,0,0.015) 2px);
+      border: 3px double #2a2a2a;
+      border-radius: 8px;
+      width: 90vw;
+      max-width: 900px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.4);
+      animation: panel-slide-up 0.25s ease;
+    }
+    @keyframes panel-slide-up {
+      from { transform: translateY(30px); opacity: 0.5; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .newspaper-panel-header {
+      text-align: center;
+      border-bottom: 3px double #2a2a2a;
+      padding: 20px 30px 16px;
+    }
+    .newspaper-panel-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      color: var(--text-color, #2a2a2a);
+    }
+    .newspaper-panel-header .tagline {
+      font-style: italic;
+      font-size: 16px;
+      color: #444;
+    }
+    .newspaper-panel-header .date {
+      font-size: 13px;
+      margin-top: 4px;
+      color: #555;
+    }
+    .newspaper-panel-close {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: var(--text-color, #2a2a2a);
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .newspaper-panel-close:hover {
+      background: rgba(0,0,0,0.1);
+    }
+    .newspaper-articles {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      padding: 15px 20px;
+    }
+    .newspaper-articles .article {
+      padding: 12px 15px;
+      border-bottom: 1px solid #d0c0a0;
+    }
+    .newspaper-articles .article:nth-child(odd) {
+      border-right: 1px solid #d0c0a0;
+    }
+    .newspaper-articles .article:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+    @media (max-width: 600px) {
+      .newspaper-articles {
+        grid-template-columns: 1fr;
+      }
+      .newspaper-articles .article:nth-child(odd) {
+        border-right: none;
+      }
+      #newspaper-panel {
+        width: 96vw;
+        max-height: 90vh;
+      }
+      .newspaper-panel-header h1 {
+        font-size: 24px;
+        letter-spacing: 2px;
+      }
+    }
+
     /* CENTER SECTION - GAME + BOTTOM MENU */
     #center-section {
       flex: 1;
@@ -378,8 +448,12 @@
     #canvas-wrapper {
       border: 3px solid #2a2a2a;
       background: #000;
-      flex-shrink: 0;
+      flex: 1;
       position: relative;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     /* ─── Loading Screen ─── */
@@ -1065,110 +1139,7 @@
       border-color: #4a8a4a;
     }
 
-    /* RESPONSIVE - Shrink articles on smaller screens instead of hiding */
-    @media (max-width: 1400px) {
-      .article-column {
-        width: 180px;
-        min-width: 120px;
-        flex-shrink: 1;
-      }
-
-      .article-headline {
-        font-size: 15px;
-      }
-
-      .article-snippet {
-        font-size: 11px;
-      }
-    }
-
-    @media (max-width: 1100px) {
-      .article-column {
-        width: 140px;
-        min-width: 100px;
-      }
-
-      .article-headline {
-        font-size: 13px;
-      }
-    }
-
-    /* On narrow screens (and standard laptops): restructure layout - articles above game */
-    @media (max-width: 1600px) {
-      #main-content {
-        flex-direction: column;
-        align-items: center;
-      }
-
-      /* Create horizontal article strip above game */
-      .article-column {
-        width: 100%;
-        max-width: 800px;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-        gap: 16px;
-        padding: 8px 0;
-        border: none;
-        border-bottom: 2px solid #c0b090;
-      }
-
-      .article-column.left {
-        order: -2;
-        /* Move left column to very top */
-        border-right: none;
-        padding-right: 0;
-      }
-
-      .article-column.right {
-        order: -1;
-        /* Move right column second */
-        border-left: none;
-        padding-left: 0;
-        border-bottom: none;
-        margin-bottom: 10px;
-      }
-
-      .article {
-        min-width: 200px;
-        max-width: 250px;
-        flex-shrink: 0;
-        border-bottom: none;
-        border-right: 1px solid #d0c0a0;
-        padding-right: 16px;
-        padding-bottom: 0;
-      }
-
-      .article:last-child {
-        border-right: none;
-      }
-
-      .article-headline {
-        font-size: 14px;
-      }
-
-      .article-snippet {
-        font-size: 11px;
-      }
-    }
-
-    /* Very narrow/mobile: stack articles vertically above game */
-    @media (max-width: 600px) {
-      .article-column {
-        flex-direction: column;
-        max-height: 150px;
-        overflow-y: auto;
-      }
-
-      .article {
-        min-width: unset;
-        max-width: unset;
-        border-right: none;
-        border-bottom: 1px solid #d0c0a0;
-        padding-right: 0;
-        padding-bottom: 8px;
-      }
-    }
+    /* RESPONSIVE - Articles in overlay, no article-column breakpoints needed */
 
     /* ==========================================================================
        HAMBURGER MENU BUTTON (visible on mobile only)
@@ -1197,18 +1168,6 @@
     @media (max-width: 768px) {
       /* Show hamburger */
       #hamburger-btn { display: flex; align-items: center; justify-content: center; }
-
-      /* Header: shrink for mobile */
-      #newspaper-header {
-        padding: 8px 12px 6px;
-        padding-left: 52px; /* space for hamburger */
-      }
-      #newspaper-header h1 {
-        font-size: 20px;
-        letter-spacing: 2px;
-      }
-      #newspaper-header .tagline { font-size: 11px; }
-      #newspaper-header .date { font-size: 10px; }
 
       /* Sidebar: off-screen drawer */
       .left-sidebar {
@@ -1250,16 +1209,6 @@
         width: 100% !important;
         height: auto !important;
       }
-
-      /* Hide articles on mobile — game is the focus */
-      .article-column { display: none !important; }
-      .article-column.top-strip { display: none !important; }
-      .mid-row {
-        flex-direction: column !important;
-        width: 100% !important;
-        gap: 8px !important;
-      }
-      .right-column { display: none !important; }
 
       /* Move list panel: bottom sheet on mobile */
       #move-list-panel {
@@ -1382,13 +1331,6 @@
   <!-- HAMBURGER MENU (mobile only) -->
   <button id="hamburger-btn" aria-label="Toggle menu">☰</button>
   <div id="sidebar-backdrop"></div>
-
-  <!-- FULL WIDTH HEADER - Spans entire screen like a newspaper -->
-  <div id="newspaper-header">
-    <h1>The Chess Chronicle</h1>
-    <div class="tagline">"All the Moves That's Fit to Print"</div>
-    <div class="date" id="newspaper-date"></div>
-  </div>
 
   <!-- CONTENT ROW: Sidebar + Game Area -->
   <div class="content-row">
@@ -1558,6 +1500,7 @@
         <h3>Game Controls</h3>
         <button id="undo-btn" class="btn-secondary">↩️
           Undo Move</button>
+        <button id="news-btn" class="btn-secondary">📰 Newspaper</button>
         <button id="setup-btn" class="btn-muted" style="width:100%; margin-bottom:8px; padding:10px; font-size:14px;">⚙️
           Setup Board</button>
       </div>
@@ -1647,27 +1590,8 @@
       <div id="fps" style="font-size:11px; color:var(--sidebar-text-muted); text-align:center; font-style:italic;">FPS: 60</div>
     </div>
 
-    <!-- RIGHT GAME AREA: Canvas & Articles -->
+    <!-- RIGHT GAME AREA: Canvas fills everything -->
     <div class="game-area">
-      <!-- TOP ARTICLES -->
-      <div class="article-column top-strip">
-        <div class="article">
-          <div class="article-headline" id="article-1-headline">Loading...</div>
-          <div class="article-snippet" id="article-1-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-2-headline"></div>
-          <div class="article-snippet" id="article-2-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-3-headline"></div>
-          <div class="article-snippet" id="article-3-snippet"></div>
-        </div>
-      </div>
-
-      <!-- MID ROW: Canvas + Right Side Articles -->
-      <div class="mid-row" style="display: flex; gap: 20px; width: 100%; justify-content: center;">
-
         <!-- GAME CANVAS -->
         <div id="canvas-wrapper" style="position: relative;">
           <!-- Loading screen (removed by main-3d.ts once 3D engine is ready) -->
@@ -1687,26 +1611,44 @@
           <canvas id="overlay-canvas" width="1150" height="550"
             style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
         </div>
+    </div>
+  </div>
 
-        <!-- RIGHT ARTICLE COLUMN -->
-        <div class="article-column right-column"
-          style="width: 300px; display: flex; flex-direction: column; gap: 15px;">
-          <div class="article">
-            <div class="article-headline" id="article-4-headline">Loading...</div>
-            <div class="article-snippet" id="article-4-snippet"></div>
-          </div>
-          <div class="article">
-            <div class="article-headline" id="article-5-headline"></div>
-            <div class="article-snippet" id="article-5-snippet"></div>
-          </div>
-          <div class="article">
-            <div class="article-headline" id="article-6-headline"></div>
-            <div class="article-snippet" id="article-6-snippet"></div>
-          </div>
+  <!-- NEWSPAPER POP-OUT OVERLAY -->
+  <div id="newspaper-overlay">
+    <div id="newspaper-panel" style="position:relative;">
+      <button class="newspaper-panel-close" id="newspaper-close-btn" title="Close">&times;</button>
+      <div class="newspaper-panel-header">
+        <h1>The Chess Chronicle</h1>
+        <div class="tagline">“All the Moves That’s Fit to Print”</div>
+        <div class="date" id="newspaper-date"></div>
+      </div>
+      <div class="newspaper-articles">
+        <div class="article">
+          <div class="article-headline" id="article-1-headline">Loading...</div>
+          <div class="article-snippet" id="article-1-snippet"></div>
+        </div>
+        <div class="article">
+          <div class="article-headline" id="article-2-headline"></div>
+          <div class="article-snippet" id="article-2-snippet"></div>
+        </div>
+        <div class="article">
+          <div class="article-headline" id="article-3-headline"></div>
+          <div class="article-snippet" id="article-3-snippet"></div>
+        </div>
+        <div class="article">
+          <div class="article-headline" id="article-4-headline"></div>
+          <div class="article-snippet" id="article-4-snippet"></div>
+        </div>
+        <div class="article">
+          <div class="article-headline" id="article-5-headline"></div>
+          <div class="article-snippet" id="article-5-snippet"></div>
+        </div>
+        <div class="article">
+          <div class="article-headline" id="article-6-headline"></div>
+          <div class="article-snippet" id="article-6-snippet"></div>
         </div>
       </div>
-
-
     </div>
   </div>
 

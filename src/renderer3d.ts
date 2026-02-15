@@ -304,16 +304,16 @@ function doResize(): void {
     const wrapper = canvas.parentElement;
     if (!wrapper) return;
 
-    // Get available space from parent container
-    const containerWidth = wrapper.parentElement?.clientWidth || window.innerWidth;
-    const containerHeight = wrapper.parentElement?.clientHeight || window.innerHeight;
+    // Get available space — wrapper fills the game area via flex
+    const gameArea = wrapper.parentElement;
+    const availWidth = gameArea?.clientWidth || window.innerWidth;
+    const availHeight = gameArea?.clientHeight || window.innerHeight;
 
-    // On mobile, use nearly full viewport width; on desktop, cap at reasonable size
+    // On mobile, use nearly full viewport; on desktop, fill game area
     const isMobile = window.innerWidth < 768;
-    const maxWidth = isMobile ? containerWidth - 10 : Math.min(containerWidth - 40, 1150);
-    // Keep aspect ratio ~2:1 for the chess board
-    const width = Math.floor(maxWidth);
-    const height = Math.floor(isMobile ? width * 0.6 : Math.min(width * 0.478, containerHeight - 200));
+    const width = Math.floor(isMobile ? availWidth - 6 : availWidth - 6);
+    // Keep aspect ratio ~2:1 for the chess board but fill height
+    const height = Math.floor(isMobile ? width * 0.6 : availHeight - 6);
 
     // Update canvas HTML attributes (drawing buffer)
     const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
