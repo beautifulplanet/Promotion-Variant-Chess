@@ -1451,28 +1451,28 @@ if (loadingScreen) {
 // NEW FEATURES: Undo, Sound, Theme, Stats
 // =============================================================================
 
-// --- Newspaper pop-out overlay ---
-const newsBtn = document.getElementById('news-btn');
-const newspaperOverlay = document.getElementById('newspaper-overlay');
-const newspaperCloseBtn = document.getElementById('newspaper-close-btn');
+// --- Options pop-out overlay ---
+const optionsBtn = document.getElementById('options-btn');
+const optionsOverlay = document.getElementById('options-overlay');
+const optionsCloseBtn = document.getElementById('options-close-btn');
 
-if (newsBtn && newspaperOverlay) {
-  newsBtn.addEventListener('click', () => {
-    newspaperOverlay.classList.add('open');
+if (optionsBtn && optionsOverlay) {
+  optionsBtn.addEventListener('click', () => {
+    optionsOverlay.classList.add('open');
   });
-  newspaperCloseBtn?.addEventListener('click', () => {
-    newspaperOverlay.classList.remove('open');
+  optionsCloseBtn?.addEventListener('click', () => {
+    optionsOverlay.classList.remove('open');
   });
   // Close on backdrop click
-  newspaperOverlay.addEventListener('click', (e) => {
-    if (e.target === newspaperOverlay) {
-      newspaperOverlay.classList.remove('open');
+  optionsOverlay.addEventListener('click', (e) => {
+    if (e.target === optionsOverlay) {
+      optionsOverlay.classList.remove('open');
     }
   });
   // Close on Escape
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && newspaperOverlay.classList.contains('open')) {
-      newspaperOverlay.classList.remove('open');
+    if (e.key === 'Escape' && optionsOverlay.classList.contains('open')) {
+      optionsOverlay.classList.remove('open');
     }
   });
 }

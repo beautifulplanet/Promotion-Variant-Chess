@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -101,11 +101,6 @@
       overflow: hidden;
       margin-left: 220px;
       /* Make space for absolute sidebar */
-    }
-
-    /* HEADER - Hidden by default, shown inside newspaper overlay */
-    #newspaper-header {
-      display: none;
     }
 
     /* MAIN CONTENT - Full viewport */
@@ -276,163 +271,145 @@
       line-height: 1.3;
     }
 
-    /* GAME AREA - Right Side — canvas fills entire area */
+    /* GAME AREA - 3-column: left articles | canvas | right articles */
     .game-area {
       flex: 1;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      flex-direction: row;
+      align-items: stretch;
       padding: 0;
       gap: 0;
       overflow: hidden;
       background: var(--game-area-bg);
     }
 
-    /* ARTICLE COLUMNS — hidden from main flow, shown inside newspaper overlay */
+    /* ARTICLE COLUMNS — visible on both sides of canvas */
     .article-column {
-      display: none;
+      width: 220px;
+      min-width: 160px;
+      flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+      padding: 10px 0;
+      border-color: #c0b090;
     }
+    .article-column.left {
+      border-right: 2px solid #c0b090;
+    }
+    .article-column.right {
+      border-left: 2px solid #c0b090;
+    }
+    /* Article column scrollbar */
+    .article-column::-webkit-scrollbar { width: 4px; }
+    .article-column::-webkit-scrollbar-track { background: transparent; }
+    .article-column::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
 
     .article {
-      flex: 1;
-      min-width: 250px;
-      padding: 0 15px;
-      border-right: 1px solid #d0c0a0;
+      padding: 10px 12px;
+      border-bottom: 1px solid #d0c0a0;
     }
 
     .article:last-child {
-      border-right: none;
+      border-bottom: none;
     }
 
     .article-headline {
       font-family: 'Playfair Display', serif;
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 700;
       line-height: 1.25;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       color: #1a1a1a;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }
 
     .article-snippet {
       font-family: 'Old Standard TT', serif;
-      font-size: 15px;
-      line-height: 1.5;
-      color: #222;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #333;
       font-style: normal;
-      letter-spacing: 0.2px;
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       NEWSPAPER POP-OUT OVERLAY
+       OPTIONS POP-OUT OVERLAY
        ═══════════════════════════════════════════════════════════════════ */
-    #newspaper-overlay {
+    #options-overlay {
       display: none;
       position: fixed;
       inset: 0;
       z-index: 3000;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.5);
       align-items: center;
       justify-content: center;
       animation: overlay-fade-in 0.2s ease;
     }
-    #newspaper-overlay.open {
+    #options-overlay.open {
       display: flex;
     }
     @keyframes overlay-fade-in {
       from { opacity: 0; }
       to { opacity: 1; }
     }
-    #newspaper-panel {
-      background: var(--bg-color, #faf6ed);
-      background-image:
-        repeating-linear-gradient(to right, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px),
-        repeating-linear-gradient(to bottom, transparent, transparent 1px, rgba(0,0,0,0.015) 1px, rgba(0,0,0,0.015) 2px);
-      border: 3px double #2a2a2a;
-      border-radius: 8px;
+    #options-panel {
+      background: var(--sidebar-bg, #f5f0e6);
+      border: 2px solid var(--sidebar-border);
+      border-radius: 10px;
       width: 90vw;
-      max-width: 900px;
+      max-width: 480px;
       max-height: 85vh;
       overflow-y: auto;
-      box-shadow: 0 12px 48px rgba(0,0,0,0.4);
+      box-shadow: 0 12px 48px rgba(0,0,0,0.35);
       animation: panel-slide-up 0.25s ease;
+      padding: 0;
     }
     @keyframes panel-slide-up {
       from { transform: translateY(30px); opacity: 0.5; }
       to { transform: translateY(0); opacity: 1; }
     }
-    .newspaper-panel-header {
-      text-align: center;
-      border-bottom: 3px double #2a2a2a;
-      padding: 20px 30px 16px;
+    #options-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--sidebar-border);
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
+      border-radius: 8px 8px 0 0;
     }
-    .newspaper-panel-header h1 {
+    #options-panel-header h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 42px;
-      font-weight: 900;
-      letter-spacing: 6px;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-      color: var(--text-color, #2a2a2a);
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
     }
-    .newspaper-panel-header .tagline {
-      font-style: italic;
-      font-size: 16px;
-      color: #444;
-    }
-    .newspaper-panel-header .date {
-      font-size: 13px;
-      margin-top: 4px;
-      color: #555;
-    }
-    .newspaper-panel-close {
-      position: absolute;
-      top: 12px;
-      right: 16px;
+    .options-panel-close {
       background: none;
       border: none;
-      font-size: 28px;
+      font-size: 24px;
       cursor: pointer;
-      color: var(--text-color, #2a2a2a);
+      color: var(--sidebar-bg);
       line-height: 1;
-      padding: 4px 8px;
+      padding: 2px 6px;
       border-radius: 4px;
     }
-    .newspaper-panel-close:hover {
-      background: rgba(0,0,0,0.1);
+    .options-panel-close:hover {
+      background: rgba(255,255,255,0.15);
     }
-    .newspaper-articles {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-      padding: 15px 20px;
+    #options-panel-body {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .newspaper-articles .article {
-      padding: 12px 15px;
-      border-bottom: 1px solid #d0c0a0;
+    #options-panel-body .sidebar-section {
+      border-bottom: 1px solid var(--sidebar-border);
+      padding-bottom: 8px;
     }
-    .newspaper-articles .article:nth-child(odd) {
-      border-right: 1px solid #d0c0a0;
-    }
-    .newspaper-articles .article:nth-last-child(-n+2) {
+    #options-panel-body .sidebar-section:last-child {
       border-bottom: none;
-    }
-    @media (max-width: 600px) {
-      .newspaper-articles {
-        grid-template-columns: 1fr;
-      }
-      .newspaper-articles .article:nth-child(odd) {
-        border-right: none;
-      }
-      #newspaper-panel {
-        width: 96vw;
-        max-height: 90vh;
-      }
-      .newspaper-panel-header h1 {
-        font-size: 24px;
-        letter-spacing: 2px;
-      }
     }
 
     /* CENTER SECTION - GAME + BOTTOM MENU */
@@ -1139,7 +1116,20 @@
       border-color: #4a8a4a;
     }
 
-    /* RESPONSIVE - Articles in overlay, no article-column breakpoints needed */
+    /* RESPONSIVE - Article columns visibility */
+    @media (max-width: 1100px) {
+      .article-column { width: 160px; min-width: 120px; }
+      .article-headline { font-size: 12px; }
+      .article-snippet { font-size: 11px; }
+    }
+    @media (max-width: 900px) {
+      /* Hide right column on medium screens */
+      .article-column.right { display: none; }
+    }
+    @media (max-width: 700px) {
+      /* Hide both columns on small screens */
+      .article-column { display: none !important; }
+    }
 
     /* ==========================================================================
        HAMBURGER MENU BUTTON (visible on mobile only)
@@ -1313,9 +1303,6 @@
 
     /* Safe area insets for notched phones */
     @supports (padding: env(safe-area-inset-top)) {
-      #newspaper-header {
-        padding-top: max(8px, env(safe-area-inset-top));
-      }
       .left-sidebar {
         padding-bottom: env(safe-area-inset-bottom);
       }
@@ -1334,296 +1321,49 @@
 
   <!-- CONTENT ROW: Sidebar + Game Area -->
   <div class="content-row">
-    <!-- LEFT SIDEBAR: Controls & Stats -->
+    <!-- LEFT SIDEBAR: Minimal — only essential controls -->
     <div class="left-sidebar">
       <!-- World/Era Name -->
       <div class="sidebar-section">
         <div id="world-name">Loading...</div>
       </div>
 
-      <!-- Game Stats -->
+      <!-- Quick Stats -->
       <div class="sidebar-section">
-        <h3>Game Status</h3>
-        <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Turn</div>
-          <div id="sidebar-turn" style="font-size: 14px; font-weight: bold;">White</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+          <div style="font-size: 9px; color: var(--sidebar-text-muted);">ELO</div>
+          <div style="font-size: 16px; font-weight: bold;" id="elo">400</div>
         </div>
-        <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Rating (ELO)</div>
-          <div style="font-size: 18px; font-weight: bold;" id="elo">400</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+          <div style="font-size: 9px; color: var(--sidebar-text-muted);">Turn</div>
+          <div id="sidebar-turn" style="font-size: 13px; font-weight: bold;">White</div>
         </div>
-        <div style="margin-bottom: 6px;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Level</div>
-          <div style="font-size: 14px; font-weight: bold;"><span id="player-level">1</span></div>
-        </div>
-        <div>
-          <div style="font-size: 9px; color: var(--sidebar-text-muted); margin-bottom: 2px;">Record</div>
-          <div style="font-size: 12px;">
-            <span style="color: var(--sidebar-accent); font-weight: bold;">W: <span id="games-won">0</span></span>
-            <span style="margin: 0 4px;">|</span>
-            <span style="opacity: 0.7; font-weight: bold;">L: <span id="games-lost">0</span></span>
-          </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size: 9px; color: var(--sidebar-text-muted);">Lv</div>
+          <div style="font-size: 13px; font-weight: bold;"><span id="player-level">1</span></div>
         </div>
       </div>
 
-      <!-- Opening Display -->
-      <div class="sidebar-section" id="opening-section" style="display: none;">
-        <h3>📖 Opening</h3>
-        <div id="opening-name"
-          style="font-size: 13px; font-weight: bold; color: var(--sidebar-accent); padding: 6px 0; font-style: italic;">-</div>
-      </div>
-
-      <!-- Move Quality Indicator -->
-      <div class="sidebar-section" id="move-quality-section" style="display: none;">
-        <h3>🎯 Last Move</h3>
-        <div id="move-quality"
-          style="font-size: 14px; font-weight: bold; padding: 6px 0; display: flex; align-items: center; gap: 6px;">
-          <span id="move-quality-emoji"></span>
-          <span id="move-quality-label"></span>
-        </div>
-        <div id="best-move-hint" style="display: none; font-size: 12px; color: var(--sidebar-text-muted); margin-top: 4px; padding: 4px 8px; background: rgba(0,0,0,0.05); border-radius: 4px;">
-          💡 Best was: <span id="best-move-text" style="font-weight: bold; color: var(--sidebar-accent);"></span>
-        </div>
-      </div>
-
-      <!-- Timer -->
+      <!-- Primary Actions -->
       <div class="sidebar-section">
-        <h3>Game Time</h3>
-        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-          <div style="text-align:center;">
-            <div style="font-size:8px; color:var(--sidebar-text-muted);">White</div>
-            <div id="white-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:8px; color:var(--sidebar-text-muted);">Black</div>
-            <div id="black-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
-          </div>
-        </div>
-        <div id="total-time" style="display:none;">0:00</div>
-        <div style="font-size: 11px; text-align: center; color: var(--sidebar-text-muted); margin-top: 6px;">
-          Moves: <span id="move-count">0</span>
-        </div>
+        <button id="start-game-btn" class="btn-primary">▶️ New Game</button>
+        <button id="save-btn" class="btn-secondary">💾 Save</button>
+        <button id="view-mode-btn" class="btn-secondary">🎥 Pan</button>
       </div>
 
-      <!-- AI Controls -->
-      <div class="sidebar-section" id="ai-controls-section">
-        <h3>AI Controls</h3>
-        <button id="start-game-btn" class="btn-primary">▶️
-          Start Game</button>
-        <button id="watch-ai-btn" class="btn-secondary">🤖
-          Watch AI</button>
-        <button id="train-ai-btn" class="btn-secondary">🧠
-          Train AI</button>
-        <button id="ai-speed-btn" class="btn-secondary" style="display:none;">⏱️
-          Speed: 1x</button>
-
-        <!-- AI Aggression Slider -->
-        <div class="aggression-slider-container">
-          <label for="ai-aggression-slider">⚔️ AI Aggression</label>
-          <input type="range" id="ai-aggression-slider" min="1" max="20" value="10" step="1">
-          <div class="aggression-slider-value">
-            <span class="level-number" id="aggression-level-display">10</span>
-            <span class="level-desc" id="aggression-desc-display">Fair — AI fully matches your deployed pieces</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Multiplayer Controls -->
-      <div class="sidebar-section" id="multiplayer-section">
-        <h3>🌐 Multiplayer</h3>
-
-        <!-- State: Offline / Ready to connect -->
-        <div id="mp-offline">
-          <input id="mp-player-name" type="text" placeholder="Your name…"
-            style="width:100%; padding:10px; margin-bottom:8px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
-          <select id="mp-time-control"
-            style="width:100%; padding:10px; margin-bottom:10px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
-            <option value="180|0">3+0 Blitz</option>
-            <option value="180|2">3+2 Blitz</option>
-            <option value="300|0">5+0 Blitz</option>
-            <option value="300|3">5+3 Blitz</option>
-            <option value="600|0" selected>10+0 Rapid</option>
-            <option value="600|5">10+5 Rapid</option>
-            <option value="900|10">15+10 Rapid</option>
-            <option value="1800|0">30+0 Classical</option>
-          </select>
-          <button id="mp-play-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">
-            ⚔️ Find Opponent
-          </button>
-        </div>
-
-        <!-- State: In queue -->
-        <div id="mp-queue" style="display:none; text-align:center; padding:12px 0;">
-          <div style="font-size:14px; color:var(--sidebar-text); margin-bottom:8px;">Searching for opponent…</div>
-          <div id="mp-queue-pos" style="font-size:12px; color:var(--sidebar-text-muted); margin-bottom:12px;"></div>
-          <button id="mp-cancel-btn" class="btn-secondary" style="width:100%; padding:10px; font-size:14px;">
-            ✖ Cancel
-          </button>
-        </div>
-
-        <!-- State: In game -->
-        <div id="mp-ingame" style="display:none;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:8px 10px; background:var(--sidebar-hover, rgba(0,0,0,0.04)); border-radius:6px;">
-            <div>
-              <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text);">vs <span id="mp-opponent-name">—</span></div>
-              <div id="mp-opponent-elo" style="font-size:11px; color:var(--sidebar-text-muted);">ELO: —</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              <div id="white-time" style="padding:4px 8px; background:#fff; color:#333; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold; border:1px solid #ddd;">—</div>
-              <div id="black-time" style="padding:4px 8px; background:#333; color:#fff; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold;">—</div>
-            </div>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            <button id="mp-resign-btn" class="btn-secondary" style="padding:10px; font-size:13px;">🏳️ Resign</button>
-            <button id="mp-draw-btn" class="btn-secondary" style="padding:10px; font-size:13px;">🤝 Draw</button>
-          </div>
-        </div>
-
-        <!-- Status message -->
-        <div id="mp-status" style="display:none; margin-top:8px; padding:8px 10px; border-radius:6px; font-size:12px; text-align:center;"></div>
-
-        <!-- Draw offer overlay -->
-        <div id="draw-offer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
-          <div style="background:var(--sidebar-bg, #fff); padding:24px 32px; border-radius:12px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
-            <div style="font-size:16px; font-weight:bold; margin-bottom:6px; color:var(--sidebar-text);">Draw Offered</div>
-            <div id="draw-offer-from" style="font-size:13px; color:var(--sidebar-text-muted); margin-bottom:16px;"></div>
-            <div style="display:flex; gap:12px; justify-content:center;">
-              <button id="draw-accept-btn" class="btn-primary" style="padding:10px 24px; font-size:14px;">✓ Accept</button>
-              <button id="draw-decline-btn" class="btn-secondary" style="padding:10px 24px; font-size:14px;">✗ Decline</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Game Controls -->
+      <!-- Options pop-out trigger -->
       <div class="sidebar-section">
-        <h3>Game Controls</h3>
-        <button id="undo-btn" class="btn-secondary">↩️
-          Undo Move</button>
-        <button id="news-btn" class="btn-secondary">📰 Newspaper</button>
-        <button id="setup-btn" class="btn-muted" style="width:100%; margin-bottom:8px; padding:10px; font-size:14px;">⚙️
-          Setup Board</button>
+        <button id="options-btn" class="btn-muted" style="width:100%; padding:10px; font-size:14px;">⚙️ Options</button>
       </div>
 
-      <!-- View Controls -->
-      <div class="sidebar-section">
-        <h3>View & Preferences</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-          <button id="view-mode-btn" class="btn-muted">🎥
-            Pan</button>
-          <button id="style-3d-btn" class="btn-muted">🎨
-            3D</button>
-          <button id="style-2d-btn" class="btn-muted">🖼️
-            2D</button>
-          <button id="board-style-btn" class="btn-muted">🏁
-            Board</button>
-          <button id="flip-btn" class="btn-muted">🔄
-            Flip</button>
-          <button id="sound-btn" class="btn-muted">🔊
-            Sound</button>
-          <button id="theme-btn" class="btn-muted">🎨
-            Theme</button>
-          <button id="stats-btn" class="btn-muted">📊
-            Stats</button>
-          <button id="save-btn" class="btn-muted">💾
-            Save</button>
-          <button id="load-btn" class="btn-muted">📂
-            Load</button>
-        </div>
-        <span id="streak-display" style="display:block; margin-top:10px; font-weight:bold; text-align:center;"></span>
-        <div style="text-align: center; margin-top: 15px; border-top: 1px solid var(--sidebar-border); padding-top: 10px;">
-          <a href="privacy.html" target="_blank"
-            style="color: var(--sidebar-text-muted); text-decoration: none; font-size: 11px; font-family: 'Old Standard TT', serif;">Privacy
-            Policy</a>
-        </div>
-      </div>
-
-      <!-- DEBUG MENU (hidden by default, Shift+D to toggle) -->
-      <div id="debug-menu"
-        style="display:none; flex-direction:column; gap:8px; padding:10px; background:var(--sidebar-bg); border-radius:4px; margin-top:10px;">
-        <h3 style="margin:0 0 8px 0; color:var(--sidebar-accent);">🔧 Debug Menu</h3>
-
-        <!-- ELO Controls -->
-        <div style="display:flex; gap:4px; align-items:center;">
-          <input type="number" id="debug-elo-input" value="400" min="100" max="10000" style="width:70px; padding:4px;">
-          <button id="debug-elo-btn"
-            style="flex:1; padding:4px; background:var(--btn-primary); color:var(--btn-primary-text); border:none; border-radius:3px; cursor:pointer;">Set
-            ELO</button>
-        </div>
-        <button id="debug-win-btn"
-          style="padding:6px; background:var(--btn-secondary); color:var(--btn-secondary-text); border:none; border-radius:3px; cursor:pointer;">🏆 Force
-          Win</button>
-
-        <!-- Visual Toggles -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:11px;">
-          <label><input type="checkbox" id="debug-env-toggle" checked> Environment</label>
-          <label><input type="checkbox" id="debug-particles-toggle" checked> Particles</label>
-          <label><input type="checkbox" id="debug-skybox-toggle" checked> Skybox</label>
-          <label><input type="checkbox" id="debug-lighting-toggle" checked> Lighting</label>
-          <label><input type="checkbox" id="debug-shadows-toggle" checked> Shadows</label>
-          <label><input type="checkbox" id="debug-anim-toggle" checked> Animations</label>
-          <label><input type="checkbox" id="debug-wormhole-toggle" checked> Wormhole</label>
-          <label><input type="checkbox" id="debug-motion-toggle" checked> Motion</label>
-        </div>
-
-        <!-- Performance Settings -->
-        <div style="font-size:10px; display:flex; flex-direction:column; gap:4px;">
-          <label>Render Scale: <input type="range" id="debug-render-scale" min="0.25" max="2" step="0.25" value="1"
-              style="width:80px;"></label>
-          <label><input type="checkbox" id="debug-auto-fps" checked> Auto FPS</label>
-          <label>Target FPS: <input type="number" id="debug-target-fps" value="60" min="15" max="144"
-              style="width:50px;"></label>
-          <label><input type="checkbox" id="debug-fixed-step"> Fixed Step</label>
-          <label>Fixed FPS: <input type="number" id="debug-fixed-fps" value="30" min="15" max="60"
-              style="width:50px;"></label>
-          <label>Anim Quality: <input type="range" id="debug-anim-quality" min="0.1" max="1" step="0.1" value="1"
-              style="width:80px;"></label>
-          <label>Travel Speed: <input type="range" id="debug-travel-speed" min="0.1" max="3" step="0.1" value="1"
-              style="width:80px;"></label>
-          <label>Asset Density: <input type="range" id="debug-asset-density" min="0.1" max="2" step="0.1" value="1"
-              style="width:80px;"></label>
-          <label>Particle Density: <input type="range" id="debug-particle-density" min="0.1" max="2" step="0.1"
-              value="1" style="width:80px;"></label>
-        </div>
-      </div>
-
+      <span id="streak-display" style="display:block; font-weight:bold; text-align:center; font-size:11px;"></span>
       <div id="fps" style="font-size:11px; color:var(--sidebar-text-muted); text-align:center; font-style:italic;">FPS: 60</div>
     </div>
 
-    <!-- RIGHT GAME AREA: Canvas fills everything -->
+    <!-- GAME AREA: Left Articles | Canvas | Right Articles -->
     <div class="game-area">
-        <!-- GAME CANVAS -->
-        <div id="canvas-wrapper" style="position: relative;">
-          <!-- Loading screen (removed by main-3d.ts once 3D engine is ready) -->
-          <div id="loading-screen">
-            <h2>The Chess Chronicle</h2>
-            <div class="loading-pieces">
-              <span class="loading-piece">♜</span>
-              <span class="loading-piece">♞</span>
-              <span class="loading-piece">♚</span>
-              <span class="loading-piece">♞</span>
-              <span class="loading-piece">♜</span>
-            </div>
-            <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
-            <p>Setting up the board...</p>
-          </div>
-          <canvas id="game-canvas" width="1150" height="550"></canvas>
-          <canvas id="overlay-canvas" width="1150" height="550"
-            style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
-        </div>
-    </div>
-  </div>
-
-  <!-- NEWSPAPER POP-OUT OVERLAY -->
-  <div id="newspaper-overlay">
-    <div id="newspaper-panel" style="position:relative;">
-      <button class="newspaper-panel-close" id="newspaper-close-btn" title="Close">&times;</button>
-      <div class="newspaper-panel-header">
-        <h1>The Chess Chronicle</h1>
-        <div class="tagline">“All the Moves That’s Fit to Print”</div>
-        <div class="date" id="newspaper-date"></div>
-      </div>
-      <div class="newspaper-articles">
+      <!-- LEFT ARTICLE COLUMN -->
+      <div class="article-column left">
         <div class="article">
           <div class="article-headline" id="article-1-headline">Loading...</div>
           <div class="article-snippet" id="article-1-snippet"></div>
@@ -1636,6 +1376,29 @@
           <div class="article-headline" id="article-3-headline"></div>
           <div class="article-snippet" id="article-3-snippet"></div>
         </div>
+      </div>
+
+      <!-- GAME CANVAS -->
+      <div id="canvas-wrapper" style="position: relative;">
+        <div id="loading-screen">
+          <h2>The Chess Chronicle</h2>
+          <div class="loading-pieces">
+            <span class="loading-piece">♜</span>
+            <span class="loading-piece">♞</span>
+            <span class="loading-piece">♚</span>
+            <span class="loading-piece">♞</span>
+            <span class="loading-piece">♜</span>
+          </div>
+          <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+          <p>Setting up the board...</p>
+        </div>
+        <canvas id="game-canvas" width="1150" height="550"></canvas>
+        <canvas id="overlay-canvas" width="1150" height="550"
+          style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+      </div>
+
+      <!-- RIGHT ARTICLE COLUMN -->
+      <div class="article-column right">
         <div class="article">
           <div class="article-headline" id="article-4-headline"></div>
           <div class="article-snippet" id="article-4-snippet"></div>
@@ -1649,6 +1412,179 @@
           <div class="article-snippet" id="article-6-snippet"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- OPTIONS POP-OUT OVERLAY -->
+  <div id="options-overlay">
+    <div id="options-panel">
+      <div id="options-panel-header">
+        <h2>&#x2699;&#xFE0F; Options</h2>
+        <button class="options-panel-close" id="options-close-btn" title="Close">&times;</button>
+      </div>
+      <div id="options-panel-body">
+
+        <!-- Record -->
+        <div class="sidebar-section">
+          <h3>Record</h3>
+          <div style="font-size: 13px;">
+            <span style="color: var(--sidebar-accent); font-weight: bold;">W: <span id="games-won">0</span></span>
+            <span style="margin: 0 6px;">|</span>
+            <span style="font-weight: bold;">L: <span id="games-lost">0</span></span>
+          </div>
+        </div>
+
+        <!-- Opening Display -->
+        <div class="sidebar-section" id="opening-section" style="display: none;">
+          <h3>&#x1F4D6; Opening</h3>
+          <div id="opening-name" style="font-size: 13px; font-weight: bold; color: var(--sidebar-accent); padding: 4px 0; font-style: italic;">-</div>
+        </div>
+
+        <!-- Move Quality Indicator -->
+        <div class="sidebar-section" id="move-quality-section" style="display: none;">
+          <h3>&#x1F3AF; Last Move</h3>
+          <div id="move-quality" style="font-size: 14px; font-weight: bold; padding: 4px 0; display: flex; align-items: center; gap: 6px;">
+            <span id="move-quality-emoji"></span>
+            <span id="move-quality-label"></span>
+          </div>
+          <div id="best-move-hint" style="display: none; font-size: 12px; color: var(--sidebar-text-muted); margin-top: 4px; padding: 4px 8px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+            &#x1F4A1; Best was: <span id="best-move-text" style="font-weight: bold; color: var(--sidebar-accent);"></span>
+          </div>
+        </div>
+
+        <!-- Timer -->
+        <div class="sidebar-section">
+          <h3>Game Time</h3>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <div style="text-align:center;">
+              <div style="font-size:9px; color:var(--sidebar-text-muted);">White</div>
+              <div id="white-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:9px; color:var(--sidebar-text-muted);">Black</div>
+              <div id="black-time" style="font-family:monospace; font-weight:bold; font-size:14px;">0:00</div>
+            </div>
+          </div>
+          <div id="total-time" style="display:none;">0:00</div>
+          <div style="font-size: 11px; text-align: center; color: var(--sidebar-text-muted); margin-top: 4px;">
+            Moves: <span id="move-count">0</span>
+          </div>
+        </div>
+
+        <!-- AI Controls -->
+        <div class="sidebar-section" id="ai-controls-section">
+          <h3>AI Controls</h3>
+          <button id="watch-ai-btn" class="btn-secondary">&#x1F916; Watch AI</button>
+          <button id="train-ai-btn" class="btn-secondary">&#x1F9E0; Train AI</button>
+          <button id="ai-speed-btn" class="btn-secondary" style="display:none;">&#x23F1;&#xFE0F; Speed: 1x</button>
+          <div class="aggression-slider-container">
+            <label for="ai-aggression-slider">&#x2694;&#xFE0F; AI Aggression</label>
+            <input type="range" id="ai-aggression-slider" min="1" max="20" value="10" step="1">
+            <div class="aggression-slider-value">
+              <span class="level-number" id="aggression-level-display">10</span>
+              <span class="level-desc" id="aggression-desc-display">Fair</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multiplayer Controls -->
+        <div class="sidebar-section" id="multiplayer-section">
+          <h3>&#x1F310; Multiplayer</h3>
+          <div id="mp-offline">
+            <input id="mp-player-name" type="text" placeholder="Your name..." style="width:100%; padding:10px; margin-bottom:8px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
+            <select id="mp-time-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
+              <option value="180|0">3+0 Blitz</option>
+              <option value="180|2">3+2 Blitz</option>
+              <option value="300|0">5+0 Blitz</option>
+              <option value="300|3">5+3 Blitz</option>
+              <option value="600|0" selected>10+0 Rapid</option>
+              <option value="600|5">10+5 Rapid</option>
+              <option value="900|10">15+10 Rapid</option>
+              <option value="1800|0">30+0 Classical</option>
+            </select>
+            <button id="mp-play-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">&#x2694;&#xFE0F; Find Opponent</button>
+          </div>
+          <div id="mp-queue" style="display:none; text-align:center; padding:12px 0;">
+            <div style="font-size:14px; color:var(--sidebar-text); margin-bottom:8px;">Searching for opponent...</div>
+            <div id="mp-queue-pos" style="font-size:12px; color:var(--sidebar-text-muted); margin-bottom:12px;"></div>
+            <button id="mp-cancel-btn" class="btn-secondary" style="width:100%; padding:10px; font-size:14px;">&#x2716; Cancel</button>
+          </div>
+          <div id="mp-ingame" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:8px 10px; background:var(--sidebar-hover, rgba(0,0,0,0.04)); border-radius:6px;">
+              <div>
+                <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text);">vs <span id="mp-opponent-name">-</span></div>
+                <div id="mp-opponent-elo" style="font-size:11px; color:var(--sidebar-text-muted);">ELO: -</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <div id="mp-white-time" style="padding:4px 8px; background:#fff; color:#333; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold; border:1px solid #ddd;">-</div>
+                <div id="mp-black-time" style="padding:4px 8px; background:#333; color:#fff; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold;">-</div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <button id="mp-resign-btn" class="btn-secondary" style="padding:10px; font-size:13px;">&#x1F3F3;&#xFE0F; Resign</button>
+              <button id="mp-draw-btn" class="btn-secondary" style="padding:10px; font-size:13px;">&#x1F91D; Draw</button>
+            </div>
+          </div>
+          <div id="mp-status" style="display:none; margin-top:8px; padding:8px 10px; border-radius:6px; font-size:12px; text-align:center;"></div>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="sidebar-section">
+          <h3>Game Controls</h3>
+          <button id="undo-btn" class="btn-secondary">&#x21A9;&#xFE0F; Undo Move</button>
+          <button id="setup-btn" class="btn-muted" style="width:100%; margin-bottom:8px; padding:10px; font-size:14px;">&#x2699;&#xFE0F; Setup Board</button>
+          <button id="load-btn" class="btn-muted" style="width:100%; padding:10px; font-size:14px;">&#x1F4C2; Load Game</button>
+        </div>
+
+        <!-- View & Preferences -->
+        <div class="sidebar-section">
+          <h3>View & Preferences</h3>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button id="style-3d-btn" class="btn-muted">&#x1F3A8; 3D</button>
+            <button id="style-2d-btn" class="btn-muted">&#x1F5BC;&#xFE0F; 2D</button>
+            <button id="board-style-btn" class="btn-muted">&#x1F3C1; Board</button>
+            <button id="flip-btn" class="btn-muted">&#x1F504; Flip</button>
+            <button id="sound-btn" class="btn-muted">&#x1F50A; Sound</button>
+            <button id="theme-btn" class="btn-muted">&#x1F3A8; Theme</button>
+            <button id="stats-btn" class="btn-muted">&#x1F4CA; Stats</button>
+          </div>
+        </div>
+
+        <div style="text-align: center; padding-top: 8px; border-top: 1px solid var(--sidebar-border);">
+          <a href="privacy.html" target="_blank" style="color: var(--sidebar-text-muted); text-decoration: none; font-size: 11px; font-family: 'Old Standard TT', serif;">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEBUG MENU (hidden by default, Shift+D to toggle) -->
+  <div id="debug-menu" style="display:none; position:fixed; right:18px; bottom:18px; max-width:520px; z-index:2500; flex-direction:column; gap:8px; background:var(--sidebar-bg); border:2px solid var(--sidebar-border); padding:12px 14px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+    <h3 style="margin:0 0 8px 0; color:var(--sidebar-accent);">&#x1F527; Debug Menu</h3>
+    <div style="display:flex; gap:4px; align-items:center;">
+      <input type="number" id="debug-elo-input" value="400" min="100" max="10000" style="width:70px; padding:4px;">
+      <button id="debug-elo-btn" style="flex:1; padding:4px; background:var(--btn-primary); color:var(--btn-primary-text); border:none; border-radius:3px; cursor:pointer;">Set ELO</button>
+    </div>
+    <button id="debug-win-btn" style="padding:6px; background:var(--btn-secondary); color:var(--btn-secondary-text); border:none; border-radius:3px; cursor:pointer;">&#x1F3C6; Force Win</button>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:11px;">
+      <label><input type="checkbox" id="debug-env-toggle" checked> Environment</label>
+      <label><input type="checkbox" id="debug-particles-toggle" checked> Particles</label>
+      <label><input type="checkbox" id="debug-skybox-toggle" checked> Skybox</label>
+      <label><input type="checkbox" id="debug-lighting-toggle" checked> Lighting</label>
+      <label><input type="checkbox" id="debug-shadows-toggle" checked> Shadows</label>
+      <label><input type="checkbox" id="debug-anim-toggle" checked> Animations</label>
+      <label><input type="checkbox" id="debug-wormhole-toggle" checked> Wormhole</label>
+      <label><input type="checkbox" id="debug-motion-toggle" checked> Motion</label>
+    </div>
+    <div style="font-size:10px; display:flex; flex-direction:column; gap:4px;">
+      <label>Render Scale: <input type="range" id="debug-render-scale" min="0.25" max="2" step="0.25" value="1" style="width:80px;"></label>
+      <label><input type="checkbox" id="debug-auto-fps" checked> Auto FPS</label>
+      <label>Target FPS: <input type="number" id="debug-target-fps" value="60" min="15" max="144" style="width:50px;"></label>
+      <label><input type="checkbox" id="debug-fixed-step"> Fixed Step</label>
+      <label>Fixed FPS: <input type="number" id="debug-fixed-fps" value="30" min="15" max="60" style="width:50px;"></label>
+      <label>Anim Quality: <input type="range" id="debug-anim-quality" min="0.1" max="1" step="0.1" value="1" style="width:80px;"></label>
+      <label>Travel Speed: <input type="range" id="debug-travel-speed" min="0.1" max="3" step="0.1" value="1" style="width:80px;"></label>
+      <label>Asset Density: <input type="range" id="debug-asset-density" min="0.1" max="2" step="0.1" value="1" style="width:80px;"></label>
+      <label>Particle Density: <input type="range" id="debug-particle-density" min="0.1" max="2" step="0.1" value="1" style="width:80px;"></label>
     </div>
   </div>
 

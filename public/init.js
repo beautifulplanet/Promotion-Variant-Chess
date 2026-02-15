@@ -1,14 +1,7 @@
 // =============================================================================
 // Initialization scripts — runs before the main module bundle
-// Sets up the date, hamburger menu, and service worker
+// Sets up the hamburger menu and service worker
 // =============================================================================
-
-// Display today's date in the newspaper header
-const dateElem = document.getElementById('newspaper-date');
-if (dateElem) {
-  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  dateElem.textContent = new Date().toLocaleDateString('en-US', options);
-}
 
 // Hamburger menu toggle (mobile sidebar)
 const hamburgerBtn = document.getElementById('hamburger-btn');
