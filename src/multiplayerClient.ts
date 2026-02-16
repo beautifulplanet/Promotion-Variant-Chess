@@ -17,6 +17,10 @@ export type TimeControl = {
   increment: number; // seconds per move
 };
 
+export interface PieceBank {
+  P: number; N: number; B: number; R: number; Q: number;
+}
+
 export interface TableInfo {
   tableId: string;
   hostName: string;
@@ -47,6 +51,8 @@ export interface GameFoundMsg {
   opponent: { name: string; elo: number };
   timeControl: TimeControl;
   fen: string;
+  myPieceBank?: PieceBank;
+  opponentPieceBank?: PieceBank;
 }
 
 export interface OpponentMoveMsg {
@@ -183,10 +189,10 @@ export class MultiplayerClient {
   // TABLE ACTIONS
   // =========================================================================
 
-  createTable(playerName: string, elo: number) {
+  createTable(playerName: string, elo: number, pieceBank?: PieceBank) {
     if (!this.socket?.connected) return;
     this._hostingTable = true;
-    this.send({ type: 'create_table', playerName, elo });
+    this.send({ type: 'create_table', playerName, elo, pieceBank });
   }
 
   listTables() {
@@ -194,9 +200,9 @@ export class MultiplayerClient {
     this.send({ type: 'list_tables' });
   }
 
-  joinTable(tableId: string, playerName: string, elo: number) {
+  joinTable(tableId: string, playerName: string, elo: number, pieceBank?: PieceBank) {
     if (!this.socket?.connected) return;
-    this.send({ type: 'join_table', tableId, playerName, elo });
+    this.send({ type: 'join_table', tableId, playerName, elo, pieceBank });
   }
 
   leaveTable() {

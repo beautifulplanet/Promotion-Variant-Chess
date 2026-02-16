@@ -37,6 +37,18 @@ export interface TableInfo {
   createdAt: number;
 }
 
+export interface PieceBank {
+  P: number; N: number; B: number; R: number; Q: number;
+}
+
+const PieceBankSchema = z.object({
+  P: z.number().int().min(0).max(4),
+  N: z.number().int().min(0).max(2),
+  B: z.number().int().min(0).max(2),
+  R: z.number().int().min(0).max(2),
+  Q: z.number().int().min(0).max(1),
+}).optional();
+
 // =============================================================================
 // CLIENT → SERVER MESSAGES
 // =============================================================================
@@ -46,6 +58,7 @@ export const CreateTableSchema = z.object({
   v: z.literal(PROTOCOL_VERSION),
   playerName: z.string().min(1).max(20),
   elo: z.number().int().min(0).max(4000).optional(),
+  pieceBank: PieceBankSchema,
 });
 
 export const ListTablesSchema = z.object({
@@ -59,6 +72,7 @@ export const JoinTableSchema = z.object({
   tableId: z.string(),
   playerName: z.string().min(1).max(20),
   elo: z.number().int().min(0).max(4000).optional(),
+  pieceBank: PieceBankSchema,
 });
 
 export const LeaveTableSchema = z.object({
@@ -147,6 +161,8 @@ export type GameFound = {
   };
   timeControl: TimeControl;
   fen: string;
+  myPieceBank?: PieceBank;
+  opponentPieceBank?: PieceBank;
 };
 
 export type OpponentMove = {

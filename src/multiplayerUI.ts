@@ -8,6 +8,7 @@ import { multiplayer } from './multiplayerClient';
 import type {
   GameFoundMsg, OpponentMoveMsg, MoveAckMsg, GameOverMsg,
   DrawOfferMsg, ServerErrorMsg, TableCreatedMsg, TablesListMsg, TableInfo,
+  PieceBank,
 } from './multiplayerClient';
 import * as Game from './gameController';
 
@@ -39,6 +40,16 @@ const drawOfferFrom    = document.getElementById('draw-offer-from')    as HTMLEl
 // AI controls (to hide during multiplayer)
 const aiControlsSection = document.getElementById('ai-controls-section') as HTMLElement;
 
+// Open-tables panel (below board, newspaper-style)
+const otPanel      = document.getElementById('open-tables-panel')   as HTMLElement;
+const otCreateBtn  = document.getElementById('ot-create-btn')       as HTMLButtonElement;
+const otNameInput  = document.getElementById('ot-name-input')       as HTMLInputElement;
+const otTableList  = document.getElementById('ot-table-list')       as HTMLElement;
+const mpQuickBtn   = document.getElementById('mp-quick-btn')        as HTMLButtonElement;
+
+// Piece bank overlay
+const mpPieceBank  = document.getElementById('mp-piece-bank')       as HTMLElement;
+
 // ---------------------------------------------------------------------------
 // STATE
 // ---------------------------------------------------------------------------
@@ -46,6 +57,11 @@ const aiControlsSection = document.getElementById('ai-controls-section') as HTML
 let serverUrl = 'http://localhost:3001';
 let currentTables: TableInfo[] = [];
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
+let otPanelVisible = false;
+
+// Multiplayer piece banks — each player gets a separate bank for fair play
+let myPieceBank:  PieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+let oppPieceBank: PieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
 
 // ---------------------------------------------------------------------------
 // UI VISIBILITY
@@ -151,6 +167,188 @@ function escapeHtml(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// OPEN TABLES PANEL (below board, newspaper-style)
+// ---------------------------------------------------------------------------
+
+function toggleOpenTablesPanel() {
+  otPanelVisible = !otPanelVisible;
+  if (otPanel) otPanel.style.display = otPanelVisible ? 'block' : 'none';
+
+  if (otPanelVisible) {
+    // Connect and request tables
+    if (!multiplayer.connected) {
+      multiplayer.connect(serverUrl);
+    }
+    const tryList = () => {
+      if (multiplayer.connected) {
+        multiplayer.listTables();
+        startRefresh();
+      } else {
+        setTimeout(tryList, 200);
+      }
+    };
+    tryList();
+
+    // Sync name from options panel if available
+    if (mpPlayerName?.value && otNameInput && !otNameInput.value) {
+      otNameInput.value = mpPlayerName.value;
+    }
+  } else {
+    if (!multiplayer.inGame && !multiplayer.hostingTable) {
+      stopRefresh();
+    }
+  }
+}
+
+function renderOpenTablesList(tables: TableInfo[]) {
+  if (!otTableList) return;
+
+  if (tables.length === 0) {
+    otTableList.innerHTML = '<div class="ot-empty">No open tables — create one!</div>';
+    return;
+  }
+
+  otTableList.innerHTML = tables.map(t => {
+    const age = Math.floor((Date.now() - t.createdAt) / 1000);
+    const ageStr = age < 60 ? `${age}s` : `${Math.floor(age / 60)}m`;
+    return `<div class="ot-row">
+      <span class="ot-host">${escapeHtml(t.hostName)}</span>
+      <span class="ot-elo">${t.hostElo}</span>
+      <span class="ot-age">${ageStr}</span>
+      <button class="ot-join" data-table-id="${t.tableId}">Join</button>
+    </div>`;
+  }).join('');
+
+  // Wire join buttons
+  otTableList.querySelectorAll('.ot-join').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tableId = (btn as HTMLElement).dataset.tableId!;
+      handleOtJoinClick(tableId);
+    });
+  });
+}
+
+function handleOtCreateClick() {
+  const name = getPlayerName();
+  if (!name) return;
+
+  if (!multiplayer.connected) {
+    multiplayer.connect(serverUrl);
+  }
+  const tryCreate = () => {
+    if (multiplayer.connected) {
+      const elo = Game.getState().elo;
+      multiplayer.createTable(name, elo, buildPieceBank());
+    } else {
+      setTimeout(tryCreate, 200);
+    }
+  };
+  tryCreate();
+}
+
+function handleOtJoinClick(tableId: string) {
+  const name = getPlayerName();
+  if (!name) return;
+
+  if (!multiplayer.connected) {
+    multiplayer.connect(serverUrl);
+  }
+  const tryJoin = () => {
+    if (multiplayer.connected) {
+      const elo = Game.getState().elo;
+      multiplayer.joinTable(tableId, name, elo, buildPieceBank());
+    } else {
+      setTimeout(tryJoin, 200);
+    }
+  };
+  tryJoin();
+}
+
+/** Get player name from either input */
+function getPlayerName(): string {
+  const otName = otNameInput?.value.trim();
+  const mpName = mpPlayerName?.value.trim();
+  const name = otName || mpName || '';
+  if (!name) {
+    if (otNameInput) {
+      otNameInput.focus();
+      otNameInput.style.outline = '2px solid #f44336';
+      setTimeout(() => { if (otNameInput) otNameInput.style.outline = ''; }, 1500);
+    }
+    return '';
+  }
+  // Sync both inputs
+  if (mpPlayerName && !mpPlayerName.value) mpPlayerName.value = name;
+  if (otNameInput && !otNameInput.value) otNameInput.value = name;
+  return name;
+}
+
+// ---------------------------------------------------------------------------
+// MULTIPLAYER PIECE BANK
+// ---------------------------------------------------------------------------
+
+function initPieceBanks() {
+  myPieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+  oppPieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+
+  // In multiplayer, each player starts with a fair copy of their single-player inventory
+  // capped to prevent abuse. Both players see only their own bank.
+  const inv = Game.getPieceInventory();
+  // Cap each piece type for fairness
+  const CAP = { P: 4, N: 2, B: 2, R: 2, Q: 1 };
+  myPieceBank = {
+    P: Math.min(inv.P, CAP.P),
+    N: Math.min(inv.N, CAP.N),
+    B: Math.min(inv.B, CAP.B),
+    R: Math.min(inv.R, CAP.R),
+    Q: Math.min(inv.Q, CAP.Q),
+  };
+}
+
+function renderPieceBank() {
+  if (!mpPieceBank) return;
+
+  if (!multiplayer.inGame) {
+    mpPieceBank.classList.remove('active');
+    return;
+  }
+
+  const pieces: [string, keyof PieceBank, string][] = [
+    ['♟', 'P', 'Pawn'], ['♞', 'N', 'Knight'], ['♝', 'B', 'Bishop'],
+    ['♜', 'R', 'Rook'], ['♛', 'Q', 'Queen'],
+  ];
+
+  const total = myPieceBank.P + myPieceBank.N + myPieceBank.B + myPieceBank.R + myPieceBank.Q;
+  if (total === 0) {
+    mpPieceBank.classList.remove('active');
+    return;
+  }
+
+  mpPieceBank.classList.add('active');
+  mpPieceBank.innerHTML = pieces
+    .filter(([, key]) => myPieceBank[key] > 0)
+    .map(([sym, key, title]) =>
+      `<div class="mp-bank-item" title="${title}: ${myPieceBank[key]}">` +
+      `<span class="mp-bank-piece">${sym}</span>` +
+      (myPieceBank[key] > 1 ? `<span class="mp-bank-count">×${myPieceBank[key]}</span>` : '') +
+      `</div>`
+    ).join('');
+}
+
+/** Build a capped piece bank from player's inventory for fair MP */
+function buildPieceBank(): PieceBank {
+  const inv = Game.getPieceInventory();
+  const CAP = { P: 4, N: 2, B: 2, R: 2, Q: 1 };
+  return {
+    P: Math.min(inv.P, CAP.P),
+    N: Math.min(inv.N, CAP.N),
+    B: Math.min(inv.B, CAP.B),
+    R: Math.min(inv.R, CAP.R),
+    Q: Math.min(inv.Q, CAP.Q),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // EVENT HANDLERS
 // ---------------------------------------------------------------------------
 
@@ -172,7 +370,7 @@ function handleCreateClick() {
   const tryCreate = () => {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
-      multiplayer.createTable(name, elo);
+      multiplayer.createTable(name, elo, buildPieceBank());
     } else {
       setTimeout(tryCreate, 200);
     }
@@ -207,7 +405,7 @@ function handleJoinClick(tableId: string) {
   const tryJoin = () => {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
-      multiplayer.joinTable(tableId, name, elo);
+      multiplayer.joinTable(tableId, name, elo, buildPieceBank());
     } else {
       setTimeout(tryJoin, 200);
     }
@@ -269,6 +467,7 @@ function onTableCreated(_msg: TableCreatedMsg) {
 
 function onTablesList(msg: TablesListMsg) {
   renderTableList(msg.tables);
+  renderOpenTablesList(msg.tables);
 }
 
 function onGameFound(msg: GameFoundMsg) {
@@ -278,6 +477,21 @@ function onGameFound(msg: GameFoundMsg) {
 
   mpOpponentName.textContent = msg.opponent.name;
   mpOpponentElo.textContent = `ELO: ${msg.opponent.elo}`;
+
+  // Initialize piece banks from server data (or local fallback)
+  if (msg.myPieceBank) {
+    myPieceBank = { ...msg.myPieceBank };
+  } else {
+    initPieceBanks();
+  }
+  if (msg.opponentPieceBank) {
+    oppPieceBank = { ...msg.opponentPieceBank };
+  }
+  renderPieceBank();
+
+  // Hide open tables panel when game starts
+  if (otPanel) otPanel.style.display = 'none';
+  otPanelVisible = false;
 
   // Start the game in the game controller
   Game.startMultiplayerGame(msg.color, msg.fen);
@@ -296,6 +510,11 @@ function onGameOver(msg: GameOverMsg) {
   console.log('[MP UI] Game over:', msg);
   Game.endMultiplayerGame(msg.result, msg.reason, msg.eloChange, msg.newElo);
   showOffline();
+
+  // Clear piece bank display
+  myPieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+  oppPieceBank = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+  renderPieceBank();
 
   const resultText = msg.result === 'draw' ? 'Draw' :
     msg.winner ? `${msg.winner} wins` : msg.result + ' wins';
@@ -330,11 +549,17 @@ export function initMultiplayerUI() {
   // Check if elements exist (they may not in test environments)
   if (!mpCreateBtn) return;
 
-  // Button handlers
+  // Button handlers (options panel)
   mpCreateBtn.addEventListener('click', handleCreateClick);
   mpCancelHostBtn?.addEventListener('click', handleCancelHostClick);
   mpResignBtn.addEventListener('click', handleResignClick);
   mpDrawBtn.addEventListener('click', handleDrawClick);
+
+  // MP quick button on board overlay → toggle open tables
+  mpQuickBtn?.addEventListener('click', toggleOpenTablesPanel);
+
+  // Open tables panel create button
+  otCreateBtn?.addEventListener('click', handleOtCreateClick);
 
   // Draw offer overlay
   drawAcceptBtn?.addEventListener('click', () => {

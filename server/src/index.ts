@@ -579,13 +579,13 @@ io.on('connection', (socket) => {
 
     switch (data.type) {
       case 'create_table':
-        handleCreateTable(socket, data.playerName, data.elo ?? 1200);
+        handleCreateTable(socket, data.playerName, data.elo ?? 1200, data.pieceBank);
         break;
       case 'list_tables':
         handleListTables(socket);
         break;
       case 'join_table':
-        handleJoinTable(socket, data.tableId, data.playerName, data.elo ?? 1200);
+        handleJoinTable(socket, data.tableId, data.playerName, data.elo ?? 1200, data.pieceBank);
         break;
       case 'leave_table':
         handleLeaveTable(socket);
@@ -639,13 +639,14 @@ function handleCreateTable(
   socket: ReturnType<typeof io.sockets.sockets.get> & { id: string },
   playerName: string,
   elo: number,
+  pieceBank?: { P: number; N: number; B: number; R: number; Q: number },
 ) {
   // Store player data (in-memory fallback)
   if (!playerData.has(playerName)) {
     playerData.set(playerName, { name: playerName, elo, games: 0 });
   }
 
-  const table = tableManager.createTable(socket.id, playerName, elo);
+  const table = tableManager.createTable(socket.id, playerName, elo, pieceBank);
   queueLengthGauge.set(tableManager.length);
 
   // Confirm to creator
@@ -670,6 +671,7 @@ function handleJoinTable(
   tableId: string,
   playerName: string,
   elo: number,
+  pieceBank?: { P: number; N: number; B: number; R: number; Q: number },
 ) {
   const table = tableManager.getTable(tableId);
   if (!table) {
@@ -697,11 +699,13 @@ function handleJoinTable(
     socketId: table.hostSocketId,
     playerName: table.hostName,
     elo: table.hostElo,
+    pieceBank: table.pieceBank,
   };
   const joinerEntry = {
     socketId: socket.id,
     playerName,
     elo,
+    pieceBank,
   };
 
   createGame(hostEntry, joinerEntry);
@@ -877,6 +881,7 @@ interface TableEntry {
   socketId: string;
   playerName: string;
   elo: number;
+  pieceBank?: { P: number; N: number; B: number; R: number; Q: number };
 }
 
 function createGame(p1: TableEntry, p2: TableEntry) {
@@ -938,6 +943,8 @@ function createGame(p1: TableEntry, p2: TableEntry) {
       gameId: room.id, color: 'w',
       opponent: { name: black.name, elo: black.elo },
       timeControl, fen: room.fen,
+      myPieceBank: whiteEntry.pieceBank,
+      opponentPieceBank: blackEntry.pieceBank,
     });
   }
 
@@ -948,6 +955,8 @@ function createGame(p1: TableEntry, p2: TableEntry) {
       gameId: room.id, color: 'b',
       opponent: { name: white.name, elo: white.elo },
       timeControl, fen: room.fen,
+      myPieceBank: blackEntry.pieceBank,
+      opponentPieceBank: whiteEntry.pieceBank,
     });
   }
 

@@ -139,7 +139,7 @@ async function loadRandomArticles(reactiveArticle?: { headline: string; snippet:
   const articles = await getArticles();
   const shuffled = [...articles].sort(() => Math.random() - 0.5);
 
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 1; i <= 10; i++) {
     // Slot 1 gets the reactive article (if any), rest are random
     const article = (i === 1 && reactiveArticle) ? reactiveArticle : shuffled[i - 1];
     const headlineElem = document.getElementById(`article-${i}-headline`);

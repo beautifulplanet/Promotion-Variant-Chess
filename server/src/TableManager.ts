@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { v4 as uuidv4 } from 'uuid';
-import type { TableInfo } from './protocol.js';
+import type { TableInfo, PieceBank } from './protocol.js';
 
 export interface OpenTable {
   tableId: string;
@@ -12,6 +12,7 @@ export interface OpenTable {
   hostName: string;
   hostElo: number;
   createdAt: number;
+  pieceBank?: PieceBank;
 }
 
 export class TableManager {
@@ -26,7 +27,7 @@ export class TableManager {
    * Create a new open table. Returns the table ID.
    * A player can only host one table at a time.
    */
-  createTable(socketId: string, playerName: string, elo: number): OpenTable {
+  createTable(socketId: string, playerName: string, elo: number, pieceBank?: PieceBank): OpenTable {
     // Remove any existing table by this player
     this.removePlayerTable(socketId);
 
@@ -36,6 +37,7 @@ export class TableManager {
       hostName: playerName,
       hostElo: elo,
       createdAt: Date.now(),
+      pieceBank,
     };
 
     this.tables.set(table.tableId, table);

@@ -143,37 +143,44 @@
       letter-spacing: 0.5px;
     }
 
-    /* ═══════════ MASTHEAD SUB-HEADLINE (action buttons) ═══════════ */
-    .masthead-actions {
+    /* ═══════════ BOARD OVERLAY BUTTONS (top of chess window) ═══════════ */
+    .board-overlay-btns {
+      position: absolute;
+      top: 0; left: 0; right: 0;
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 6px;
-      padding: 4px 0 2px;
-      margin-top: 3px;
+      gap: 2px;
+      padding: 3px 6px;
+      z-index: 30;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.3) 70%, transparent 100%);
+      pointer-events: none;
     }
-    .masthead-actions .ma-sep {
-      color: var(--border-color);
-      font-size: 14px;
-      user-select: none;
-    }
-    .ma-btn {
+    .bo-btn {
+      pointer-events: auto;
       background: none;
       border: none;
       font-family: 'Playfair Display', serif;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 700;
-      color: var(--text-color);
+      color: rgba(255,255,255,0.88);
       cursor: pointer;
-      padding: 2px 8px;
+      padding: 3px 8px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      transition: color 0.15s;
+      transition: color 0.15s, text-shadow 0.15s;
       white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.7);
     }
-    .ma-btn:hover { color: var(--sidebar-accent); }
-    .ma-btn:active { opacity: 0.7; }
-    .ma-btn.primary { color: var(--sidebar-accent); }
+    .bo-btn:hover { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.5); }
+    .bo-btn:active { opacity: 0.7; }
+    .bo-btn.primary { color: #f0d060; }
+    .bo-sep {
+      color: rgba(255,255,255,0.35);
+      font-size: 12px;
+      user-select: none;
+      pointer-events: none;
+    }
 
     /* ═══════════ NEWSPAPER BODY ═══════════ */
     .newspaper-body {
@@ -250,7 +257,103 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      max-height: calc(100vh - 100px);
+      max-height: calc(100vh - 80px);
+    }
+
+    /* ═══════════ OPEN TABLES PANEL (newspaper style) ═══════════ */
+    .open-tables-panel {
+      width: 100%;
+      border-top: 1px solid var(--border-color);
+      padding: 4px 6px;
+      max-height: 140px;
+      overflow-y: auto;
+      font-family: 'Old Standard TT', serif;
+      background: var(--game-area-bg);
+    }
+    .open-tables-header {
+      font-family: 'Playfair Display', serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-color);
+      margin-bottom: 3px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .open-tables-header .ot-create {
+      font-size: 10px;
+      font-family: 'Old Standard TT', serif;
+      background: var(--btn-primary);
+      color: var(--btn-primary-text);
+      border: none;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .open-tables-header .ot-create:hover { filter: brightness(1.15); }
+    .ot-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 4px;
+      border-bottom: 1px solid #d0c0a0;
+      font-size: 11px;
+      color: var(--text-color);
+    }
+    .ot-row:last-child { border-bottom: none; }
+    .ot-host { flex: 1; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ot-elo { font-size: 10px; color: var(--sidebar-text-muted); min-width: 28px; text-align: right; }
+    .ot-age { font-size: 9px; color: var(--sidebar-text-muted); min-width: 32px; text-align: right; }
+    .ot-join {
+      padding: 2px 8px; font-size: 10px; font-weight: bold;
+      background: var(--btn-primary); color: var(--btn-primary-text);
+      border: none; border-radius: 3px; cursor: pointer;
+    }
+    .ot-join:hover { filter: brightness(1.15); }
+    .ot-empty { font-size: 11px; color: var(--sidebar-text-muted); text-align: center; padding: 6px 0; font-style: italic; }
+    .ot-name-input {
+      padding: 3px 6px; font-size: 11px; border: 1px solid var(--border-color);
+      border-radius: 3px; background: var(--bg-color); color: var(--text-color);
+      font-family: 'Old Standard TT', serif; width: 100%; box-sizing: border-box;
+      margin-bottom: 3px;
+    }
+
+    /* ═══════════ MULTIPLAYER PIECE BANK ═══════════ */
+    .mp-piece-bank {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      display: none;
+      gap: 3px;
+      z-index: 31;
+      pointer-events: none;
+      background: rgba(0,0,0,0.5);
+      border-radius: 4px;
+      padding: 3px 6px;
+    }
+    .mp-piece-bank.active { display: flex; }
+    .mp-bank-piece {
+      font-size: 18px;
+      line-height: 1;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      pointer-events: none;
+    }
+    .mp-bank-count {
+      font-size: 9px;
+      color: rgba(255,255,255,0.7);
+      position: absolute;
+      top: -2px;
+      right: -4px;
+      font-weight: bold;
+    }
+    .mp-bank-item {
+      position: relative;
+      pointer-events: none;
     }
 
 
@@ -1207,9 +1310,9 @@
       .masthead-title { font-size: 20px; }
       .masthead-meta { font-size: 8px; gap: 6px; }
 
-      /* Masthead actions compact */
-      .masthead-actions { gap: 4px; }
-      .ma-btn { font-size: 11px; padding: 2px 5px; }
+      /* Board overlay buttons compact */
+      .board-overlay-btns { gap: 1px; padding: 2px 4px; }
+      .bo-btn { font-size: 9px; padding: 2px 4px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
@@ -1310,14 +1413,14 @@
     @media (hover: none) {
       .btn-primary:hover, .btn-secondary:hover, .btn-muted:hover,
       .controls button:hover, .promotion-choice:hover,
-      .inventory-item:hover:not(.disabled), .ma-btn:hover {
+      .inventory-item:hover:not(.disabled), .bo-btn:hover {
         filter: none;
         transform: none;
       }
     }
 
     /* Prevent text selection on game UI */
-    .newspaper-masthead, .masthead-actions, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
+    .newspaper-masthead, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
       -webkit-user-select: none;
       user-select: none;
     }
@@ -1356,15 +1459,6 @@
       <span id="streak-display" style="font-weight:bold;"></span>
       <span id="fps" style="font-style:italic; color:var(--sidebar-text-muted);">FPS: 60</span>
     </div>
-    <div class="masthead-actions">
-      <button id="start-game-btn" class="ma-btn primary">▶ New Game</button>
-      <span class="ma-sep">·</span>
-      <button id="save-btn" class="ma-btn">💾 Save</button>
-      <span class="ma-sep">·</span>
-      <button id="view-mode-btn" class="ma-btn">🎥 Pan</button>
-      <span class="ma-sep">·</span>
-      <button id="options-btn" class="ma-btn">⚙️ Options</button>
-    </div>
   </div>
 
   <!-- ═══════════ NEWSPAPER BODY ═══════════ -->
@@ -1388,6 +1482,10 @@
         <div class="article-headline" id="article-7-headline"></div>
         <div class="article-snippet" id="article-7-snippet"></div>
       </div>
+      <div class="article">
+        <div class="article-headline" id="article-9-headline"></div>
+        <div class="article-snippet" id="article-9-snippet"></div>
+      </div>
     </div>
 
     <!-- CENTER: BOARD -->
@@ -1408,6 +1506,31 @@
         <canvas id="game-canvas" width="700" height="450"></canvas>
         <canvas id="overlay-canvas" width="700" height="450"
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+        <!-- OVERLAY BUTTONS -->
+        <div class="board-overlay-btns">
+          <button id="start-game-btn" class="bo-btn primary">▶ New</button>
+          <span class="bo-sep">·</span>
+          <button id="save-btn" class="bo-btn">💾 Save</button>
+          <span class="bo-sep">·</span>
+          <button id="view-mode-btn" class="bo-btn">🎥 Pan</button>
+          <span class="bo-sep">·</span>
+          <button id="options-btn" class="bo-btn">⚙️ Opt</button>
+          <span class="bo-sep">·</span>
+          <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
+        </div>
+        <!-- MULTIPLAYER PIECE BANK -->
+        <div id="mp-piece-bank" class="mp-piece-bank"></div>
+      </div>
+      <!-- OPEN TABLES -->
+      <div id="open-tables-panel" class="open-tables-panel" style="display:none;">
+        <div class="open-tables-header">
+          <span>⚔ Open Tables</span>
+          <button class="ot-create" id="ot-create-btn">+ Create</button>
+        </div>
+        <input type="text" class="ot-name-input" id="ot-name-input" placeholder="Your name...">
+        <div id="ot-table-list">
+          <div class="ot-empty">No open tables — create one!</div>
+        </div>
       </div>
     </div>
 
@@ -1428,6 +1551,10 @@
       <div class="article">
         <div class="article-headline" id="article-8-headline"></div>
         <div class="article-snippet" id="article-8-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-10-headline"></div>
+        <div class="article-snippet" id="article-10-snippet"></div>
       </div>
     </div>
 
