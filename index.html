@@ -27,9 +27,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Google Fonts (display=swap ensures text renders immediately with fallback) -->
   <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap">
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap">
   <link
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <style>
     * {
@@ -106,10 +106,11 @@
       margin: 0 0 3px 0;
     }
     .masthead-title {
-      font-family: 'UnifrakturMaguntia', 'Playfair Display', 'Georgia', serif;
-      font-size: clamp(22px, 4vw, 40px);
-      font-weight: 400;
-      letter-spacing: 2px;
+      font-family: 'Playfair Display', 'Georgia', serif;
+      font-size: clamp(22px, 4vw, 38px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-transform: uppercase;
       color: var(--text-color);
       line-height: 1.1;
       margin: 0;
@@ -153,16 +154,17 @@
       background: var(--game-area-bg);
     }
 
-    /* ARTICLE COLUMNS — newspaper style */
+    /* ARTICLE COLUMNS — narrow newspaper columns */
     .article-column {
-      width: 220px;
-      min-width: 140px;
-      flex: 1 1 220px;
+      width: 180px;
+      min-width: 120px;
+      max-width: 200px;
+      flex: 0 0 180px;
       display: flex;
       flex-direction: column;
       gap: 0;
       overflow-y: auto;
-      padding: 6px 8px;
+      padding: 4px 6px;
       border-color: var(--border-color);
     }
     .article-column.left {
@@ -198,15 +200,14 @@
 
     /* ═══════════ CENTER: BOARD + CONTROLS BELOW ═══════════ */
     #center-section {
-      flex: 0 0 auto;
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-width: 0;
-      max-width: 560px;
       gap: 0;
-      padding: 4px 2px;
+      padding: 2px;
     }
 
     #canvas-wrapper {
@@ -216,8 +217,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      max-width: 540px;
-      max-height: calc(100vh - 140px);
+      width: 100%;
+      max-height: calc(100vh - 120px);
     }
 
     /* ═══════════ BOARD CONTROLS BAR (below board) ═══════════ */
@@ -225,45 +226,25 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-      padding: 4px 6px;
+      gap: 6px;
+      padding: 5px 8px;
       flex-wrap: wrap;
       width: 100%;
-      max-width: 540px;
-    }
-    .board-controls .bc-group {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      padding: 0 5px;
-      border-right: 1px solid var(--border-color);
-      font-size: 10px;
-      color: var(--sidebar-text);
-      white-space: nowrap;
-    }
-    .board-controls .bc-group:last-child { border-right: none; }
-    .board-controls .bc-stat-label {
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      color: var(--sidebar-text-muted);
-    }
-    .board-controls .bc-stat-val {
-      font-weight: 700;
-      font-size: 11px;
+      border-top: 1px solid var(--border-color);
+      margin-top: 2px;
     }
     .bc-btn {
       background: var(--btn-muted);
       color: var(--btn-muted-text);
       border: none;
-      padding: 3px 7px;
-      border-radius: 3px;
+      padding: 5px 12px;
+      border-radius: 4px;
       cursor: pointer;
-      font-size: 10px;
+      font-size: 12px;
       font-family: 'Old Standard TT', serif;
       transition: filter 0.15s;
       white-space: nowrap;
-      line-height: 1.2;
+      line-height: 1.3;
     }
     .bc-btn:hover { filter: brightness(1.25); }
     .bc-btn:active { filter: brightness(0.85); }
@@ -1179,25 +1160,17 @@
 
     /* RESPONSIVE - Article columns visibility */
     @media (max-width: 1100px) {
-      .article-column { flex: 1 1 140px; min-width: 100px; }
+      .article-column { flex: 0 0 150px; min-width: 100px; max-width: 160px; }
       .article-headline { font-size: 11px; }
       .article-snippet { font-size: 10px; }
-      #center-section { max-width: 480px; }
-      #canvas-wrapper { max-width: 460px; }
-      .board-controls { max-width: 460px; }
-      .masthead-title { font-size: clamp(18px, 3.5vw, 32px); }
+      .masthead-title { font-size: clamp(18px, 3.5vw, 30px); }
     }
     @media (max-width: 900px) {
       .article-column.right { display: none; }
-      #center-section { max-width: 520px; }
-      #canvas-wrapper { max-width: 500px; }
-      .board-controls { max-width: 500px; }
+      .article-column.left { flex: 0 0 160px; }
     }
     @media (max-width: 700px) {
       .article-column { display: none !important; }
-      #center-section { max-width: 100%; }
-      #canvas-wrapper { max-width: 100%; }
-      .board-controls { max-width: 100%; }
     }
 
     /* ==========================================================================
@@ -1234,9 +1207,8 @@
       .masthead-meta { font-size: 8px; gap: 6px; }
 
       /* Board controls wrap */
-      .board-controls { gap: 2px; padding: 2px 4px; }
-      .board-controls .bc-group { padding: 0 3px; font-size: 9px; }
-      .bc-btn { padding: 2px 5px; font-size: 9px; }
+      .board-controls { gap: 3px; padding: 3px 4px; }
+      .bc-btn { padding: 4px 8px; font-size: 11px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
