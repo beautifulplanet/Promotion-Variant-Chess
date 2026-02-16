@@ -562,7 +562,11 @@ io.on('connection', (socket) => {
       const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
       const result = ClientMessageSchema.safeParse(parsed);
       if (!result.success) {
-        sendError(socket, 'INVALID_MESSAGE', result.error.issues[0]?.message || 'Invalid message');
+        const typeVal = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>).type : undefined;
+        const msg = typeVal
+          ? `Unknown message type: '${typeVal}'. Refresh your browser for the latest version.`
+          : (result.error.issues[0]?.message || 'Invalid message');
+        sendError(socket, 'INVALID_MESSAGE', msg);
         errorsCounter.inc({ code: 'INVALID_MESSAGE' });
         return;
       }
