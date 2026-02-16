@@ -12,7 +12,12 @@
     "test:ui": "vitest --ui",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npx cap run android",
+    "android:build": "npm run build && npx cap sync android && cd android && gradlew assembleRelease",
+    "android:bundle": "npm run build && npx cap sync android && cd android && gradlew bundleRelease"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -25,6 +30,12 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1",
     "@types/three": "^0.182.0",
     "chess.js": "^1.4.0",
     "socket.io-client": "^4.8.3",
