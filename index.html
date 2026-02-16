@@ -143,6 +143,38 @@
       letter-spacing: 0.5px;
     }
 
+    /* ═══════════ MASTHEAD SUB-HEADLINE (action buttons) ═══════════ */
+    .masthead-actions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0 2px;
+      margin-top: 3px;
+    }
+    .masthead-actions .ma-sep {
+      color: var(--border-color);
+      font-size: 14px;
+      user-select: none;
+    }
+    .ma-btn {
+      background: none;
+      border: none;
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-color);
+      cursor: pointer;
+      padding: 2px 8px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      transition: color 0.15s;
+      white-space: nowrap;
+    }
+    .ma-btn:hover { color: var(--sidebar-accent); }
+    .ma-btn:active { opacity: 0.7; }
+    .ma-btn.primary { color: var(--sidebar-accent); }
+
     /* ═══════════ NEWSPAPER BODY ═══════════ */
     .newspaper-body {
       flex: 1;
@@ -198,7 +230,7 @@
       color: #444;
     }
 
-    /* ═══════════ CENTER: BOARD + CONTROLS BELOW ═══════════ */
+    /* ═══════════ CENTER: BOARD ═══════════ */
     #center-section {
       flex: 1 1 auto;
       display: flex;
@@ -218,41 +250,10 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      max-height: calc(100vh - 120px);
+      max-height: calc(100vh - 100px);
     }
 
-    /* ═══════════ BOARD CONTROLS BAR (below board) ═══════════ */
-    .board-controls {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 6px 10px;
-      flex-wrap: wrap;
-      width: 100%;
-      border-top: 1px solid var(--border-color);
-      margin-top: 2px;
-    }
-    .bc-btn {
-      background: var(--btn-muted);
-      color: var(--btn-muted-text);
-      border: none;
-      padding: 8px 18px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: 'Old Standard TT', serif;
-      transition: filter 0.15s;
-      white-space: nowrap;
-      line-height: 1.3;
-    }
-    .bc-btn:hover { filter: brightness(1.25); }
-    .bc-btn:active { filter: brightness(0.85); }
-    .bc-btn.primary {
-      background: var(--btn-primary);
-      color: var(--btn-primary-text);
-    }
-    .bc-btn.primary:hover { filter: brightness(1.15); }
+
 
     /* THEMED BUTTONS (options panel) */
     .btn-primary {
@@ -1206,9 +1207,9 @@
       .masthead-title { font-size: 20px; }
       .masthead-meta { font-size: 8px; gap: 6px; }
 
-      /* Board controls wrap */
-      .board-controls { gap: 3px; padding: 3px 4px; }
-      .bc-btn { padding: 6px 14px; font-size: 13px; }
+      /* Masthead actions compact */
+      .masthead-actions { gap: 4px; }
+      .ma-btn { font-size: 11px; padding: 2px 5px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
@@ -1309,14 +1310,14 @@
     @media (hover: none) {
       .btn-primary:hover, .btn-secondary:hover, .btn-muted:hover,
       .controls button:hover, .promotion-choice:hover,
-      .inventory-item:hover:not(.disabled), .bc-btn:hover {
+      .inventory-item:hover:not(.disabled), .ma-btn:hover {
         filter: none;
         transform: none;
       }
     }
 
     /* Prevent text selection on game UI */
-    .newspaper-masthead, .board-controls, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
+    .newspaper-masthead, .masthead-actions, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
       -webkit-user-select: none;
       user-select: none;
     }
@@ -1355,6 +1356,15 @@
       <span id="streak-display" style="font-weight:bold;"></span>
       <span id="fps" style="font-style:italic; color:var(--sidebar-text-muted);">FPS: 60</span>
     </div>
+    <div class="masthead-actions">
+      <button id="start-game-btn" class="ma-btn primary">▶ New Game</button>
+      <span class="ma-sep">·</span>
+      <button id="save-btn" class="ma-btn">💾 Save</button>
+      <span class="ma-sep">·</span>
+      <button id="view-mode-btn" class="ma-btn">🎥 Pan</button>
+      <span class="ma-sep">·</span>
+      <button id="options-btn" class="ma-btn">⚙️ Options</button>
+    </div>
   </div>
 
   <!-- ═══════════ NEWSPAPER BODY ═══════════ -->
@@ -1374,9 +1384,13 @@
         <div class="article-headline" id="article-3-headline"></div>
         <div class="article-snippet" id="article-3-snippet"></div>
       </div>
+      <div class="article">
+        <div class="article-headline" id="article-7-headline"></div>
+        <div class="article-snippet" id="article-7-snippet"></div>
+      </div>
     </div>
 
-    <!-- CENTER: BOARD + CONTROLS BELOW -->
+    <!-- CENTER: BOARD -->
     <div id="center-section">
       <div id="canvas-wrapper" style="position: relative;">
         <div id="loading-screen">
@@ -1395,14 +1409,6 @@
         <canvas id="overlay-canvas" width="700" height="450"
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
       </div>
-
-      <!-- CONTROLS BAR (below the board) -->
-      <div class="board-controls">
-        <button id="start-game-btn" class="bc-btn primary">▶ New</button>
-        <button id="save-btn" class="bc-btn">💾 Save</button>
-        <button id="view-mode-btn" class="bc-btn">🎥 Pan</button>
-        <button id="options-btn" class="bc-btn">⚙️ Options</button>
-      </div>
     </div>
 
     <!-- RIGHT ARTICLE COLUMN -->
@@ -1418,6 +1424,10 @@
       <div class="article">
         <div class="article-headline" id="article-6-headline"></div>
         <div class="article-snippet" id="article-6-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-8-headline"></div>
+        <div class="article-snippet" id="article-8-snippet"></div>
       </div>
     </div>
 
