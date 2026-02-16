@@ -146,14 +146,14 @@
     /* ═══════════ BOARD OVERLAY BUTTONS (top of chess window) ═══════════ */
     .board-overlay-btns {
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 4px; left: 4px; right: 4px;
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 2px;
-      padding: 3px 6px;
+      gap: 4px;
+      padding: 5px 10px;
       z-index: 30;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.3) 70%, transparent 100%);
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
       pointer-events: none;
     }
     .bo-btn {
@@ -161,23 +161,25 @@
       background: none;
       border: none;
       font-family: 'Playfair Display', serif;
-      font-size: 11px;
+      font-size: 14px;
       font-weight: 700;
-      color: rgba(255,255,255,0.88);
+      color: rgba(255,255,255,0.92);
       cursor: pointer;
-      padding: 3px 8px;
+      padding: 5px 10px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       transition: color 0.15s, text-shadow 0.15s;
       white-space: nowrap;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
     }
-    .bo-btn:hover { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.5); }
+    .bo-btn:hover { color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.6); }
     .bo-btn:active { opacity: 0.7; }
     .bo-btn.primary { color: #f0d060; }
+    .bo-btn.danger { color: #ff6b6b; }
+    .bo-btn.danger:hover { color: #ff4444; text-shadow: 0 0 10px rgba(255,80,80,0.5); }
     .bo-sep {
       color: rgba(255,255,255,0.35);
-      font-size: 12px;
+      font-size: 14px;
       user-select: none;
       pointer-events: none;
     }
@@ -247,17 +249,16 @@
       min-width: 0;
       gap: 0;
       padding: 2px;
+      position: relative;
     }
 
     #canvas-wrapper {
       border: 2px solid #2a2a2a;
       background: #000;
       position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       width: 100%;
       max-height: calc(100vh - 80px);
+      overflow: hidden;
     }
 
     /* ═══════════ OPEN TABLES PANEL (newspaper style) ═══════════ */
@@ -1311,8 +1312,8 @@
       .masthead-meta { font-size: 8px; gap: 6px; }
 
       /* Board overlay buttons compact */
-      .board-overlay-btns { gap: 1px; padding: 2px 4px; }
-      .bo-btn { font-size: 9px; padding: 2px 4px; }
+      .board-overlay-btns { gap: 2px; padding: 3px 6px; }
+      .bo-btn { font-size: 11px; padding: 3px 6px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
@@ -1506,20 +1507,23 @@
         <canvas id="game-canvas" width="700" height="450"></canvas>
         <canvas id="overlay-canvas" width="700" height="450"
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
-        <!-- OVERLAY BUTTONS -->
-        <div class="board-overlay-btns">
-          <button id="start-game-btn" class="bo-btn primary">▶ New</button>
-          <span class="bo-sep">·</span>
-          <button id="save-btn" class="bo-btn">💾 Save</button>
-          <span class="bo-sep">·</span>
-          <button id="view-mode-btn" class="bo-btn">🎥 Pan</button>
-          <span class="bo-sep">·</span>
-          <button id="options-btn" class="bo-btn">⚙️ Opt</button>
-          <span class="bo-sep">·</span>
-          <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
-        </div>
         <!-- MULTIPLAYER PIECE BANK -->
         <div id="mp-piece-bank" class="mp-piece-bank"></div>
+      </div>
+      <!-- EASY ACCESS BUTTONS (positioned over the board via center-section) -->
+      <div class="board-overlay-btns">
+        <button id="start-game-btn" class="bo-btn primary">▶ New</button>
+        <button id="resign-btn" class="bo-btn danger" style="display:none;">⚐ Resign</button>
+        <span class="bo-sep">·</span>
+        <button id="undo-btn" class="bo-btn">↩ Undo</button>
+        <span class="bo-sep">·</span>
+        <button id="save-btn" class="bo-btn">💾 Save</button>
+        <span class="bo-sep">·</span>
+        <button id="view-mode-btn" class="bo-btn">🎥 Pan</button>
+        <span class="bo-sep">·</span>
+        <button id="options-btn" class="bo-btn">⚙️ Opt</button>
+        <span class="bo-sep">·</span>
+        <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
       </div>
       <!-- OPEN TABLES -->
       <div id="open-tables-panel" class="open-tables-panel" style="display:none;">

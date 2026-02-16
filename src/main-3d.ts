@@ -63,6 +63,7 @@ const saveBtn = document.getElementById('save-btn');
 const loadBtn = document.getElementById('load-btn');
 const setupBtn = document.getElementById('setup-btn') as HTMLButtonElement;
 const startGameBtn = document.getElementById('start-game-btn') as HTMLButtonElement;
+const resignBtn = document.getElementById('resign-btn') as HTMLButtonElement;
 const watchAiBtn = document.getElementById('watch-ai-btn') as HTMLButtonElement;
 const trainAiBtn = document.getElementById('train-ai-btn') as HTMLButtonElement;
 const aiSpeedBtn = document.getElementById('ai-speed-btn') as HTMLButtonElement;
@@ -577,22 +578,55 @@ function updateStartButton(): void {
   if (!startGameBtn) return;
   const state = Game.getState();
 
-  if (state.gameStarted || state.gameOver) {
+  if (state.gameStarted && !state.gameOver) {
+    // Game in progress — hide New, show Resign
     startGameBtn.style.display = 'none';
+    if (resignBtn) resignBtn.style.display = 'inline-block';
     if (watchAiBtn) watchAiBtn.style.display = 'none';
   } else {
+    // No game or game over — show New, hide Resign
     startGameBtn.style.display = 'inline-block';
-    startGameBtn.textContent = `▶️ Start as ${state.playerColor === 'white' ? 'White' : 'Black'}`;
+    if (resignBtn) resignBtn.style.display = 'none';
+    if (state.gameOver) {
+      startGameBtn.textContent = '▶ New Game';
+    } else {
+      startGameBtn.textContent = `▶ Start as ${state.playerColor === 'white' ? 'White' : 'Black'}`;
+    }
     if (watchAiBtn) watchAiBtn.style.display = 'inline-block';
   }
 }
 
 if (startGameBtn) {
   startGameBtn.addEventListener('click', () => {
-    Game.startGame();
-    MoveListUI.startGameTimer(); // Start the game clock
+    const state = Game.getState();
+    if (state.gameOver) {
+      // Game over — start fresh
+      Game.newGame();
+      MoveListUI.resetGameTimer();
+      loadRandomArticles();
+    } else {
+      // Not started yet — start game
+      Game.startGame();
+      MoveListUI.startGameTimer();
+    }
     syncRendererState();
     updateStartButton();
+  });
+}
+
+// Resign button — ends the current game
+if (resignBtn) {
+  resignBtn.addEventListener('click', () => {
+    const state = Game.getState();
+    if (state.gameStarted && !state.gameOver) {
+      if (confirm('Resign this game?')) {
+        Game.newGame();
+        MoveListUI.resetGameTimer();
+        loadRandomArticles();
+        syncRendererState();
+        updateStartButton();
+      }
+    }
   });
 }
 
