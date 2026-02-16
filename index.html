@@ -22,14 +22,14 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/favicon-16.png">
   <link rel="icon" type="image/svg+xml" href="/assets/icons/icon-192.svg">
   <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
-  <title>The Chess Chronicle</title>
+  <title>Chess Wars Chronicle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Google Fonts (display=swap ensures text renders immediately with fallback) -->
   <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap">
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap">
   <link
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap"
     rel="stylesheet">
   <style>
     * {
@@ -92,97 +92,188 @@
       overflow: hidden;
     }
 
-    /* ═══════════ TOP TOOLBAR ═══════════ */
-    .top-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: var(--sidebar-bg);
-      border-bottom: 2px solid var(--sidebar-border);
-      z-index: 100;
+    /* ═══════════ NEWSPAPER MASTHEAD ═══════════ */
+    .newspaper-masthead {
+      text-align: center;
+      padding: 6px 12px 4px;
+      border-bottom: 4px double var(--border-color);
+      background: var(--bg-color);
       flex-shrink: 0;
-      flex-wrap: wrap;
-      min-height: 36px;
     }
-
-    .tb-group {
+    .masthead-rule-top {
+      border: none;
+      border-top: 1px solid var(--border-color);
+      margin: 0 0 3px 0;
+    }
+    .masthead-title {
+      font-family: 'UnifrakturMaguntia', 'Playfair Display', 'Georgia', serif;
+      font-size: clamp(22px, 4vw, 40px);
+      font-weight: 400;
+      letter-spacing: 2px;
+      color: var(--text-color);
+      line-height: 1.1;
+      margin: 0;
+    }
+    .masthead-subtitle {
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      font-style: italic;
+      color: var(--sidebar-text-muted);
+      letter-spacing: 1px;
+      margin: 1px 0 2px;
+    }
+    .masthead-meta {
       display: flex;
+      justify-content: center;
       align-items: center;
-      gap: 4px;
-      padding: 0 6px;
-      border-right: 1px solid var(--sidebar-border);
-      font-size: 11px;
-      color: var(--sidebar-text);
-      white-space: nowrap;
-    }
-    .tb-group:last-child { border-right: none; }
-    .tb-group .tb-label {
+      gap: 10px;
+      font-family: 'Old Standard TT', serif;
       font-size: 9px;
+      color: var(--sidebar-text-muted);
+      border-top: 1px solid var(--border-color);
+      padding-top: 2px;
+      margin-top: 2px;
+    }
+    .masthead-meta .meta-sep { color: var(--border-color); }
+    .masthead-era {
+      font-weight: 700;
+      color: var(--sidebar-accent);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: var(--sidebar-text-muted);
-    }
-    .tb-group .tb-value {
-      font-weight: 700;
-      font-size: 13px;
     }
 
-    .tb-btn {
-      background: var(--btn-muted) !important;
-      color: var(--btn-muted-text) !important;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 11px;
-      font-family: 'Old Standard TT', serif;
-      transition: filter 0.15s;
-      white-space: nowrap;
-      line-height: 1.3;
-    }
-    .tb-btn:hover { filter: brightness(1.25); }
-    .tb-btn:active { filter: brightness(0.85); }
-    .tb-btn.primary {
-      background: var(--btn-primary) !important;
-      color: var(--btn-primary-text) !important;
-    }
-    .tb-btn.primary:hover { filter: brightness(1.15); }
-
-    .tb-world {
-      font-family: 'Playfair Display', serif;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      background: var(--sidebar-text);
-      color: var(--sidebar-bg);
-      border-radius: 3px;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 140px;
-    }
-
-    /* CONTENT ROW - full height below toolbar */
-    .content-row {
+    /* ═══════════ NEWSPAPER BODY ═══════════ */
+    .newspaper-body {
       flex: 1;
       display: flex;
       flex-direction: row;
       overflow: hidden;
-    }
-
-    /* MAIN CONTENT - Full viewport */
-    #main-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
       padding: 0;
       gap: 0;
-      overflow: hidden;
+      background: var(--game-area-bg);
     }
 
-    /* THEMED BUTTONS (used in options panel) */
+    /* ARTICLE COLUMNS — newspaper style */
+    .article-column {
+      width: 220px;
+      min-width: 140px;
+      flex: 1 1 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+      padding: 6px 8px;
+      border-color: var(--border-color);
+    }
+    .article-column.left {
+      border-right: 1px solid var(--border-color);
+    }
+    .article-column.right {
+      border-left: 1px solid var(--border-color);
+    }
+    .article-column::-webkit-scrollbar { width: 3px; }
+    .article-column::-webkit-scrollbar-track { background: transparent; }
+    .article-column::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+
+    .article {
+      padding: 6px 4px;
+      border-bottom: 1px solid #d0c0a0;
+    }
+    .article:last-child { border-bottom: none; }
+    .article-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 3px;
+      color: #1a1a1a;
+      letter-spacing: 0.2px;
+    }
+    .article-snippet {
+      font-family: 'Old Standard TT', serif;
+      font-size: 11px;
+      line-height: 1.35;
+      color: #444;
+    }
+
+    /* ═══════════ CENTER: BOARD + CONTROLS BELOW ═══════════ */
+    #center-section {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      max-width: 560px;
+      gap: 0;
+      padding: 4px 2px;
+    }
+
+    #canvas-wrapper {
+      border: 2px solid #2a2a2a;
+      background: #000;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 540px;
+      max-height: calc(100vh - 140px);
+    }
+
+    /* ═══════════ BOARD CONTROLS BAR (below board) ═══════════ */
+    .board-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 4px 6px;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 540px;
+    }
+    .board-controls .bc-group {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 0 5px;
+      border-right: 1px solid var(--border-color);
+      font-size: 10px;
+      color: var(--sidebar-text);
+      white-space: nowrap;
+    }
+    .board-controls .bc-group:last-child { border-right: none; }
+    .board-controls .bc-stat-label {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--sidebar-text-muted);
+    }
+    .board-controls .bc-stat-val {
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .bc-btn {
+      background: var(--btn-muted);
+      color: var(--btn-muted-text);
+      border: none;
+      padding: 3px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: 'Old Standard TT', serif;
+      transition: filter 0.15s;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .bc-btn:hover { filter: brightness(1.25); }
+    .bc-btn:active { filter: brightness(0.85); }
+    .bc-btn.primary {
+      background: var(--btn-primary);
+      color: var(--btn-primary-text);
+    }
+    .bc-btn.primary:hover { filter: brightness(1.15); }
+
+    /* THEMED BUTTONS (options panel) */
     .btn-primary {
       width: 100%;
       margin-bottom: 6px;
@@ -197,7 +288,6 @@
       transition: filter 0.2s;
     }
     .btn-primary:hover { filter: brightness(1.15); }
-
     .btn-secondary {
       width: 100%;
       margin-bottom: 6px;
@@ -212,7 +302,6 @@
       transition: filter 0.2s;
     }
     .btn-secondary:hover { filter: brightness(1.15); }
-
     .btn-muted {
       background: var(--btn-muted) !important;
       color: var(--btn-muted-text) !important;
@@ -339,68 +428,6 @@
       line-height: 1.3;
     }
 
-    /* GAME AREA - 3-column: left articles | canvas | right articles */
-    .game-area {
-      flex: 1;
-      display: flex;
-      flex-direction: row;
-      align-items: stretch;
-      padding: 0;
-      gap: 0;
-      overflow: hidden;
-      background: var(--game-area-bg);
-    }
-
-    /* ARTICLE COLUMNS — always visible, flex-grow to fill */
-    .article-column {
-      width: 260px;
-      min-width: 180px;
-      flex: 1 1 260px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      overflow-y: auto;
-      padding: 6px 0;
-      border-color: #c0b090;
-    }
-    .article-column.left {
-      border-right: 2px solid #c0b090;
-    }
-    .article-column.right {
-      border-left: 2px solid #c0b090;
-    }
-    /* Article column scrollbar */
-    .article-column::-webkit-scrollbar { width: 4px; }
-    .article-column::-webkit-scrollbar-track { background: transparent; }
-    .article-column::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
-
-    .article {
-      padding: 10px 12px;
-      border-bottom: 1px solid #d0c0a0;
-    }
-
-    .article:last-child {
-      border-bottom: none;
-    }
-
-    .article-headline {
-      font-family: 'Playfair Display', serif;
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1.25;
-      margin-bottom: 4px;
-      color: #1a1a1a;
-      letter-spacing: 0.3px;
-    }
-
-    .article-snippet {
-      font-family: 'Old Standard TT', serif;
-      font-size: 12px;
-      line-height: 1.4;
-      color: #333;
-      font-style: normal;
-    }
-
     /* ═══════════════════════════════════════════════════════════════════
        OPTIONS POP-OUT OVERLAY
        ═══════════════════════════════════════════════════════════════════ */
@@ -478,30 +505,6 @@
     }
     #options-panel-body .sidebar-section:last-child {
       border-bottom: none;
-    }
-
-    /* CENTER SECTION - GAME (constrained size) */
-    #center-section {
-      flex: 0 1 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-width: 0;
-      max-width: 600px;
-      gap: 0;
-      padding: 4px;
-    }
-
-    #canvas-wrapper {
-      border: 2px solid #2a2a2a;
-      background: #000;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      max-width: 580px;
-      max-height: calc(100vh - 60px);
     }
 
     /* ─── Loading Screen ─── */
@@ -620,14 +623,11 @@
 
     #world-name {
       font-family: 'Playfair Display', serif;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      text-align: center;
-      padding: 2px 8px;
-      background: var(--sidebar-text);
-      color: var(--sidebar-bg);
+      color: var(--sidebar-accent);
+      text-transform: uppercase;
       letter-spacing: 0.5px;
-      border-radius: 3px;
     }
 
     .controls {
@@ -1179,20 +1179,25 @@
 
     /* RESPONSIVE - Article columns visibility */
     @media (max-width: 1100px) {
-      .article-column { flex: 1 1 160px; min-width: 120px; }
-      .article-headline { font-size: 12px; }
-      .article-snippet { font-size: 11px; }
-      #center-section { max-width: 500px; }
+      .article-column { flex: 1 1 140px; min-width: 100px; }
+      .article-headline { font-size: 11px; }
+      .article-snippet { font-size: 10px; }
+      #center-section { max-width: 480px; }
+      #canvas-wrapper { max-width: 460px; }
+      .board-controls { max-width: 460px; }
+      .masthead-title { font-size: clamp(18px, 3.5vw, 32px); }
     }
     @media (max-width: 900px) {
-      /* Hide right column on medium screens */
       .article-column.right { display: none; }
-      #center-section { max-width: 550px; }
+      #center-section { max-width: 520px; }
+      #canvas-wrapper { max-width: 500px; }
+      .board-controls { max-width: 500px; }
     }
     @media (max-width: 700px) {
-      /* Hide both columns on small screens */
       .article-column { display: none !important; }
       #center-section { max-width: 100%; }
+      #canvas-wrapper { max-width: 100%; }
+      .board-controls { max-width: 100%; }
     }
 
     /* ==========================================================================
@@ -1223,16 +1228,15 @@
       /* Show hamburger for options */
       #hamburger-btn { display: flex; align-items: center; justify-content: center; }
 
-      /* Toolbar wraps compactly */
-      .top-toolbar { flex-wrap: wrap; padding: 3px 6px; gap: 3px; }
-      .tb-group { padding: 0 4px; font-size: 10px; }
-      .tb-btn { padding: 3px 6px; font-size: 10px; }
+      /* Masthead compact */
+      .newspaper-masthead { padding: 4px 8px 2px; }
+      .masthead-title { font-size: 20px; }
+      .masthead-meta { font-size: 8px; gap: 6px; }
 
-      /* Content: full width */
-      .content-row { margin-left: 0 !important; }
-
-      /* Game area: full width, minimal padding */
-      .game-area { padding: 2px; gap: 4px; }
+      /* Board controls wrap */
+      .board-controls { gap: 2px; padding: 2px 4px; }
+      .board-controls .bc-group { padding: 0 3px; font-size: 9px; }
+      .bc-btn { padding: 2px 5px; font-size: 9px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
@@ -1333,21 +1337,21 @@
     @media (hover: none) {
       .btn-primary:hover, .btn-secondary:hover, .btn-muted:hover,
       .controls button:hover, .promotion-choice:hover,
-      .inventory-item:hover:not(.disabled), .tb-btn:hover {
+      .inventory-item:hover:not(.disabled), .bc-btn:hover {
         filter: none;
         transform: none;
       }
     }
 
     /* Prevent text selection on game UI */
-    .top-toolbar, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
+    .newspaper-masthead, .board-controls, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
       -webkit-user-select: none;
       user-select: none;
     }
 
     /* Safe area insets for notched phones */
     @supports (padding: env(safe-area-inset-top)) {
-      .top-toolbar {
+      .newspaper-masthead {
         padding-top: max(4px, env(safe-area-inset-top));
       }
       #hamburger-btn {
@@ -1362,51 +1366,49 @@
   <!-- HAMBURGER MENU (mobile only — opens options) -->
   <button id="hamburger-btn" aria-label="Toggle menu">☰</button>
 
-  <!-- TOP TOOLBAR: Compact horizontal bar with stats + action buttons -->
-  <div class="top-toolbar">
-    <div class="tb-world" id="world-name">Loading...</div>
-    <div class="tb-group">
-      <span style="color: var(--sidebar-text-muted);">ELO</span>
-      <strong id="elo">400</strong>
+  <!-- ═══════════ NEWSPAPER MASTHEAD ═══════════ -->
+  <div class="newspaper-masthead">
+    <hr class="masthead-rule-top">
+    <h1 class="masthead-title">Chess Wars Chronicle</h1>
+    <div class="masthead-subtitle">All the Tactics That&rsquo;s Fit to Print</div>
+    <div class="masthead-meta">
+      <span class="masthead-era" id="world-name">Loading...</span>
+      <span class="meta-sep">·</span>
+      <span>ELO <strong id="elo">400</strong></span>
+      <span class="meta-sep">·</span>
+      <span>Turn <strong id="sidebar-turn">White</strong></span>
+      <span class="meta-sep">·</span>
+      <span>Lv <strong><span id="player-level">1</span></strong></span>
+      <span class="meta-sep">·</span>
+      <span id="streak-display" style="font-weight:bold;"></span>
+      <span id="fps" style="font-style:italic; color:var(--sidebar-text-muted);">FPS: 60</span>
     </div>
-    <div class="tb-group">
-      <span style="color: var(--sidebar-text-muted);">Turn</span>
-      <strong id="sidebar-turn">White</strong>
-    </div>
-    <div class="tb-group">
-      <span style="color: var(--sidebar-text-muted);">Lv</span>
-      <strong><span id="player-level">1</span></strong>
-    </div>
-    <button id="start-game-btn" class="tb-btn primary">▶ New</button>
-    <button id="save-btn" class="tb-btn">💾 Save</button>
-    <button id="view-mode-btn" class="tb-btn">🎥 Pan</button>
-    <button id="options-btn" class="tb-btn">⚙️ Options</button>
-    <span id="streak-display" style="font-weight:bold; font-size:10px;"></span>
-    <div id="fps" style="font-size:10px; color:var(--sidebar-text-muted); font-style:italic; margin-left:auto;">FPS: 60</div>
   </div>
 
-  <!-- CONTENT ROW: Game Area -->
-  <div class="content-row">
-      <!-- LEFT ARTICLE COLUMN -->
-      <div class="article-column left">
-        <div class="article">
-          <div class="article-headline" id="article-1-headline">Loading...</div>
-          <div class="article-snippet" id="article-1-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-2-headline"></div>
-          <div class="article-snippet" id="article-2-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-3-headline"></div>
-          <div class="article-snippet" id="article-3-snippet"></div>
-        </div>
-      </div>
+  <!-- ═══════════ NEWSPAPER BODY ═══════════ -->
+  <div class="newspaper-body">
 
-      <!-- GAME CANVAS -->
+    <!-- LEFT ARTICLE COLUMN -->
+    <div class="article-column left">
+      <div class="article">
+        <div class="article-headline" id="article-1-headline">Loading...</div>
+        <div class="article-snippet" id="article-1-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-2-headline"></div>
+        <div class="article-snippet" id="article-2-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-3-headline"></div>
+        <div class="article-snippet" id="article-3-snippet"></div>
+      </div>
+    </div>
+
+    <!-- CENTER: BOARD + CONTROLS BELOW -->
+    <div id="center-section">
       <div id="canvas-wrapper" style="position: relative;">
         <div id="loading-screen">
-          <h2>The Chess Chronicle</h2>
+          <h2>Chess Wars Chronicle</h2>
           <div class="loading-pieces">
             <span class="loading-piece">♜</span>
             <span class="loading-piece">♞</span>
@@ -1422,23 +1424,32 @@
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
       </div>
 
-      <!-- RIGHT ARTICLE COLUMN -->
-      <div class="article-column right">
-        <div class="article">
-          <div class="article-headline" id="article-4-headline"></div>
-          <div class="article-snippet" id="article-4-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-5-headline"></div>
-          <div class="article-snippet" id="article-5-snippet"></div>
-        </div>
-        <div class="article">
-          <div class="article-headline" id="article-6-headline"></div>
-          <div class="article-snippet" id="article-6-snippet"></div>
-        </div>
+      <!-- CONTROLS BAR (below the board) -->
+      <div class="board-controls">
+        <button id="start-game-btn" class="bc-btn primary">▶ New</button>
+        <button id="save-btn" class="bc-btn">💾 Save</button>
+        <button id="view-mode-btn" class="bc-btn">🎥 Pan</button>
+        <button id="options-btn" class="bc-btn">⚙️ Options</button>
       </div>
     </div>
-  </div>
+
+    <!-- RIGHT ARTICLE COLUMN -->
+    <div class="article-column right">
+      <div class="article">
+        <div class="article-headline" id="article-4-headline"></div>
+        <div class="article-snippet" id="article-4-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-5-headline"></div>
+        <div class="article-snippet" id="article-5-snippet"></div>
+      </div>
+      <div class="article">
+        <div class="article-headline" id="article-6-headline"></div>
+        <div class="article-snippet" id="article-6-snippet"></div>
+      </div>
+    </div>
+
+  </div> <!-- end newspaper-body -->
 
   <!-- OPTIONS POP-OUT OVERLAY -->
   <div id="options-overlay">
