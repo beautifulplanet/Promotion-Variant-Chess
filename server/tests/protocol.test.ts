@@ -5,54 +5,73 @@
 import { describe, it, expect } from 'vitest';
 import {
   ClientMessageSchema, PROTOCOL_VERSION,
-  JoinQueueSchema, MakeMoveSchema, ResignSchema,
+  CreateTableSchema, ListTablesSchema, JoinTableSchema, LeaveTableSchema,
+  MakeMoveSchema, ResignSchema,
   OfferDrawSchema, AcceptDrawSchema, DeclineDrawSchema,
-  ReconnectSchema, LeaveQueueSchema,
+  ReconnectSchema,
 } from '../src/protocol.js';
 
 describe('Protocol Schemas', () => {
-  describe('JoinQueueSchema', () => {
-    it('accepts valid join_queue', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 1,
+  describe('CreateTableSchema', () => {
+    it('accepts valid create_table', () => {
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 1,
         playerName: 'Alice', elo: 1200,
-        timeControl: { initial: 600, increment: 5 },
       });
       expect(result.success).toBe(true);
     });
 
-    it('accepts join_queue without optional fields', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 1,
+    it('accepts create_table without optional elo', () => {
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 1,
         playerName: 'Bob',
       });
       expect(result.success).toBe(true);
     });
 
     it('rejects empty playerName', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 1, playerName: '',
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 1, playerName: '',
       });
       expect(result.success).toBe(false);
     });
 
     it('rejects playerName > 20 chars', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 1, playerName: 'A'.repeat(21),
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 1, playerName: 'A'.repeat(21),
       });
       expect(result.success).toBe(false);
     });
 
     it('rejects invalid protocol version', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 99, playerName: 'Alice',
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 99, playerName: 'Alice',
       });
       expect(result.success).toBe(false);
     });
 
     it('rejects elo > 4000', () => {
-      const result = JoinQueueSchema.safeParse({
-        type: 'join_queue', v: 1, playerName: 'Alice', elo: 5000,
+      const result = CreateTableSchema.safeParse({
+        type: 'create_table', v: 1, playerName: 'Alice', elo: 5000,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('JoinTableSchema', () => {
+    it('accepts valid join_table', () => {
+      const result = JoinTableSchema.safeParse({
+        type: 'join_table', v: 1,
+        tableId: 'abc-123',
+        playerName: 'Charlie', elo: 1000,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects missing tableId', () => {
+      const result = JoinTableSchema.safeParse({
+        type: 'join_table', v: 1,
+        playerName: 'Charlie',
       });
       expect(result.success).toBe(false);
     });
@@ -88,16 +107,21 @@ describe('Protocol Schemas', () => {
   });
 
   describe('ClientMessageSchema (discriminated union)', () => {
-    it('parses join_queue', () => {
+    it('parses create_table', () => {
       const result = ClientMessageSchema.safeParse({
-        type: 'join_queue', v: 1, playerName: 'Test',
+        type: 'create_table', v: 1, playerName: 'Test',
       });
       expect(result.success).toBe(true);
-      if (result.success) expect(result.data.type).toBe('join_queue');
+      if (result.success) expect(result.data.type).toBe('create_table');
     });
 
-    it('parses leave_queue', () => {
-      const result = ClientMessageSchema.safeParse({ type: 'leave_queue', v: 1 });
+    it('parses list_tables', () => {
+      const result = ClientMessageSchema.safeParse({ type: 'list_tables', v: 1 });
+      expect(result.success).toBe(true);
+    });
+
+    it('parses leave_table', () => {
+      const result = ClientMessageSchema.safeParse({ type: 'leave_table', v: 1 });
       expect(result.success).toBe(true);
     });
 
@@ -127,7 +151,7 @@ describe('Protocol Schemas', () => {
 
     it('rejects extra fields gracefully (Zod strips by default)', () => {
       const result = ClientMessageSchema.safeParse({
-        type: 'leave_queue', v: 1, extraStuff: true,
+        type: 'leave_table', v: 1, extraStuff: true,
       });
       expect(result.success).toBe(true);
     });

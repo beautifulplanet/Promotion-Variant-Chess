@@ -1,6 +1,7 @@
 // =============================================================================
 // WebSocket Message Protocol v1
 // JSON over WebSocket — all messages have { type, v, ... }
+// Open Tables model — players create/join tables, no matchmaking queue
 // =============================================================================
 
 import { z } from 'zod';
@@ -25,27 +26,43 @@ export type GameEndReason =
   | 'abandonment';
 
 export type TimeControl = {
-  initial: number;  // seconds
+  initial: number;  // seconds (0 = untimed)
   increment: number; // seconds per move
 };
+
+export interface TableInfo {
+  tableId: string;
+  hostName: string;
+  hostElo: number;
+  createdAt: number;
+}
 
 // =============================================================================
 // CLIENT → SERVER MESSAGES
 // =============================================================================
 
-export const JoinQueueSchema = z.object({
-  type: z.literal('join_queue'),
+export const CreateTableSchema = z.object({
+  type: z.literal('create_table'),
   v: z.literal(PROTOCOL_VERSION),
   playerName: z.string().min(1).max(20),
   elo: z.number().int().min(0).max(4000).optional(),
-  timeControl: z.object({
-    initial: z.number().int().min(60).max(3600),
-    increment: z.number().int().min(0).max(60),
-  }).optional(),
 });
 
-export const LeaveQueueSchema = z.object({
-  type: z.literal('leave_queue'),
+export const ListTablesSchema = z.object({
+  type: z.literal('list_tables'),
+  v: z.literal(PROTOCOL_VERSION),
+});
+
+export const JoinTableSchema = z.object({
+  type: z.literal('join_table'),
+  v: z.literal(PROTOCOL_VERSION),
+  tableId: z.string(),
+  playerName: z.string().min(1).max(20),
+  elo: z.number().int().min(0).max(4000).optional(),
+});
+
+export const LeaveTableSchema = z.object({
+  type: z.literal('leave_table'),
   v: z.literal(PROTOCOL_VERSION),
 });
 
@@ -89,8 +106,10 @@ export const ReconnectSchema = z.object({
 
 // Union of all client messages
 export const ClientMessageSchema = z.discriminatedUnion('type', [
-  JoinQueueSchema,
-  LeaveQueueSchema,
+  CreateTableSchema,
+  ListTablesSchema,
+  JoinTableSchema,
+  LeaveTableSchema,
   MakeMoveSchema,
   ResignSchema,
   OfferDrawSchema,
@@ -105,11 +124,16 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 // SERVER → CLIENT MESSAGES
 // =============================================================================
 
-export type QueueStatus = {
-  type: 'queue_status';
+export type TablesList = {
+  type: 'tables_list';
   v: typeof PROTOCOL_VERSION;
-  position: number;
-  estimatedWait: number; // seconds
+  tables: TableInfo[];
+};
+
+export type TableCreated = {
+  type: 'table_created';
+  v: typeof PROTOCOL_VERSION;
+  tableId: string;
 };
 
 export type GameFound = {
@@ -131,8 +155,8 @@ export type OpponentMove = {
   gameId: string;
   move: string;        // UCI notation
   fen: string;         // FEN after move
-  whiteTime: number;   // remaining ms
-  blackTime: number;   // remaining ms
+  whiteTime: number;   // remaining ms (0 for untimed)
+  blackTime: number;   // remaining ms (0 for untimed)
 };
 
 export type MoveAck = {
@@ -177,7 +201,8 @@ export type ServerError = {
 };
 
 export type ServerMessage =
-  | QueueStatus
+  | TablesList
+  | TableCreated
   | GameFound
   | OpponentMove
   | MoveAck

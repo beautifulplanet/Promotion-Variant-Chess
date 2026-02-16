@@ -4,8 +4,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
-import type { ServerMessage, GameFound, MoveAck, OpponentMove, GameOver, QueueStatus, ServerError } from '../src/protocol.js';
-import { startServer, io, rooms, matchmaker, playerData, httpServer as sharedHttpServer } from '../src/index.js';
+import type { ServerMessage, GameFound, MoveAck, OpponentMove, GameOver, TablesList, TableCreated, ServerError } from '../src/protocol.js';
+import { startServer, io, rooms, tableManager, playerData, httpServer as sharedHttpServer } from '../src/index.js';
 import { createPlayer, getPrisma } from '../src/database.js';
 import type { AddressInfo } from 'net';
 
@@ -66,24 +66,28 @@ describe('Server Integration', () => {
     expect(data.uptime).toBeDefined();
   });
 
-  it('two players join queue and get matched', async () => {
+  it('two players create and join table to start game', async () => {
     const client1 = connectClient();
     const client2 = connectClient();
 
     await new Promise<void>(resolve => client1.on('connect', resolve));
     await new Promise<void>(resolve => client2.on('connect', resolve));
 
+    // Client1 creates a table
+    const tableCreatedPromise = waitForMessage<TableCreated>(client1, 'table_created');
+    client1.emit('message', {
+      type: 'create_table', v: 1, playerName: 'Alice', elo: 1200,
+    });
+    const tableCreated = await tableCreatedPromise;
+    expect(tableCreated.tableId).toBeDefined();
+
+    // Client2 joins the table → both get game_found
     const game1Promise = waitForMessage<GameFound>(client1, 'game_found');
     const game2Promise = waitForMessage<GameFound>(client2, 'game_found');
 
-    client1.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'Alice', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
-    });
-
     client2.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'Bob', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
+      type: 'join_table', v: 1, tableId: tableCreated.tableId,
+      playerName: 'Bob', elo: 1200,
     });
 
     const [game1, game2] = await Promise.all([game1Promise, game2Promise]);
@@ -117,17 +121,14 @@ describe('Server Integration', () => {
     await new Promise<void>(resolve => client1.on('connect', resolve));
     await new Promise<void>(resolve => client2.on('connect', resolve));
 
+    // Create table + join to start game
+    const tableCreatedPromise = waitForMessage<TableCreated>(client1, 'table_created');
+    client1.emit('message', { type: 'create_table', v: 1, playerName: 'White', elo: 1200 });
+    const tc = await tableCreatedPromise;
+
     const game1Promise = waitForMessage<GameFound>(client1, 'game_found');
     const game2Promise = waitForMessage<GameFound>(client2, 'game_found');
-
-    client1.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'White', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
-    });
-    client2.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'Black', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
-    });
+    client2.emit('message', { type: 'join_table', v: 1, tableId: tc.tableId, playerName: 'Black', elo: 1200 });
 
     const [game1, game2] = await Promise.all([game1Promise, game2Promise]);
 
@@ -159,17 +160,14 @@ describe('Server Integration', () => {
     await new Promise<void>(resolve => client1.on('connect', resolve));
     await new Promise<void>(resolve => client2.on('connect', resolve));
 
+    // Create table + join to start game
+    const tableCreatedPromise = waitForMessage<TableCreated>(client1, 'table_created');
+    client1.emit('message', { type: 'create_table', v: 1, playerName: 'Alice', elo: 1200 });
+    const tc = await tableCreatedPromise;
+
     const game1Promise = waitForMessage<GameFound>(client1, 'game_found');
     const game2Promise = waitForMessage<GameFound>(client2, 'game_found');
-
-    client1.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'Alice', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
-    });
-    client2.emit('message', {
-      type: 'join_queue', v: 1, playerName: 'Bob', elo: 1200,
-      timeControl: { initial: 600, increment: 0 },
-    });
+    client2.emit('message', { type: 'join_table', v: 1, tableId: tc.tableId, playerName: 'Bob', elo: 1200 });
 
     const [game1, game2] = await Promise.all([game1Promise, game2Promise]);
     const gameId = game1.gameId;

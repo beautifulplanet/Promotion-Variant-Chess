@@ -17,10 +17,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { ClientMessageSchema, PROTOCOL_VERSION } from './protocol.js';
 import type {
   ServerMessage, GameFound, OpponentMove, MoveAck, GameOver, DrawOffer,
-  DrawDeclined, QueueStatus, ServerError, TimeControl, GameResult, GameEndReason,
+  DrawDeclined, TablesList, TableCreated, ServerError, TimeControl, GameResult, GameEndReason,
+  TableInfo,
 } from './protocol.js';
 import { GameRoom, type Player } from './GameRoom.js';
-import { Matchmaker, type QueueEntry } from './Matchmaker.js';
+import { TableManager, type OpenTable } from './TableManager.js';
 import { calculateMatchElo } from './elo.js';
 import {
   findPlayerByUsername, findPlayerById, createPlayer, updatePlayerAfterGame,
@@ -110,7 +111,7 @@ const io = new Server(httpServer, {
 const rooms = new Map<string, GameRoom>();          // gameId → GameRoom
 const playerRooms = new Map<string, string>();      // socketId → gameId
 const playerTokens = new Map<string, string>();     // socketId → playerToken
-const matchmaker = new Matchmaker();
+const tableManager = new TableManager();            // open tables lobby
 
 // Map socket → authenticated player ID (from DB)
 const socketPlayerIds = new Map<string, string>();  // socketId → player.id (DB)
@@ -168,7 +169,7 @@ app.get('/metrics', async (req, res) => {
     // Update gauges before scrape
     connectedPlayersGauge.set(io.engine.clientsCount);
     activeGamesGauge.set(rooms.size);
-    queueLengthGauge.set(matchmaker.length);
+    queueLengthGauge.set(tableManager.length);
 
     res.set('Content-Type', registry.contentType);
     res.end(await registry.metrics());
@@ -573,11 +574,17 @@ io.on('connection', (socket) => {
     }
 
     switch (data.type) {
-      case 'join_queue':
-        handleJoinQueue(socket, data.playerName, data.elo ?? 1200, data.timeControl);
+      case 'create_table':
+        handleCreateTable(socket, data.playerName, data.elo ?? 1200);
         break;
-      case 'leave_queue':
-        handleLeaveQueue(socket);
+      case 'list_tables':
+        handleListTables(socket);
+        break;
+      case 'join_table':
+        handleJoinTable(socket, data.tableId, data.playerName, data.elo ?? 1200);
+        break;
+      case 'leave_table':
+        handleLeaveTable(socket);
         break;
       case 'make_move':
         handleMakeMove(socket, data.gameId, data.move);
@@ -603,7 +610,9 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`[disconnect] ${socket.id}`);
     connectedPlayersGauge.dec();
-    matchmaker.removePlayer(socket.id);
+    const hadTable = !!tableManager.getPlayerTableId(socket.id);
+    tableManager.removePlayerTable(socket.id);
+    if (hadTable) broadcastTableList();
     socketPlayerIds.delete(socket.id);
     clearWsRateLimit(socket.id);
     releaseConnection(clientIp);
@@ -622,51 +631,98 @@ io.on('connection', (socket) => {
 // MESSAGE HANDLERS
 // =============================================================================
 
-function handleJoinQueue(
+function handleCreateTable(
   socket: ReturnType<typeof io.sockets.sockets.get> & { id: string },
   playerName: string,
   elo: number,
-  timeControl?: TimeControl,
 ) {
-  const tc = timeControl ?? { initial: 600, increment: 0 };
-
-  // Store/update player data (in-memory fallback)
+  // Store player data (in-memory fallback)
   if (!playerData.has(playerName)) {
     playerData.set(playerName, { name: playerName, elo, games: 0 });
   }
 
-  const entry: QueueEntry = {
+  const table = tableManager.createTable(socket.id, playerName, elo);
+  queueLengthGauge.set(tableManager.length);
+
+  // Confirm to creator
+  send(socket, {
+    type: 'table_created', v: PROTOCOL_VERSION,
+    tableId: table.tableId,
+  });
+
+  // Broadcast updated table list to ALL connected sockets
+  broadcastTableList();
+}
+
+function handleListTables(socket: { emit: Function }) {
+  send(socket, {
+    type: 'tables_list', v: PROTOCOL_VERSION,
+    tables: tableManager.listTables(),
+  });
+}
+
+function handleJoinTable(
+  socket: ReturnType<typeof io.sockets.sockets.get> & { id: string },
+  tableId: string,
+  playerName: string,
+  elo: number,
+) {
+  const table = tableManager.getTable(tableId);
+  if (!table) {
+    sendError(socket, 'TABLE_NOT_FOUND', 'Table no longer available');
+    return;
+  }
+
+  // Can't join your own table
+  if (table.hostSocketId === socket.id) {
+    sendError(socket, 'OWN_TABLE', 'You cannot join your own table');
+    return;
+  }
+
+  // Store player data
+  if (!playerData.has(playerName)) {
+    playerData.set(playerName, { name: playerName, elo, games: 0 });
+  }
+
+  // Remove the table, then create the game
+  tableManager.removeTable(tableId);
+  queueLengthGauge.set(tableManager.length);
+
+  // Create game entries (untimed)
+  const hostEntry = {
+    socketId: table.hostSocketId,
+    playerName: table.hostName,
+    elo: table.hostElo,
+  };
+  const joinerEntry = {
     socketId: socket.id,
     playerName,
     elo,
-    timeControl: tc,
-    joinedAt: Date.now(),
   };
 
-  queueLengthGauge.set(matchmaker.length + 1);
+  createGame(hostEntry, joinerEntry);
 
-  const match = matchmaker.addPlayer(entry);
-
-  if (match) {
-    // Record queue wait time
-    const waitTime = (Date.now() - match.player1.joinedAt) / 1000;
-    queueWaitHistogram.observe(waitTime);
-    queueLengthGauge.set(matchmaker.length);
-
-    createGame(match.player1, match.player2, tc);
-  } else {
-    const pos = matchmaker.getPosition(socket.id);
-    send(socket, {
-      type: 'queue_status', v: PROTOCOL_VERSION,
-      position: pos,
-      estimatedWait: 15,
-    });
-  }
+  // Broadcast updated table list (table was removed)
+  broadcastTableList();
 }
 
-function handleLeaveQueue(socket: { id: string }) {
-  matchmaker.removePlayer(socket.id);
-  queueLengthGauge.set(matchmaker.length);
+function handleLeaveTable(socket: { id: string }) {
+  tableManager.removePlayerTable(socket.id);
+  queueLengthGauge.set(tableManager.length);
+  broadcastTableList();
+}
+
+/**
+ * Send the current table list to all connected sockets
+ * so everyone's lobby view stays in sync.
+ */
+function broadcastTableList() {
+  const tables = tableManager.listTables();
+  const msg: ServerMessage = {
+    type: 'tables_list', v: PROTOCOL_VERSION,
+    tables,
+  };
+  io.emit('message', msg);
 }
 
 function handleMakeMove(socket: { id: string; emit: Function }, gameId: string, moveStr: string) {
@@ -812,7 +868,16 @@ function handleReconnect(
 // GAME LIFECYCLE
 // =============================================================================
 
-function createGame(p1: QueueEntry, p2: QueueEntry, timeControl: TimeControl) {
+/** Entry for a player about to start a game (replaces old QueueEntry) */
+interface TableEntry {
+  socketId: string;
+  playerName: string;
+  elo: number;
+}
+
+function createGame(p1: TableEntry, p2: TableEntry) {
+  const timeControl: TimeControl = { initial: 0, increment: 0 }; // untimed
+
   // Room limit check — prevent unbounded memory growth
   if (!canCreateRoom(rooms.size)) {
     const s1 = io.sockets.sockets.get(p1.socketId);
@@ -1001,28 +1066,14 @@ async function persistGameResult(
 // PERIODIC TASKS
 // =============================================================================
 
-// Scan for matches every 5 seconds (expanding ELO windows)
-const matchScanInterval = setInterval(() => {
-  const matches = matchmaker.scanForMatches();
-  for (const match of matches) {
-    // Record queue wait time
-    const waitTime = (Date.now() - match.player1.joinedAt) / 1000;
-    queueWaitHistogram.observe(waitTime);
-
-    createGame(match.player1, match.player2, match.player1.timeControl);
+// Scan for stale tables every 30 seconds (remove tables older than 10 min)
+const staleTableInterval = setInterval(() => {
+  const removed = tableManager.removeStale();
+  if (removed.length > 0) {
+    queueLengthGauge.set(tableManager.length);
+    broadcastTableList();
   }
-
-  // Check queue timeouts
-  const timedOut = matchmaker.checkTimeouts();
-  for (const entry of timedOut) {
-    const socket = io.sockets.sockets.get(entry.socketId);
-    if (socket) {
-      sendError(socket, 'QUEUE_TIMEOUT', 'No opponent found — try again or play vs AI');
-    }
-  }
-
-  queueLengthGauge.set(matchmaker.length);
-}, 5_000);
+}, 30_000);
 
 // Check disconnection timeouts every 10 seconds
 const disconnectCheckInterval = setInterval(() => {
@@ -1052,8 +1103,8 @@ function sendError(socket: { emit: Function }, code: string, message: string) {
 // =============================================================================
 
 export {
-  app, httpServer, io, rooms, matchmaker, playerData, socketPlayerIds,
-  matchScanInterval, disconnectCheckInterval,
+  app, httpServer, io, rooms, tableManager, playerData, socketPlayerIds,
+  staleTableInterval, disconnectCheckInterval,
 };
 
 export async function startServer(port: number = PORT) {
@@ -1086,7 +1137,7 @@ export async function startServer(port: number = PORT) {
       io,
       drainTimeoutMs: 15_000,
       onBeforeShutdown: async () => {
-        clearInterval(matchScanInterval);
+        clearInterval(staleTableInterval);
         clearInterval(disconnectCheckInterval);
         await disconnectDB();
       },
@@ -1096,7 +1147,7 @@ export async function startServer(port: number = PORT) {
 }
 
 export async function stopServer() {
-  clearInterval(matchScanInterval);
+  clearInterval(staleTableInterval);
   clearInterval(disconnectCheckInterval);
   await disconnectDB();
   httpServer.close();

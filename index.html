@@ -183,6 +183,31 @@
     }
     .btn-muted:hover { filter: brightness(1.25); }
 
+    /* Multiplayer table rows */
+    .mp-table-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--sidebar-border, #eee);
+      font-size: 12px;
+      color: var(--sidebar-text, #333);
+    }
+    .mp-table-row:last-child { border-bottom: none; }
+    .mp-table-host { flex: 1; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mp-table-elo { font-size: 11px; color: var(--sidebar-text-muted, #999); min-width: 32px; text-align: right; }
+    .mp-table-age { font-size: 10px; color: var(--sidebar-text-muted, #999); min-width: 36px; text-align: right; }
+    .mp-join-btn {
+      padding: 4px 10px; font-size: 11px; font-weight: bold;
+      background: var(--btn-primary); color: var(--btn-primary-text);
+      border: none; border-radius: 4px; cursor: pointer;
+      transition: filter 0.2s;
+    }
+    .mp-join-btn:hover { filter: brightness(1.15); }
+    .mp-no-tables { font-size: 12px; color: var(--sidebar-text-muted); text-align: center; padding: 12px 0; }
+    .spin-slow { animation: spin-slow 2s linear infinite; display: inline-block; }
+    @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
     .sidebar-section {
       border-bottom: 1px solid var(--sidebar-border);
       padding-bottom: 8px;
@@ -1492,22 +1517,18 @@
           <h3>&#x1F310; Multiplayer</h3>
           <div id="mp-offline">
             <input id="mp-player-name" type="text" placeholder="Your name..." style="width:100%; padding:10px; margin-bottom:8px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
-            <select id="mp-time-control" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
-              <option value="180|0">3+0 Blitz</option>
-              <option value="180|2">3+2 Blitz</option>
-              <option value="300|0">5+0 Blitz</option>
-              <option value="300|3">5+3 Blitz</option>
-              <option value="600|0" selected>10+0 Rapid</option>
-              <option value="600|5">10+5 Rapid</option>
-              <option value="900|10">15+10 Rapid</option>
-              <option value="1800|0">30+0 Classical</option>
-            </select>
-            <button id="mp-play-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">&#x2694;&#xFE0F; Find Opponent</button>
+            <button id="mp-create-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">&#x1FA91; Create Table</button>
           </div>
-          <div id="mp-queue" style="display:none; text-align:center; padding:12px 0;">
-            <div style="font-size:14px; color:var(--sidebar-text); margin-bottom:8px;">Searching for opponent...</div>
-            <div id="mp-queue-pos" style="font-size:12px; color:var(--sidebar-text-muted); margin-bottom:12px;"></div>
-            <button id="mp-cancel-btn" class="btn-secondary" style="width:100%; padding:10px; font-size:14px;">&#x2716; Cancel</button>
+          <div id="mp-lobby" style="display:none;">
+            <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text); margin-bottom:6px;">Open Tables</div>
+            <div id="mp-table-list" style="max-height:200px; overflow-y:auto; margin-bottom:8px;">
+              <div class="mp-no-tables" style="font-size:12px; color:var(--sidebar-text-muted); text-align:center; padding:12px 0;">No open tables</div>
+            </div>
+          </div>
+          <div id="mp-hosting" style="display:none; text-align:center; padding:12px 0;">
+            <div style="font-size:14px; color:var(--sidebar-text); margin-bottom:8px;">Waiting for opponent...</div>
+            <div style="font-size:24px; margin-bottom:10px;" class="spin-slow">&#x23F3;</div>
+            <button id="mp-cancel-host-btn" class="btn-secondary" style="width:100%; padding:10px; font-size:14px;">&#x2716; Cancel</button>
           </div>
           <div id="mp-ingame" style="display:none;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:8px 10px; background:var(--sidebar-hover, rgba(0,0,0,0.04)); border-radius:6px;">
@@ -1515,10 +1536,7 @@
                 <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text);">vs <span id="mp-opponent-name">-</span></div>
                 <div id="mp-opponent-elo" style="font-size:11px; color:var(--sidebar-text-muted);">ELO: -</div>
               </div>
-              <div style="display:flex; gap:6px;">
-                <div id="mp-white-time" style="padding:4px 8px; background:#fff; color:#333; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold; border:1px solid #ddd;">-</div>
-                <div id="mp-black-time" style="padding:4px 8px; background:#333; color:#fff; border-radius:4px; font-family:monospace; font-size:13px; font-weight:bold;">-</div>
-              </div>
+              <div style="font-size:11px; color:var(--sidebar-text-muted);">Untimed</div>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
               <button id="mp-resign-btn" class="btn-secondary" style="padding:10px; font-size:13px;">&#x1F3F3;&#xFE0F; Resign</button>

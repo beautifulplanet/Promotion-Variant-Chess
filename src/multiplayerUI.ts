@@ -1,35 +1,40 @@
 // =============================================================================
 // Multiplayer UI Controller
 // Wires HTML elements ↔ MultiplayerClient ↔ GameController
+// Open Tables lobby — create / browse / join tables
 // =============================================================================
 
 import { multiplayer } from './multiplayerClient';
-import type { GameFoundMsg, OpponentMoveMsg, MoveAckMsg, GameOverMsg, DrawOfferMsg, QueueStatusMsg, ServerErrorMsg } from './multiplayerClient';
+import type {
+  GameFoundMsg, OpponentMoveMsg, MoveAckMsg, GameOverMsg,
+  DrawOfferMsg, ServerErrorMsg, TableCreatedMsg, TablesListMsg, TableInfo,
+} from './multiplayerClient';
 import * as Game from './gameController';
 
 // ---------------------------------------------------------------------------
 // DOM Elements
 // ---------------------------------------------------------------------------
 
-const mpOffline = document.getElementById('mp-offline') as HTMLElement;
-const mpQueue = document.getElementById('mp-queue') as HTMLElement;
-const mpIngame = document.getElementById('mp-ingame') as HTMLElement;
-const mpStatus = document.getElementById('mp-status') as HTMLElement;
-const mpPlayBtn = document.getElementById('mp-play-btn') as HTMLButtonElement;
-const mpCancelBtn = document.getElementById('mp-cancel-btn') as HTMLButtonElement;
+const mpOffline   = document.getElementById('mp-offline')   as HTMLElement;
+const mpLobby     = document.getElementById('mp-lobby')     as HTMLElement;
+const mpHosting   = document.getElementById('mp-hosting')   as HTMLElement;
+const mpIngame    = document.getElementById('mp-ingame')     as HTMLElement;
+const mpStatus    = document.getElementById('mp-status')     as HTMLElement;
+
+const mpCreateBtn = document.getElementById('mp-create-btn') as HTMLButtonElement;
+const mpCancelHostBtn = document.getElementById('mp-cancel-host-btn') as HTMLButtonElement;
 const mpResignBtn = document.getElementById('mp-resign-btn') as HTMLButtonElement;
-const mpDrawBtn = document.getElementById('mp-draw-btn') as HTMLButtonElement;
+const mpDrawBtn   = document.getElementById('mp-draw-btn')   as HTMLButtonElement;
 const mpPlayerName = document.getElementById('mp-player-name') as HTMLInputElement;
-const mpTimeControl = document.getElementById('mp-time-control') as HTMLSelectElement;
-const mpQueuePos = document.getElementById('mp-queue-pos') as HTMLElement;
+const mpTableList = document.getElementById('mp-table-list')  as HTMLElement;
 const mpOpponentName = document.getElementById('mp-opponent-name') as HTMLElement;
-const mpOpponentElo = document.getElementById('mp-opponent-elo') as HTMLElement;
+const mpOpponentElo  = document.getElementById('mp-opponent-elo')  as HTMLElement;
 
 // Draw offer overlay
 const drawOfferOverlay = document.getElementById('draw-offer-overlay') as HTMLElement;
-const drawAcceptBtn = document.getElementById('draw-accept-btn') as HTMLButtonElement;
-const drawDeclineBtn = document.getElementById('draw-decline-btn') as HTMLButtonElement;
-const drawOfferFrom = document.getElementById('draw-offer-from') as HTMLElement;
+const drawAcceptBtn    = document.getElementById('draw-accept-btn')    as HTMLButtonElement;
+const drawDeclineBtn   = document.getElementById('draw-decline-btn')   as HTMLButtonElement;
+const drawOfferFrom    = document.getElementById('draw-offer-from')    as HTMLElement;
 
 // AI controls (to hide during multiplayer)
 const aiControlsSection = document.getElementById('ai-controls-section') as HTMLElement;
@@ -39,6 +44,8 @@ const aiControlsSection = document.getElementById('ai-controls-section') as HTML
 // ---------------------------------------------------------------------------
 
 let serverUrl = 'http://localhost:3001';
+let currentTables: TableInfo[] = [];
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 // ---------------------------------------------------------------------------
 // UI VISIBILITY
@@ -46,29 +53,42 @@ let serverUrl = 'http://localhost:3001';
 
 function showOffline() {
   mpOffline.style.display = 'block';
-  mpQueue.style.display = 'none';
+  if (mpLobby) mpLobby.style.display = 'none';
+  if (mpHosting) mpHosting.style.display = 'none';
   mpIngame.style.display = 'none';
   if (aiControlsSection) aiControlsSection.style.display = '';
+  stopRefresh();
 }
 
-function showQueue() {
+function showLobby() {
   mpOffline.style.display = 'none';
-  mpQueue.style.display = 'block';
+  if (mpLobby) mpLobby.style.display = 'block';
+  if (mpHosting) mpHosting.style.display = 'none';
+  mpIngame.style.display = 'none';
+  startRefresh();
+}
+
+function showHosting() {
+  mpOffline.style.display = 'none';
+  if (mpLobby) mpLobby.style.display = 'none';
+  if (mpHosting) mpHosting.style.display = 'block';
   mpIngame.style.display = 'none';
 }
 
 function showIngame() {
   mpOffline.style.display = 'none';
-  mpQueue.style.display = 'none';
+  if (mpLobby) mpLobby.style.display = 'none';
+  if (mpHosting) mpHosting.style.display = 'none';
   mpIngame.style.display = 'block';
   if (aiControlsSection) aiControlsSection.style.display = 'none';
+  stopRefresh();
 }
 
 function showStatus(msg: string, color: string = '#666') {
   mpStatus.style.display = 'block';
   mpStatus.textContent = msg;
   mpStatus.style.color = color;
-  mpStatus.style.background = color === '#4CAF50' ? 'rgba(76,175,80,0.1)' : 
+  mpStatus.style.background = color === '#4CAF50' ? 'rgba(76,175,80,0.1)' :
                                color === '#f44336' ? 'rgba(244,67,54,0.1)' : 'rgba(0,0,0,0.05)';
 }
 
@@ -77,10 +97,64 @@ function hideStatus() {
 }
 
 // ---------------------------------------------------------------------------
+// TABLE LIST
+// ---------------------------------------------------------------------------
+
+function startRefresh() {
+  stopRefresh();
+  // Refresh table list every 5 seconds while in lobby
+  refreshInterval = setInterval(() => {
+    if (multiplayer.connected) multiplayer.listTables();
+  }, 5000);
+}
+
+function stopRefresh() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+}
+
+function renderTableList(tables: TableInfo[]) {
+  if (!mpTableList) return;
+  currentTables = tables;
+
+  if (tables.length === 0) {
+    mpTableList.innerHTML = '<div class="mp-no-tables">No open tables — create one!</div>';
+    return;
+  }
+
+  mpTableList.innerHTML = tables.map(t => {
+    const age = Math.floor((Date.now() - t.createdAt) / 1000);
+    const ageStr = age < 60 ? `${age}s ago` : `${Math.floor(age / 60)}m ago`;
+    return `<div class="mp-table-row">
+      <span class="mp-table-host">${escapeHtml(t.hostName)}</span>
+      <span class="mp-table-elo">${t.hostElo}</span>
+      <span class="mp-table-age">${ageStr}</span>
+      <button class="mp-join-btn" data-table-id="${t.tableId}">Join</button>
+    </div>`;
+  }).join('');
+
+  // Wire join buttons
+  mpTableList.querySelectorAll('.mp-join-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tableId = (btn as HTMLElement).dataset.tableId!;
+      handleJoinClick(tableId);
+    });
+  });
+}
+
+function escapeHtml(s: string): string {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
 // EVENT HANDLERS
 // ---------------------------------------------------------------------------
 
-function handlePlayClick() {
+function handleCreateClick() {
   const name = mpPlayerName.value.trim();
   if (!name) {
     showStatus('Enter your name first', '#f44336');
@@ -95,16 +169,12 @@ function handlePlayClick() {
     multiplayer.connect(serverUrl);
   }
 
-  // Wait for connection, then join queue
-  const tryJoin = () => {
+  const tryCreate = () => {
     if (multiplayer.connected) {
-      const [initial, increment] = mpTimeControl.value.split('|').map(Number);
       const elo = Game.getState().elo;
-      multiplayer.joinQueue(name, elo, { initial, increment });
-      showQueue();
-      showStatus('Connected ✓', '#4CAF50');
+      multiplayer.createTable(name, elo);
     } else {
-      setTimeout(tryJoin, 200);
+      setTimeout(tryCreate, 200);
     }
   };
 
@@ -116,13 +186,49 @@ function handlePlayClick() {
     }
   }, 3000);
 
+  tryCreate();
+}
+
+function handleJoinClick(tableId: string) {
+  const name = mpPlayerName.value.trim();
+  if (!name) {
+    showStatus('Enter your name first', '#f44336');
+    mpPlayerName.focus();
+    return;
+  }
+
+  hideStatus();
+
+  // Connect if not already
+  if (!multiplayer.connected) {
+    multiplayer.connect(serverUrl);
+  }
+
+  const tryJoin = () => {
+    if (multiplayer.connected) {
+      const elo = Game.getState().elo;
+      multiplayer.joinTable(tableId, name, elo);
+    } else {
+      setTimeout(tryJoin, 200);
+    }
+  };
+
+  setTimeout(() => {
+    if (!multiplayer.connected) {
+      showStatus('Could not connect to server', '#f44336');
+      showOffline();
+    }
+  }, 3000);
+
   tryJoin();
 }
 
-function handleCancelClick() {
-  multiplayer.leaveQueue();
-  showOffline();
+function handleCancelHostClick() {
+  multiplayer.leaveTable();
+  showLobby();
   hideStatus();
+  // Refresh tables now
+  multiplayer.listTables();
 }
 
 function handleResignClick() {
@@ -142,6 +248,8 @@ function handleDrawClick() {
 
 function onConnected() {
   console.log('[MP UI] Connected to server');
+  // Request table list on connect
+  multiplayer.listTables();
 }
 
 function onDisconnected() {
@@ -154,8 +262,13 @@ function onDisconnected() {
   }
 }
 
-function onQueueStatus(msg: QueueStatusMsg) {
-  mpQueuePos.textContent = `Position: ${msg.position} • ~${msg.estimatedWait}s`;
+function onTableCreated(_msg: TableCreatedMsg) {
+  showHosting();
+  showStatus('Table created — waiting for opponent...', '#4CAF50');
+}
+
+function onTablesList(msg: TablesListMsg) {
+  renderTableList(msg.tables);
 }
 
 function onGameFound(msg: GameFoundMsg) {
@@ -173,14 +286,10 @@ function onGameFound(msg: GameFoundMsg) {
 function onOpponentMove(msg: OpponentMoveMsg) {
   console.log('[MP UI] Opponent move:', msg.move);
   Game.applyRemoteMove(msg.move, msg.fen);
-
-  // Update clocks
-  updateClocks(msg.whiteTime, msg.blackTime);
 }
 
-function onMoveAck(msg: MoveAckMsg) {
-  // Our move was accepted — update clocks
-  updateClocks(msg.whiteTime, msg.blackTime);
+function onMoveAck(_msg: MoveAckMsg) {
+  // Move accepted — no clock update needed (untimed)
 }
 
 function onGameOver(msg: GameOverMsg) {
@@ -207,27 +316,10 @@ function onError(msg: ServerErrorMsg) {
   console.warn('[MP UI] Server error:', msg.code, msg.message);
   showStatus(msg.message, '#f44336');
 
-  if (msg.code === 'QUEUE_TIMEOUT') {
-    showOffline();
+  if (msg.code === 'TABLE_NOT_FOUND') {
+    // Table was removed before we could join — refresh list
+    multiplayer.listTables();
   }
-}
-
-// ---------------------------------------------------------------------------
-// CLOCK UPDATES
-// ---------------------------------------------------------------------------
-
-function updateClocks(whiteTimeMs: number, blackTimeMs: number) {
-  const whiteElem = document.getElementById('white-time');
-  const blackElem = document.getElementById('black-time');
-  if (whiteElem) whiteElem.textContent = formatTime(whiteTimeMs);
-  if (blackElem) blackElem.textContent = formatTime(blackTimeMs);
-}
-
-function formatTime(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,11 +328,11 @@ function formatTime(ms: number): string {
 
 export function initMultiplayerUI() {
   // Check if elements exist (they may not in test environments)
-  if (!mpPlayBtn) return;
+  if (!mpCreateBtn) return;
 
   // Button handlers
-  mpPlayBtn.addEventListener('click', handlePlayClick);
-  mpCancelBtn.addEventListener('click', handleCancelClick);
+  mpCreateBtn.addEventListener('click', handleCreateClick);
+  mpCancelHostBtn?.addEventListener('click', handleCancelHostClick);
   mpResignBtn.addEventListener('click', handleResignClick);
   mpDrawBtn.addEventListener('click', handleDrawClick);
 
@@ -258,7 +350,8 @@ export function initMultiplayerUI() {
   multiplayer.registerCallbacks({
     onConnected,
     onDisconnected,
-    onQueueStatus,
+    onTableCreated,
+    onTablesList,
     onGameFound,
     onOpponentMove,
     onMoveAck,

@@ -123,34 +123,38 @@ export class GameRoom {
       return { ok: false, error: 'Not your turn' };
     }
 
-    // Update clock for the side that just moved
+    // Update clock for the side that just moved (skip for untimed games)
     const now = Date.now();
-    const elapsed = now - this.lastMoveTimestamp;
+    const isUntimed = this.timeControl.initial === 0;
 
-    if (this.turn === 'w') {
-      this.whiteTimeMs -= elapsed;
-      if (this.whiteTimeMs <= 0) {
-        this.whiteTimeMs = 0;
-        this.state = 'finished';
-        return {
-          ok: true, move: '', fen: this.fen,
-          whiteTime: 0, blackTime: this.blackTimeMs,
-          gameOver: { result: 'black', reason: 'timeout' },
-        };
+    if (!isUntimed) {
+      const elapsed = now - this.lastMoveTimestamp;
+
+      if (this.turn === 'w') {
+        this.whiteTimeMs -= elapsed;
+        if (this.whiteTimeMs <= 0) {
+          this.whiteTimeMs = 0;
+          this.state = 'finished';
+          return {
+            ok: true, move: '', fen: this.fen,
+            whiteTime: 0, blackTime: this.blackTimeMs,
+            gameOver: { result: 'black', reason: 'timeout' },
+          };
+        }
+        this.whiteTimeMs += this.timeControl.increment * 1000;
+      } else {
+        this.blackTimeMs -= elapsed;
+        if (this.blackTimeMs <= 0) {
+          this.blackTimeMs = 0;
+          this.state = 'finished';
+          return {
+            ok: true, move: '', fen: this.fen,
+            whiteTime: this.whiteTimeMs, blackTime: 0,
+            gameOver: { result: 'white', reason: 'timeout' },
+          };
+        }
+        this.blackTimeMs += this.timeControl.increment * 1000;
       }
-      this.whiteTimeMs += this.timeControl.increment * 1000;
-    } else {
-      this.blackTimeMs -= elapsed;
-      if (this.blackTimeMs <= 0) {
-        this.blackTimeMs = 0;
-        this.state = 'finished';
-        return {
-          ok: true, move: '', fen: this.fen,
-          whiteTime: this.whiteTimeMs, blackTime: 0,
-          gameOver: { result: 'white', reason: 'timeout' },
-        };
-      }
-      this.blackTimeMs += this.timeControl.increment * 1000;
     }
 
     // Validate and execute the move

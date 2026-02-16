@@ -1,6 +1,6 @@
 // =============================================================================
 // Multiplayer Client — Socket.io connection to chess server
-// Handles queue, game messaging, and state sync
+// Handles open tables, game messaging, and state sync
 // =============================================================================
 
 import { io, type Socket } from 'socket.io-client';
@@ -13,14 +13,31 @@ export type Color = 'w' | 'b';
 export type GameResult = 'white' | 'black' | 'draw';
 
 export type TimeControl = {
-  initial: number;   // seconds
+  initial: number;   // seconds (0 = untimed)
   increment: number; // seconds per move
 };
+
+export interface TableInfo {
+  tableId: string;
+  hostName: string;
+  hostElo: number;
+  createdAt: number;
+}
 
 export interface ServerMessage {
   type: string;
   v: number;
   [key: string]: unknown;
+}
+
+export interface TableCreatedMsg {
+  type: 'table_created';
+  tableId: string;
+}
+
+export interface TablesListMsg {
+  type: 'tables_list';
+  tables: TableInfo[];
 }
 
 export interface GameFoundMsg {
@@ -66,12 +83,6 @@ export interface DrawOfferMsg {
   from: string;
 }
 
-export interface QueueStatusMsg {
-  type: 'queue_status';
-  position: number;
-  estimatedWait: number;
-}
-
 export interface ServerErrorMsg {
   type: 'error';
   code: string;
@@ -85,7 +96,8 @@ export interface ServerErrorMsg {
 export interface MultiplayerCallbacks {
   onConnected?: () => void;
   onDisconnected?: () => void;
-  onQueueStatus?: (msg: QueueStatusMsg) => void;
+  onTableCreated?: (msg: TableCreatedMsg) => void;
+  onTablesList?: (msg: TablesListMsg) => void;
   onGameFound?: (msg: GameFoundMsg) => void;
   onOpponentMove?: (msg: OpponentMoveMsg) => void;
   onMoveAck?: (msg: MoveAckMsg) => void;
@@ -105,7 +117,7 @@ export class MultiplayerClient {
   private socket: Socket | null = null;
   private callbacks: MultiplayerCallbacks = {};
   private _connected = false;
-  private _inQueue = false;
+  private _hostingTable = false;
   private _inGame = false;
   private _gameId: string | null = null;
   private _myColor: Color | null = null;
@@ -118,7 +130,7 @@ export class MultiplayerClient {
   // =========================================================================
 
   get connected(): boolean { return this._connected; }
-  get inQueue(): boolean { return this._inQueue; }
+  get hostingTable(): boolean { return this._hostingTable; }
   get inGame(): boolean { return this._inGame; }
   get gameId(): string | null { return this._gameId; }
   get myColor(): Color | null { return this._myColor; }
@@ -155,7 +167,7 @@ export class MultiplayerClient {
   }
 
   disconnect() {
-    this._inQueue = false;
+    this._hostingTable = false;
     this._inGame = false;
     this._gameId = null;
     this.socket?.disconnect();
@@ -168,25 +180,29 @@ export class MultiplayerClient {
   }
 
   // =========================================================================
-  // QUEUE
+  // TABLE ACTIONS
   // =========================================================================
 
-  joinQueue(playerName: string, elo: number, timeControl?: TimeControl) {
+  createTable(playerName: string, elo: number) {
     if (!this.socket?.connected) return;
-    this._inQueue = true;
-
-    this.send({
-      type: 'join_queue',
-      playerName,
-      elo,
-      timeControl: timeControl ?? { initial: 600, increment: 0 },
-    });
+    this._hostingTable = true;
+    this.send({ type: 'create_table', playerName, elo });
   }
 
-  leaveQueue() {
+  listTables() {
     if (!this.socket?.connected) return;
-    this._inQueue = false;
-    this.send({ type: 'leave_queue' });
+    this.send({ type: 'list_tables' });
+  }
+
+  joinTable(tableId: string, playerName: string, elo: number) {
+    if (!this.socket?.connected) return;
+    this.send({ type: 'join_table', tableId, playerName, elo });
+  }
+
+  leaveTable() {
+    if (!this.socket?.connected) return;
+    this._hostingTable = false;
+    this.send({ type: 'leave_table' });
   }
 
   // =========================================================================
@@ -224,13 +240,17 @@ export class MultiplayerClient {
 
   private handleMessage(msg: ServerMessage) {
     switch (msg.type) {
-      case 'queue_status':
-        this.callbacks.onQueueStatus?.(msg as unknown as QueueStatusMsg);
+      case 'table_created':
+        this.callbacks.onTableCreated?.(msg as unknown as TableCreatedMsg);
+        break;
+
+      case 'tables_list':
+        this.callbacks.onTablesList?.(msg as unknown as TablesListMsg);
         break;
 
       case 'game_found': {
         const gf = msg as unknown as GameFoundMsg;
-        this._inQueue = false;
+        this._hostingTable = false;
         this._inGame = true;
         this._gameId = gf.gameId;
         this._myColor = gf.color;
