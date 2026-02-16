@@ -89,18 +89,87 @@
       color: var(--text-color);
       display: flex;
       flex-direction: column;
-      /* Column: header on top, content row below */
       overflow: hidden;
     }
 
-    /* CONTENT ROW - Game Area (Sidebar is absolute) */
+    /* ═══════════ TOP TOOLBAR ═══════════ */
+    .top-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--sidebar-bg);
+      border-bottom: 2px solid var(--sidebar-border);
+      z-index: 100;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      min-height: 36px;
+    }
+
+    .tb-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 6px;
+      border-right: 1px solid var(--sidebar-border);
+      font-size: 11px;
+      color: var(--sidebar-text);
+      white-space: nowrap;
+    }
+    .tb-group:last-child { border-right: none; }
+    .tb-group .tb-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--sidebar-text-muted);
+    }
+    .tb-group .tb-value {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .tb-btn {
+      background: var(--btn-muted) !important;
+      color: var(--btn-muted-text) !important;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: 'Old Standard TT', serif;
+      transition: filter 0.15s;
+      white-space: nowrap;
+      line-height: 1.3;
+    }
+    .tb-btn:hover { filter: brightness(1.25); }
+    .tb-btn:active { filter: brightness(0.85); }
+    .tb-btn.primary {
+      background: var(--btn-primary) !important;
+      color: var(--btn-primary-text) !important;
+    }
+    .tb-btn.primary:hover { filter: brightness(1.15); }
+
+    .tb-world {
+      font-family: 'Playfair Display', serif;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    /* CONTENT ROW - full height below toolbar */
     .content-row {
       flex: 1;
       display: flex;
       flex-direction: row;
       overflow: hidden;
-      margin-left: 220px;
-      /* Make space for absolute sidebar */
     }
 
     /* MAIN CONTENT - Full viewport */
@@ -113,43 +182,17 @@
       overflow: hidden;
     }
 
-    /* LEFT SIDEBAR - Absolute overlay on left */
-    .left-sidebar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 220px;
-      min-width: 220px;
-      background: var(--sidebar-bg);
-      border-right: 2px solid var(--sidebar-border);
-      color: var(--sidebar-text);
-      display: flex;
-      flex-direction: column;
-      padding: 10px;
-      gap: 8px;
-      overflow-y: auto;
-      z-index: 100;
-      /* Ensure it stays above header */
-      font-size: 11px;
-    }
-
-    /* Sidebar scrollbar theming */
-    .left-sidebar::-webkit-scrollbar { width: 6px; }
-    .left-sidebar::-webkit-scrollbar-track { background: var(--scrollbar-track); }
-    .left-sidebar::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
-
-    /* THEMED SIDEBAR BUTTONS */
+    /* THEMED BUTTONS (used in options panel) */
     .btn-primary {
       width: 100%;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       background: var(--btn-primary) !important;
       color: var(--btn-primary-text) !important;
       border: none;
-      padding: 10px;
+      padding: 7px 10px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 12px;
       font-family: 'Old Standard TT', serif;
       transition: filter 0.2s;
     }
@@ -157,14 +200,14 @@
 
     .btn-secondary {
       width: 100%;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       background: var(--btn-secondary) !important;
       color: var(--btn-secondary-text) !important;
       border: none;
-      padding: 10px;
+      padding: 7px 10px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 12px;
       font-family: 'Old Standard TT', serif;
       transition: filter 0.2s;
     }
@@ -174,10 +217,10 @@
       background: var(--btn-muted) !important;
       color: var(--btn-muted-text) !important;
       border: none;
-      padding: 8px;
+      padding: 6px 8px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       font-family: 'Old Standard TT', serif;
       transition: filter 0.2s;
     }
@@ -308,16 +351,16 @@
       background: var(--game-area-bg);
     }
 
-    /* ARTICLE COLUMNS — visible on both sides of canvas */
+    /* ARTICLE COLUMNS — always visible, flex-grow to fill */
     .article-column {
-      width: 220px;
-      min-width: 160px;
-      flex-shrink: 1;
+      width: 260px;
+      min-width: 180px;
+      flex: 1 1 260px;
       display: flex;
       flex-direction: column;
       gap: 0;
       overflow-y: auto;
-      padding: 10px 0;
+      padding: 6px 0;
       border-color: #c0b090;
     }
     .article-column.left {
@@ -437,25 +480,28 @@
       border-bottom: none;
     }
 
-    /* CENTER SECTION - GAME + BOTTOM MENU */
+    /* CENTER SECTION - GAME (constrained size) */
     #center-section {
-      flex: 1;
+      flex: 0 1 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       min-width: 0;
-      gap: 10px;
+      max-width: 600px;
+      gap: 0;
+      padding: 4px;
     }
 
     #canvas-wrapper {
-      border: 3px solid #2a2a2a;
+      border: 2px solid #2a2a2a;
       background: #000;
-      flex: 1;
       position: relative;
-      min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      max-width: 580px;
+      max-height: calc(100vh - 60px);
     }
 
     /* ─── Loading Screen ─── */
@@ -529,26 +575,16 @@
       display: block;
     }
 
-    /* BOTTOM MENU BAR */
+    /* BOTTOM BAR (unused — stats in toolbar now) */
     #sidebar {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 25px;
-      font-size: 14px;
-      padding: 18px 30px;
-      background: #f0ebe0;
-      border: 2px solid #c0b090;
-      border-radius: 6px;
-      flex-wrap: wrap;
-      justify-content: center;
+      display: none;
     }
 
     .stat-group {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 0 20px;
+      gap: 6px;
+      padding: 0 8px;
       border-right: 1px solid #c0b090;
     }
 
@@ -584,14 +620,14 @@
 
     #world-name {
       font-family: 'Playfair Display', serif;
-      font-size: 14px;
+      font-size: 11px;
       font-weight: 700;
       text-align: center;
-      padding: 8px 16px;
+      padding: 2px 8px;
       background: var(--sidebar-text);
       color: var(--sidebar-bg);
-      letter-spacing: 1px;
-      border-radius: 4px;
+      letter-spacing: 0.5px;
+      border-radius: 3px;
     }
 
     .controls {
@@ -1143,17 +1179,20 @@
 
     /* RESPONSIVE - Article columns visibility */
     @media (max-width: 1100px) {
-      .article-column { width: 160px; min-width: 120px; }
+      .article-column { flex: 1 1 160px; min-width: 120px; }
       .article-headline { font-size: 12px; }
       .article-snippet { font-size: 11px; }
+      #center-section { max-width: 500px; }
     }
     @media (max-width: 900px) {
       /* Hide right column on medium screens */
       .article-column.right { display: none; }
+      #center-section { max-width: 550px; }
     }
     @media (max-width: 700px) {
       /* Hide both columns on small screens */
       .article-column { display: none !important; }
+      #center-section { max-width: 100%; }
     }
 
     /* ==========================================================================
@@ -1162,16 +1201,16 @@
     #hamburger-btn {
       display: none;
       position: fixed;
-      top: 8px;
-      left: 8px;
+      top: 4px;
+      right: 4px;
       z-index: 200;
-      width: 44px;
-      height: 44px;
+      width: 36px;
+      height: 36px;
       background: var(--btn-secondary);
       color: var(--btn-secondary-text);
       border: none;
-      border-radius: 8px;
-      font-size: 22px;
+      border-radius: 6px;
+      font-size: 18px;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       touch-action: manipulation;
@@ -1181,45 +1220,26 @@
        MOBILE RESPONSIVE OVERRIDES (< 768px)
        ========================================================================== */
     @media (max-width: 768px) {
-      /* Show hamburger */
+      /* Show hamburger for options */
       #hamburger-btn { display: flex; align-items: center; justify-content: center; }
 
-      /* Sidebar: off-screen drawer */
-      .left-sidebar {
-        transform: translateX(-100%);
-        transition: transform 0.3s ease;
-        width: 260px;
-        min-width: 260px;
-        z-index: 150;
-        padding-top: 50px; /* below hamburger */
-      }
-      .left-sidebar.open {
-        transform: translateX(0);
-        box-shadow: 4px 0 20px rgba(0,0,0,0.3);
-      }
+      /* Toolbar wraps compactly */
+      .top-toolbar { flex-wrap: wrap; padding: 3px 6px; gap: 3px; }
+      .tb-group { padding: 0 4px; font-size: 10px; }
+      .tb-btn { padding: 3px 6px; font-size: 10px; }
 
-      /* Sidebar backdrop */
-      #sidebar-backdrop {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.4);
-        z-index: 140;
-      }
-      #sidebar-backdrop.active { display: block; }
-
-      /* Content: no sidebar margin */
+      /* Content: full width */
       .content-row { margin-left: 0 !important; }
 
       /* Game area: full width, minimal padding */
-      .game-area { padding: 5px; gap: 8px; }
+      .game-area { padding: 2px; gap: 4px; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
-        width: 100% !important;
         max-width: 100vw;
         border-width: 2px;
       }
+      #center-section { max-width: 100%; }
       #game-canvas, #overlay-canvas {
         width: 100% !important;
         height: auto !important;
@@ -1280,31 +1300,30 @@
     /* ==========================================================================
        TOUCH-FRIENDLY BUTTONS (all screen sizes)
        ========================================================================== */
-    /* Ensure all interactive elements meet 44px minimum touch target */
     .btn-primary, .btn-secondary {
-      min-height: 44px;
-      padding: 12px 14px;
-      font-size: 14px;
+      min-height: 34px;
+      padding: 7px 10px;
+      font-size: 12px;
     }
     .btn-muted {
-      min-height: 40px;
-      padding: 10px 12px;
-      font-size: 13px;
+      min-height: 30px;
+      padding: 6px 8px;
+      font-size: 11px;
     }
-    /* Active/pressed state for touch feedback (since :hover doesn't work on touch) */
+    /* Active/pressed state for touch feedback */
     .btn-primary:active { filter: brightness(0.85); }
     .btn-secondary:active { filter: brightness(0.85); }
     .btn-muted:active { filter: brightness(0.8); }
 
     .controls button {
-      min-height: 44px;
-      min-width: 44px;
+      min-height: 34px;
+      min-width: 34px;
     }
 
-    /* Input fields: larger for touch */
+    /* Input fields: larger for touch on mobile */
     @media (max-width: 768px) {
-      .left-sidebar input[type="text"],
-      .left-sidebar select {
+      #options-panel input[type="text"],
+      #options-panel select {
         min-height: 44px;
         font-size: 16px !important; /* prevents iOS zoom on focus */
       }
@@ -1314,79 +1333,60 @@
     @media (hover: none) {
       .btn-primary:hover, .btn-secondary:hover, .btn-muted:hover,
       .controls button:hover, .promotion-choice:hover,
-      .inventory-item:hover:not(.disabled) {
+      .inventory-item:hover:not(.disabled), .tb-btn:hover {
         filter: none;
         transform: none;
       }
     }
 
     /* Prevent text selection on game UI */
-    .left-sidebar, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
+    .top-toolbar, #canvas-wrapper, .controls, #setup-panel, #promotion-panel {
       -webkit-user-select: none;
       user-select: none;
     }
 
     /* Safe area insets for notched phones */
     @supports (padding: env(safe-area-inset-top)) {
-      .left-sidebar {
-        padding-bottom: env(safe-area-inset-bottom);
+      .top-toolbar {
+        padding-top: max(4px, env(safe-area-inset-top));
       }
       #hamburger-btn {
-        top: max(8px, env(safe-area-inset-top));
-        left: max(8px, env(safe-area-inset-left));
+        top: max(4px, env(safe-area-inset-top));
+        right: max(4px, env(safe-area-inset-right));
       }
     }
   </style>
 </head>
 
 <body>
-  <!-- HAMBURGER MENU (mobile only) -->
+  <!-- HAMBURGER MENU (mobile only — opens options) -->
   <button id="hamburger-btn" aria-label="Toggle menu">☰</button>
-  <div id="sidebar-backdrop"></div>
 
-  <!-- CONTENT ROW: Sidebar + Game Area -->
-  <div class="content-row">
-    <!-- LEFT SIDEBAR: Minimal — only essential controls -->
-    <div class="left-sidebar">
-      <!-- World/Era Name -->
-      <div class="sidebar-section">
-        <div id="world-name">Loading...</div>
-      </div>
-
-      <!-- Quick Stats -->
-      <div class="sidebar-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted);">ELO</div>
-          <div style="font-size: 16px; font-weight: bold;" id="elo">400</div>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted);">Turn</div>
-          <div id="sidebar-turn" style="font-size: 13px; font-weight: bold;">White</div>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size: 9px; color: var(--sidebar-text-muted);">Lv</div>
-          <div style="font-size: 13px; font-weight: bold;"><span id="player-level">1</span></div>
-        </div>
-      </div>
-
-      <!-- Primary Actions -->
-      <div class="sidebar-section">
-        <button id="start-game-btn" class="btn-primary">▶️ New Game</button>
-        <button id="save-btn" class="btn-secondary">💾 Save</button>
-        <button id="view-mode-btn" class="btn-secondary">🎥 Pan</button>
-      </div>
-
-      <!-- Options pop-out trigger -->
-      <div class="sidebar-section">
-        <button id="options-btn" class="btn-muted" style="width:100%; padding:10px; font-size:14px;">⚙️ Options</button>
-      </div>
-
-      <span id="streak-display" style="display:block; font-weight:bold; text-align:center; font-size:11px;"></span>
-      <div id="fps" style="font-size:11px; color:var(--sidebar-text-muted); text-align:center; font-style:italic;">FPS: 60</div>
+  <!-- TOP TOOLBAR: Compact horizontal bar with stats + action buttons -->
+  <div class="top-toolbar">
+    <div class="tb-world" id="world-name">Loading...</div>
+    <div class="tb-group">
+      <span style="color: var(--sidebar-text-muted);">ELO</span>
+      <strong id="elo">400</strong>
     </div>
+    <div class="tb-group">
+      <span style="color: var(--sidebar-text-muted);">Turn</span>
+      <strong id="sidebar-turn">White</strong>
+    </div>
+    <div class="tb-group">
+      <span style="color: var(--sidebar-text-muted);">Lv</span>
+      <strong><span id="player-level">1</span></strong>
+    </div>
+    <button id="start-game-btn" class="tb-btn primary">▶ New</button>
+    <button id="save-btn" class="tb-btn">💾 Save</button>
+    <button id="view-mode-btn" class="tb-btn">🎥 Pan</button>
+    <button id="options-btn" class="tb-btn">⚙️ Options</button>
+    <span id="streak-display" style="font-weight:bold; font-size:10px;"></span>
+    <div id="fps" style="font-size:10px; color:var(--sidebar-text-muted); font-style:italic; margin-left:auto;">FPS: 60</div>
+  </div>
 
-    <!-- GAME AREA: Left Articles | Canvas | Right Articles -->
-    <div class="game-area">
+  <!-- CONTENT ROW: Game Area -->
+  <div class="content-row">
       <!-- LEFT ARTICLE COLUMN -->
       <div class="article-column left">
         <div class="article">
@@ -1417,8 +1417,8 @@
           <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
           <p>Setting up the board...</p>
         </div>
-        <canvas id="game-canvas" width="1150" height="550"></canvas>
-        <canvas id="overlay-canvas" width="1150" height="550"
+        <canvas id="game-canvas" width="700" height="450"></canvas>
+        <canvas id="overlay-canvas" width="700" height="450"
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
       </div>
 
