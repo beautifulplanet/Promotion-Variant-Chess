@@ -593,6 +593,85 @@
       border-bottom: none;
     }
 
+    /* ─── How to Play Modal ─── */
+    #htp-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 3100;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      animation: overlay-fade-in 0.2s ease;
+    }
+    #htp-overlay.open { display: flex; }
+    #htp-panel {
+      background: var(--sidebar-bg, #f5f0e6);
+      border: 2px solid var(--sidebar-border);
+      border-radius: 10px;
+      width: 94vw;
+      max-width: 600px;
+      max-height: 88vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.35);
+      animation: panel-slide-up 0.25s ease;
+      padding: 0;
+    }
+    #htp-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--sidebar-border);
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
+      border-radius: 8px 8px 0 0;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    #htp-panel-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+    }
+    #htp-body {
+      padding: 16px 20px;
+      font-family: 'Old Standard TT', serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--sidebar-text);
+    }
+    #htp-body h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      margin: 18px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--sidebar-border);
+    }
+    #htp-body h3:first-child { margin-top: 0; }
+    #htp-body ul {
+      margin: 6px 0 10px 18px;
+      padding: 0;
+    }
+    #htp-body li { margin-bottom: 4px; }
+    #htp-body .htp-highlight {
+      background: rgba(0,0,0,0.05);
+      border-left: 3px solid var(--sidebar-accent, #b8860b);
+      padding: 8px 12px;
+      margin: 10px 0;
+      border-radius: 0 6px 6px 0;
+    }
+    #htp-body .htp-footer {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid var(--sidebar-border);
+      font-size: 12px;
+      color: var(--sidebar-text-muted);
+      text-align: center;
+    }
+
     /* ─── Loading Screen ─── */
     #loading-screen {
       position: absolute;
@@ -1530,6 +1609,8 @@
         <button id="bo-piece-2d-btn" class="bo-btn">🖼️ 2D</button>
         <span class="bo-sep">·</span>
         <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
+        <span class="bo-sep">·</span>
+        <button id="how-to-play-btn" class="bo-btn">❓ How</button>
       </div>
       <!-- OPEN TABLES -->
       <div id="open-tables-panel" class="open-tables-panel" style="display:none;">
@@ -1700,6 +1781,87 @@
 
         <div style="text-align: center; padding-top: 8px; border-top: 1px solid var(--sidebar-border);">
           <a href="privacy.html" target="_blank" style="color: var(--sidebar-text-muted); text-decoration: none; font-size: 11px; font-family: 'Old Standard TT', serif;">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="htp-overlay">
+    <div id="htp-panel">
+      <div id="htp-panel-header">
+        <h2>&#x2753; How to Play</h2>
+        <button class="options-panel-close" id="htp-close-btn" title="Close">&times;</button>
+      </div>
+      <div id="htp-body">
+
+        <h3>&#x265A; What Is This Game?</h3>
+        <div class="htp-highlight">
+          <strong>This is NOT regular chess.</strong> It starts like chess, but as you win games your ELO rises, unlocking <strong>20 historical eras</strong>, <strong>bonus pieces</strong>, <strong>custom army setups</strong>, and <strong>3D worlds</strong> that transform the experience.
+        </div>
+
+        <h3>&#x1F3AE; Core Loop</h3>
+        <ul>
+          <li><strong>Play &amp; Win</strong> &#x2192; Your ELO rating rises.</li>
+          <li><strong>ELO rises</strong> &#x2192; You unlock new eras (Stone Age &#x2192; Medieval &#x2192; Space &#x2192; Future &amp; more).</li>
+          <li><strong>New eras</strong> &#x2192; The 3D world, skybox, buildings, and atmosphere all change.</li>
+          <li><strong>Earn bonus pieces</strong> &#x2192; Extra Queens, Rooks, Bishops, Knights added to your bank.</li>
+          <li><strong>Deploy them</strong> &#x2192; Use Setup Board to place bonus pieces before each game.</li>
+        </ul>
+
+        <h3>&#x2694;&#xFE0F; What Makes It Different</h3>
+        <ul>
+          <li><strong>Piece Bank &amp; Setup Mode:</strong> You earn extra pieces as you level up. Open &#x2699;&#xFE0F; Setup Board to rearrange your army and deploy bonus pieces before a game.</li>
+          <li><strong>20 Historical Eras:</strong> From Cretaceous dinosaurs to Neon City to deep space. Each era has unique 3D scenery, lighting, and atmosphere.</li>
+          <li><strong>AI Scales With You:</strong> The AI uses Stockfish calibrated to your ELO. At high levels, the AI also gets bonus pieces to keep things fair.</li>
+          <li><strong>AI Aggression Slider:</strong> Control how aggressively the AI compensates. Slide it down for a gentler experience, up for a brutal challenge.</li>
+          <li><strong>Board Profiles:</strong> Save and load your favorite piece arrangements.</li>
+          <li><strong>Newspaper Theme:</strong> The entire UI is styled like a vintage newspaper. Headlines react to your games with humorous articles.</li>
+          <li><strong>Dynamic 3D World:</strong> Procedural skyboxes, particle effects, animated environments, and dynamic lighting that change per era.</li>
+        </ul>
+
+        <h3>&#x1F3C6; Progression System</h3>
+        <ul>
+          <li><strong>ELO Rating:</strong> Start at 400, climb to 10,000+.</li>
+          <li><strong>Levels:</strong> Each level band unlocks a new era with new visuals.</li>
+          <li><strong>Piece Inventory:</strong> Win games to earn bonus pieces (Pawns, Knights, Bishops, Rooks, Queens).</li>
+          <li><strong>The AI adapts:</strong> As you get stronger and deploy more pieces, the AI matches your strength.</li>
+        </ul>
+
+        <h3>&#x1F3AE; Controls &amp; Buttons</h3>
+        <ul>
+          <li><strong>&#x25B6; New</strong> &#x2014; Start a new game.</li>
+          <li><strong>&#x21A9; Undo</strong> &#x2014; Take back your last move.</li>
+          <li><strong>&#x1F4BE; Save</strong> &#x2014; Save your progress (ELO, inventory, settings).</li>
+          <li><strong>&#x1F3A5; Pan</strong> &#x2014; Switch between Play and Pan mode to look around the 3D world.</li>
+          <li><strong>&#x2699;&#xFE0F; Opt</strong> &#x2014; Open options: AI controls, multiplayer, styles, stats.</li>
+          <li><strong>&#x1F504; Flip</strong> &#x2014; Flip the board perspective.</li>
+          <li><strong>&#x1F3C1; Board</strong> &#x2014; Cycle board color themes (classic, marble, neon, etc.).</li>
+          <li><strong>&#x1F5BC;&#xFE0F; 2D</strong> &#x2014; Cycle 2D piece styles.</li>
+          <li><strong>&#x1F310; MP</strong> &#x2014; Multiplayer: create or join tables online.</li>
+        </ul>
+
+        <h3>&#x1F310; Multiplayer</h3>
+        <ul>
+          <li>Create or join tables via the MP button or Options panel.</li>
+          <li>Real-time play via WebSocket with ELO-based matchmaking.</li>
+          <li>Each player brings their own piece bank for fair play (capped).</li>
+        </ul>
+
+        <h3>&#x1F4A1; Tips for New Players</h3>
+        <ul>
+          <li>Just play! Your first games are normal chess. The unique features unlock as your ELO grows.</li>
+          <li>After winning a few games, check &#x2699;&#xFE0F; Setup Board to see your piece bank.</li>
+          <li>Try different board themes and piece styles to customize your look.</li>
+          <li>Use Pan mode to explore the 3D world around the board.</li>
+          <li>Watch AI vs AI games with the &#x1F916; Watch AI button in Options.</li>
+        </ul>
+
+        <button id="htp-tutorial-btn" class="btn-primary" style="width:100%; padding:14px; font-size:15px; font-weight:bold; margin-top:16px; border-radius:6px; cursor:pointer;">&#x1F393; Start First Game Tutorial (Coming Soon)</button>
+
+        <div class="htp-footer">
+          &#x1F310; Website coming soon<br>
+          &#x1F4AC; We read &amp; respond to all Google Play Store reviews same day
         </div>
       </div>
     </div>

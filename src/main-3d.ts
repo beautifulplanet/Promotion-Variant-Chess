@@ -1543,6 +1543,43 @@ if (optionsBtn && optionsOverlay) {
   });
 }
 
+// --- How to Play overlay ---
+const htpBtn = document.getElementById('how-to-play-btn');
+const htpOverlay = document.getElementById('htp-overlay');
+const htpCloseBtn = document.getElementById('htp-close-btn');
+
+if (htpBtn && htpOverlay) {
+  htpBtn.addEventListener('click', () => {
+    htpOverlay.classList.add('open');
+  });
+  htpCloseBtn?.addEventListener('click', () => {
+    htpOverlay.classList.remove('open');
+  });
+  htpOverlay.addEventListener('click', (e) => {
+    if (e.target === htpOverlay) {
+      htpOverlay.classList.remove('open');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && htpOverlay.classList.contains('open')) {
+      htpOverlay.classList.remove('open');
+    }
+  });
+}
+
+// Tutorial button (coming soon)
+const htpTutorialBtn = document.getElementById('htp-tutorial-btn');
+if (htpTutorialBtn) {
+  htpTutorialBtn.addEventListener('click', () => {
+    htpTutorialBtn.textContent = '🎓 Tutorial Coming Soon!';
+    htpTutorialBtn.setAttribute('disabled', 'true');
+    setTimeout(() => {
+      htpTutorialBtn.textContent = '🎓 Start First Game Tutorial (Coming Soon)';
+      htpTutorialBtn.removeAttribute('disabled');
+    }, 2000);
+  });
+}
+
 const undoBtn = document.getElementById('undo-btn');
 const soundBtn = document.getElementById('sound-btn');
 const themeBtn = document.getElementById('theme-btn');
