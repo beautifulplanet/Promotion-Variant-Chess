@@ -336,14 +336,46 @@ if (boardStyleBtn) {
 }
 
 // Flip perspective button (swap piece colors without rotating board)
+const boFlipBtn = document.getElementById('bo-flip-btn');
+const boBoardStyleBtn = document.getElementById('bo-board-style-btn');
+const boPiece2dBtn = document.getElementById('bo-piece-2d-btn');
+
+function doFlip() {
+  const current = Renderer.getPlayerColor();
+  const next = current === 'white' ? 'black' : 'white';
+  Renderer.setPlayerColor(next);
+  if (flipBtn) flipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
+  if (boFlipBtn) boFlipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
+  Sound.play('move');
+  console.log('[Flip] Perspective:', next);
+}
+
 if (flipBtn) {
-  flipBtn.addEventListener('click', () => {
-    const current = Renderer.getPlayerColor();
-    const next = current === 'white' ? 'black' : 'white';
-    Renderer.setPlayerColor(next);
-    flipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
-    Sound.play('move');
-    console.log('[Flip] Perspective:', next);
+  flipBtn.addEventListener('click', doFlip);
+}
+if (boFlipBtn) {
+  boFlipBtn.addEventListener('click', doFlip);
+}
+
+// Board overlay: cycle board style
+if (boBoardStyleBtn) {
+  boBoardStyleBtn.addEventListener('click', () => {
+    Renderer.cycleBoardStyle();
+    const newStyle = Renderer.getBoardStyle();
+    if (boardStyleBtn) boardStyleBtn.textContent = `🏁 ${newStyle}`;
+    boBoardStyleBtn.textContent = `🏁 ${newStyle}`;
+    Game.updateStylePreferences(undefined, undefined, newStyle);
+  });
+}
+
+// Board overlay: cycle 2D piece style
+if (boPiece2dBtn) {
+  boPiece2dBtn.addEventListener('click', () => {
+    Renderer.cycle2DPieceStyle();
+    const newStyle = Renderer.get2DPieceStyle();
+    if (style2dBtn) style2dBtn.textContent = `🖼️ ${newStyle}`;
+    boPiece2dBtn.textContent = `🖼️ ${newStyle}`;
+    Game.updateStylePreferences(undefined, newStyle, undefined);
   });
 }
 
