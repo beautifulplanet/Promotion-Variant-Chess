@@ -297,12 +297,13 @@ Renderer.onSquareClick((row: number, col: number) => {
   }
 });
 
-// View mode toggle
+// View mode: Pan button removed — right-click/two-finger drag orbits camera
+// The old viewModeBtn reference is now unused; setViewMode('play') resets to overhead
 if (viewModeBtn) {
+  // Repurposed: "Reset Camera" — snaps back to overhead play view
+  viewModeBtn.textContent = '📷 Reset';
   viewModeBtn.addEventListener('click', () => {
-    Renderer.toggleViewMode();
-    const mode = Renderer.getViewMode();
-    viewModeBtn.textContent = mode === 'pan' ? '🎥 Pan Mode' : '🎯 Play Mode';
+    Renderer.setViewMode('play');
   });
 }
 
@@ -586,10 +587,11 @@ applyDebugToggles();
 document.addEventListener('keydown', (event) => {
   switch (event.key.toLowerCase()) {
     case 'v':
-      Renderer.toggleViewMode();
+      // Reset camera to overhead play view (V = View reset)
+      Renderer.setViewMode('play');
       break;
     case 'c':
-      Renderer.toggleCameraView();
+      Renderer.setViewMode('play');
       break;
     case 'n':
       Game.newGame();

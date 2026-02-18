@@ -156,12 +156,13 @@
       position: absolute;
       top: 4px; left: 4px; right: 4px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: center;
       align-items: center;
       gap: 4px;
       padding: 5px 10px;
       z-index: 30;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.1) 90%, transparent 100%);
       pointer-events: none;
     }
     .bo-btn {
@@ -1356,6 +1357,9 @@
       .article-headline { font-size: 13px; }
       .article-snippet { font-size: 11px; }
       .masthead-title { font-size: clamp(18px, 3.5vw, 30px); }
+      /* Hide separators when buttons can wrap */
+      .bo-sep { display: none; }
+      .bo-btn { font-size: 12px; padding: 4px 8px; }
     }
     @media (max-width: 900px) {
       .article-column.right { display: none; }
@@ -1612,8 +1616,6 @@
         <button id="undo-btn" class="bo-btn">↩ Undo</button>
         <span class="bo-sep">·</span>
         <button id="save-btn" class="bo-btn">💾 Save</button>
-        <span class="bo-sep">·</span>
-        <button id="view-mode-btn" class="bo-btn">🎥 Pan</button>
         <span class="bo-sep">·</span>
         <button id="options-btn" class="bo-btn">⚙️ Opt</button>
         <span class="bo-sep">·</span>
@@ -1873,7 +1875,7 @@
           <li><strong>&#x25B6; New</strong> &#x2014; Start a new game.</li>
           <li><strong>&#x21A9; Undo</strong> &#x2014; Take back your last move.</li>
           <li><strong>&#x1F4BE; Save</strong> &#x2014; Save your progress (ELO, inventory, settings).</li>
-          <li><strong>&#x1F3A5; Pan</strong> &#x2014; Switch between Play and Pan mode to look around the 3D world.</li>
+          <li><strong>Right-click drag / Two-finger drag</strong> &#x2014; Orbit the camera to explore the 3D world. Press V to reset view.</li>
           <li><strong>&#x2699;&#xFE0F; Opt</strong> &#x2014; Open options: AI controls, multiplayer, styles, stats.</li>
           <li><strong>&#x1F504; Flip</strong> &#x2014; Flip the board perspective.</li>
           <li><strong>&#x1F3C1; Board</strong> &#x2014; Cycle board color themes (classic, marble, neon, etc.).</li>
@@ -1894,7 +1896,7 @@
           <li>Open &#x2699;&#xFE0F; Setup Board before each game to see your 3 rows and your piece bank.</li>
           <li>You can start a game with fewer pieces on purpose. It's a valid strategy to stockpile for harder games later.</li>
           <li>Try different board themes and piece styles to customize your look.</li>
-          <li>Use Pan mode to explore the 3D world around the board.</li>
+          <li>Right-click drag (desktop) or two-finger drag (mobile) to orbit the 3D world. Scroll/pinch to zoom.</li>
           <li>Watch AI vs AI games with the &#x1F916; Watch AI button in Options.</li>
           <li>The &#x1F916; AI uses real Stockfish engine calibrated to your level — it gets smarter as you do.</li>
         </ul>

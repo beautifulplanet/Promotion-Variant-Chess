@@ -51,7 +51,7 @@ let dynamicLighting: DynamicLighting;
 
 // Camera state
 export type ViewMode = 'pan' | 'play';
-let currentViewMode: ViewMode = 'pan';
+let currentViewMode: ViewMode = 'play';
 
 // Orbit camera state for pan mode
 let orbitRadius = 15;
@@ -847,9 +847,13 @@ const DRAG_THRESHOLD = 8;
 
 function setupCameraControls(): void {
     // --- MOUSE EVENTS ---
+    // Right-click drag = orbit camera (always available, no mode toggle needed)
+    // Left-click = piece selection (handled by click handler)
     canvas.addEventListener('mousedown', (e) => {
-        if (currentViewMode === 'pan') {
-            isDragging = false; // Will become true if threshold exceeded
+        if (e.button === 2) {
+            // Right-click: start orbit
+            e.preventDefault();
+            isDragging = false;
             dragStartX = e.clientX;
             dragStartY = e.clientY;
             lastMouseX = e.clientX;
@@ -858,7 +862,7 @@ function setupCameraControls(): void {
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (currentViewMode === 'pan' && (dragStartX !== 0 || dragStartY !== 0)) {
+        if ((dragStartX !== 0 || dragStartY !== 0)) {
             const dx = e.clientX - dragStartX;
             const dy = e.clientY - dragStartY;
             if (!isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
@@ -871,6 +875,11 @@ function setupCameraControls(): void {
                 orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
+                // Switch to pan view while orbiting
+                if (currentViewMode !== 'pan') {
+                    currentViewMode = 'pan';
+                    if (renderer) renderer.toneMappingExposure = 0.6;
+                }
                 updateCameraPosition();
             }
         }
@@ -879,7 +888,6 @@ function setupCameraControls(): void {
     canvas.addEventListener('mouseup', () => {
         dragStartX = 0;
         dragStartY = 0;
-        // isDragging stays true briefly so click handler can check it
         setTimeout(() => { isDragging = false; }, 50);
     });
 
@@ -889,15 +897,26 @@ function setupCameraControls(): void {
         isDragging = false;
     });
 
+    // Prevent context menu on right-click (we use it for orbit)
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+    });
+
+    // Scroll wheel = zoom (always available)
     canvas.addEventListener('wheel', (e) => {
-        if (currentViewMode === 'pan') {
-            e.preventDefault();
-            orbitRadius = Math.max(8, Math.min(40, orbitRadius + e.deltaY * 0.02));
-            updateCameraPosition();
+        e.preventDefault();
+        orbitRadius = Math.max(8, Math.min(40, orbitRadius + e.deltaY * 0.02));
+        if (currentViewMode !== 'pan') {
+            currentViewMode = 'pan';
+            if (renderer) renderer.toneMappingExposure = 0.6;
         }
+        updateCameraPosition();
     }, { passive: false });
 
     // --- TOUCH EVENTS ---
+    // Single touch = piece selection (tap) — no orbit on single touch
+    // Two-finger drag = orbit camera (always available)
+    // Two-finger pinch = zoom (always available)
     canvas.addEventListener('touchstart', (e) => {
         isTouchDevice = true;
         if (e.touches.length === 1) {
@@ -907,40 +926,52 @@ function setupCameraControls(): void {
             lastMouseX = t.clientX;
             lastMouseY = t.clientY;
             isDragging = false;
-        } else if (e.touches.length === 2 && currentViewMode === 'pan') {
-            // Pinch-to-zoom start
+        } else if (e.touches.length === 2) {
+            // Two-finger: start orbit + pinch
             e.preventDefault();
             pinchStartDist = getTouchDistance(e.touches);
+            // Track midpoint for orbit
+            lastMouseX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            lastMouseY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            isDragging = true;
         }
     }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
         if (e.touches.length === 1) {
+            // Single finger: track drag distance but DON'T orbit
+            // This is for distinguishing taps from accidental drags
             const t = e.touches[0];
             const dx = t.clientX - dragStartX;
             const dy = t.clientY - dragStartY;
-
             if (!isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
                 isDragging = true;
             }
-
-            if (isDragging && currentViewMode === 'pan') {
-                e.preventDefault();
-                const deltaX = t.clientX - lastMouseX;
-                const deltaY = t.clientY - lastMouseY;
-                orbitTheta -= deltaX * 0.01;
-                orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
-                lastMouseX = t.clientX;
-                lastMouseY = t.clientY;
-                updateCameraPosition();
-            }
-        } else if (e.touches.length === 2 && currentViewMode === 'pan') {
-            // Pinch-to-zoom
+        } else if (e.touches.length === 2) {
+            // Two-finger: orbit + pinch-to-zoom
             e.preventDefault();
+
+            // Orbit via midpoint movement
+            const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            const deltaX = midX - lastMouseX;
+            const deltaY = midY - lastMouseY;
+            orbitTheta -= deltaX * 0.01;
+            orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
+            lastMouseX = midX;
+            lastMouseY = midY;
+
+            // Pinch-to-zoom
             const dist = getTouchDistance(e.touches);
             const scale = pinchStartDist / dist;
             orbitRadius = Math.max(8, Math.min(40, orbitRadius * scale));
             pinchStartDist = dist;
+
+            // Switch to pan view while manipulating
+            if (currentViewMode !== 'pan') {
+                currentViewMode = 'pan';
+                if (renderer) renderer.toneMappingExposure = 0.6;
+            }
             updateCameraPosition();
         }
     }, { passive: false });
