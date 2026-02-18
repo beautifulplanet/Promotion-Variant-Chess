@@ -1034,6 +1034,16 @@ export function onSquareClick(callback: (row: number, col: number) => void): voi
 export function setViewMode(mode: ViewMode): void {
     currentViewMode = mode;
     updateCameraPosition();
+
+    // Darken background in pan mode (reduce distracting bright greens/colors)
+    if (renderer) {
+        if (mode === 'pan') {
+            renderer.toneMappingExposure = 0.6;  // Dimmed cinematic look
+        } else {
+            renderer.toneMappingExposure = 1.1;  // Normal play brightness
+        }
+    }
+
     console.log('[Renderer3D] View mode:', mode);
 }
 
