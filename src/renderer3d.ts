@@ -256,6 +256,12 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     // Apply initial era settings
     updateEraForElo(currentElo, true);
 
+    // Sync COLORS_3D from initial board style (prevents stale defaults)
+    COLORS_3D.lightSquare = currentBoardStyleConfig.lightSquareColor;
+    COLORS_3D.darkSquare = currentBoardStyleConfig.darkSquareColor;
+    COLORS_3D.selectedSquare = currentBoardStyleConfig.selectedSquareColor ?? 0xc8a86c;
+    COLORS_3D.legalMoveHighlight = currentBoardStyleConfig.legalMoveColor ?? 0xb89858;
+
     // Create the chess board
     createBoard();
 
