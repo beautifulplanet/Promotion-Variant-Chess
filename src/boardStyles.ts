@@ -29,6 +29,9 @@ export interface BoardStyleConfig {
     // Special effects
     transparent?: boolean;
     opacity?: number;
+    // Highlight colors (selected square + legal moves)
+    selectedSquareColor?: number;
+    legalMoveColor?: number;
 }
 
 export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
@@ -52,6 +55,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.1,
         frameMetalness: 0.8,
         frameRoughness: 0.2,
+        selectedSquareColor: 0xc8a86c,  // Warm amber highlight
+        legalMoveColor: 0xb89858,       // Muted gold
     },
 
     tournament: {
@@ -70,6 +75,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.2,
         frameMetalness: 0.0,
         frameRoughness: 0.4,
+        selectedSquareColor: 0x7aaa5a,  // Bright spring green
+        legalMoveColor: 0x6a9a4a,      // Muted olive
     },
 
     walnut: {
@@ -88,6 +95,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.15,
         frameMetalness: 0.0,
         frameRoughness: 0.35,
+        selectedSquareColor: 0xc09860,  // Warm caramel
+        legalMoveColor: 0xa88050,      // Muted toffee
     },
 
     ebony: {
@@ -106,6 +115,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.05,
         frameMetalness: 0.9,
         frameRoughness: 0.1,
+        selectedSquareColor: 0xd4af37,  // Gold highlight
+        legalMoveColor: 0xb89830,      // Deep gold
     },
 
     // =========================================================================
@@ -128,6 +139,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.05,
         frameMetalness: 0.9,
         frameRoughness: 0.1,
+        selectedSquareColor: 0xa0a0c0,  // Soft slate blue
+        legalMoveColor: 0x8888aa,       // Muted lavender
     },
 
     stone: {
@@ -146,6 +159,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.4,
         frameMetalness: 0.0,
         frameRoughness: 0.5,
+        selectedSquareColor: 0xb09870,  // Sandy ochre
+        legalMoveColor: 0x988060,      // Dusty tan
     },
 
     // =========================================================================
@@ -173,6 +188,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         emissiveIntensity: 0.1,
         transparent: true,
         opacity: 0.92,
+        selectedSquareColor: 0x5588bb,  // Ice blue
+        legalMoveColor: 0x4477aa,       // Deep sky
     },
 
     neon: {
@@ -194,6 +211,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         lightEmissive: 0x00ffff,
         darkEmissive: 0xff00ff,
         emissiveIntensity: 0.3,
+        selectedSquareColor: 0x00cccc,  // Cyan pulse
+        legalMoveColor: 0xcc00cc,       // Magenta pulse
     },
 
     // =========================================================================
@@ -216,6 +235,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.5,
         frameMetalness: 0.0,
         frameRoughness: 0.8,
+        selectedSquareColor: 0xa09070,  // Warm newsprint
+        legalMoveColor: 0x8a7a60,      // Sepia tone
     },
 
     ocean: {
@@ -237,6 +258,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         lightEmissive: 0x2288aa,
         darkEmissive: 0x0a2244,
         emissiveIntensity: 0.08,
+        selectedSquareColor: 0x44aacc,  // Aqua glow
+        legalMoveColor: 0x3388aa,       // Deep aqua
     },
 
     forest: {
@@ -255,6 +278,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         clearcoatRoughness: 0.2,
         frameMetalness: 0.0,
         frameRoughness: 0.4,
+        selectedSquareColor: 0x88aa50,  // Moss green
+        legalMoveColor: 0x709040,      // Deep moss
     },
 
     royal: {
@@ -276,6 +301,8 @@ export const BOARD_STYLES: Record<string, BoardStyleConfig> = {
         lightEmissive: 0x8844aa,
         darkEmissive: 0x4422aa,
         emissiveIntensity: 0.05,
+        selectedSquareColor: 0xc088dd,  // Regal violet
+        legalMoveColor: 0x9966bb,       // Dark amethyst
     },
 };
 

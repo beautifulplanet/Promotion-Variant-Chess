@@ -109,12 +109,12 @@ const BOARD_UNIT = 1;
 const BOARD_WIDTH = 8 * BOARD_UNIT;
 const BOARD_LENGTH = 8 * BOARD_UNIT;
 
-// Colors for 3D materials (mutable for theme switching)
+// Colors for 3D materials (mutable — updated by setBoardStyle)
 let COLORS_3D = {
-    lightSquare: 0xf0e6d3,
-    darkSquare: 0x5d8a66,
-    selectedSquare: 0x8bc99b,
-    legalMoveHighlight: 0x6db87d,
+    lightSquare: 0xf0e8dc,       // Classic wood ivory (matches classic board)
+    darkSquare: 0x3a2820,        // Classic wood mahogany
+    selectedSquare: 0xc8a86c,    // Warm amber (no more clown green)
+    legalMoveHighlight: 0xb89858, // Muted gold
     boardEdge: 0x2a2a2a,
 };
 
@@ -1311,6 +1311,12 @@ export function setBoardStyle(style: BoardStyle): void {
     console.log('[Renderer3D] Changing board style to:', style);
     currentBoardStyle = style;
     currentBoardStyleConfig = getBoardStyleConfig(style);
+
+    // Update highlight colors from board style (no more hardcoded green)
+    COLORS_3D.lightSquare = currentBoardStyleConfig.lightSquareColor;
+    COLORS_3D.darkSquare = currentBoardStyleConfig.darkSquareColor;
+    COLORS_3D.selectedSquare = currentBoardStyleConfig.selectedSquareColor ?? 0xc8a86c;
+    COLORS_3D.legalMoveHighlight = currentBoardStyleConfig.legalMoveColor ?? 0xb89858;
 
     // Rebuild the board with new style
     createBoard();
