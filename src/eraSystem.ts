@@ -52,7 +52,7 @@ export interface EraConfig {
     // Asset configuration
     primaryAssets: string[];
     secondaryAssets: string[];
-    particleType: 'leaves' | 'snow' | 'ash' | 'dust' | 'rain' | 'sparks' | 'data' | 'energy' | 'stars' | 'cosmic';
+    particleType: 'leaves' | 'snow' | 'ash' | 'dust' | 'rain' | 'sparks' | 'data' | 'energy' | 'stars' | 'cosmic' | 'lorenz';
     particleColor: number;
     particleDensity: number;
 
@@ -564,7 +564,7 @@ export const ERAS: EraConfig[] = [
 
         primaryAssets: ['glass_tower', 'server_farm', 'antenna_array', 'tech_campus'],
         secondaryAssets: ['led_billboard', 'wifi_tower', 'solar_panel'],
-        particleType: 'data',
+        particleType: 'lorenz',
         particleColor: 0x00ff80,
         particleDensity: 200,
 

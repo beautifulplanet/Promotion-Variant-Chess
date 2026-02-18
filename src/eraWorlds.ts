@@ -170,6 +170,13 @@ function addEraParticles(
         Math.floor(era.particleDensity * (0.8 + progress * 0.4) * particleDensityScale),
         MAX_PARTICLES
     );
+
+    // Lorenz attractor gets special initialization
+    if (era.particleType === 'lorenz') {
+        addLorenzParticles(era, group, offset, particleCount);
+        return;
+    }
+
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -205,6 +212,189 @@ function addEraParticles(
     particles.userData.scrollable = true;
 
     group.add(particles);
+}
+
+// =============================================================================
+// LORENZ ATTRACTOR PARTICLE SYSTEM
+// =============================================================================
+
+// Lorenz system parameters (classic strange attractor)
+const LORENZ_SIGMA = 10;
+const LORENZ_RHO = 28;
+const LORENZ_BETA = 8 / 3;
+const LORENZ_DT = 0.005;       // Integration step
+const LORENZ_SCALE = 0.35;     // Scale attractor to scene units
+const LORENZ_Y_OFFSET = 12;    // Raise attractor above ground
+
+/**
+ * Seed particles along the Lorenz attractor by pre-running the ODE
+ */
+function addLorenzParticles(
+    era: EraConfig,
+    group: THREE.Group,
+    offset: number,
+    particleCount: number
+): void {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+
+    // Store ODE state per particle for animation: [x, y, z] per particle
+    const lorenzState = new Float32Array(particleCount * 3);
+
+    const baseColor = new THREE.Color(era.particleColor);
+    const accentColor = new THREE.Color(0x00ccff); // cyan accent
+
+    // Seed each particle at a slightly different point on the attractor
+    for (let i = 0; i < particleCount; i++) {
+        // Start near the attractor with tiny perturbation (chaotic divergence)
+        let lx = 1.0 + (Math.random() - 0.5) * 0.01;
+        let ly = 1.0 + (Math.random() - 0.5) * 0.01;
+        let lz = 1.0 + (Math.random() - 0.5) * 0.01;
+
+        // Pre-run a random number of steps so particles spread across the attractor
+        const warmup = 200 + Math.floor(Math.random() * 2000);
+        for (let s = 0; s < warmup; s++) {
+            const dx = LORENZ_SIGMA * (ly - lx);
+            const dy = lx * (LORENZ_RHO - lz) - ly;
+            const dz = lx * ly - LORENZ_BETA * lz;
+            lx += dx * LORENZ_DT;
+            ly += dy * LORENZ_DT;
+            lz += dz * LORENZ_DT;
+        }
+
+        // Store ODE state for per-frame animation
+        lorenzState[i * 3] = lx;
+        lorenzState[i * 3 + 1] = ly;
+        lorenzState[i * 3 + 2] = lz;
+
+        // Map Lorenz coords to scene coords
+        positions[i * 3] = lx * LORENZ_SCALE;
+        positions[i * 3 + 1] = lz * LORENZ_SCALE + LORENZ_Y_OFFSET;
+        positions[i * 3 + 2] = ly * LORENZ_SCALE + offset;
+
+        // Color varies with height (z in Lorenz = height in scene)
+        const t = Math.min(1, lz / 45); // Lorenz z ranges ~0-45
+        const c = baseColor.clone().lerp(accentColor, t);
+        colors[i * 3] = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+
+        sizes[i] = getParticleSize(era) * (0.4 + Math.random() * 0.6);
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const material = createLorenzMaterial(era);
+    const particles = new THREE.Points(geometry, material);
+
+    particles.userData.isParticles = true;
+    particles.userData.particleType = 'lorenz';
+    particles.userData.scrollable = true;
+    particles.userData.lorenzState = lorenzState;  // Attach ODE state
+
+    group.add(particles);
+}
+
+/**
+ * Step the Lorenz ODE for all particles — called each frame from updateEraEnvironment
+ */
+export function stepLorenzParticles(particles: THREE.Points, _deltaTime: number): void {
+    const state = particles.userData.lorenzState as Float32Array;
+    if (!state) return;
+
+    const posAttr = particles.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const colorAttr = particles.geometry.getAttribute('color') as THREE.BufferAttribute;
+    const count = posAttr.count;
+
+    const baseColor = new THREE.Color(0x00ff80);
+    const accentColor = new THREE.Color(0x00ccff);
+
+    // Take multiple small steps per frame for smooth motion
+    const stepsPerFrame = 3;
+    for (let step = 0; step < stepsPerFrame; step++) {
+        for (let i = 0; i < count; i++) {
+            let lx = state[i * 3];
+            let ly = state[i * 3 + 1];
+            let lz = state[i * 3 + 2];
+
+            const dx = LORENZ_SIGMA * (ly - lx);
+            const dy = lx * (LORENZ_RHO - lz) - ly;
+            const dz = lx * ly - LORENZ_BETA * lz;
+
+            lx += dx * LORENZ_DT;
+            ly += dy * LORENZ_DT;
+            lz += dz * LORENZ_DT;
+
+            state[i * 3] = lx;
+            state[i * 3 + 1] = ly;
+            state[i * 3 + 2] = lz;
+
+            if (step === stepsPerFrame - 1) {
+                // Update visual position on final sub-step
+                posAttr.setXYZ(
+                    i,
+                    lx * LORENZ_SCALE,
+                    lz * LORENZ_SCALE + LORENZ_Y_OFFSET,
+                    ly * LORENZ_SCALE + particles.position.z
+                );
+
+                // Update color based on height
+                const t = Math.min(1, lz / 45);
+                const r = baseColor.r + (accentColor.r - baseColor.r) * t;
+                const g = baseColor.g + (accentColor.g - baseColor.g) * t;
+                const b = baseColor.b + (accentColor.b - baseColor.b) * t;
+                colorAttr.setXYZ(i, r, g, b);
+            }
+        }
+    }
+
+    posAttr.needsUpdate = true;
+    colorAttr.needsUpdate = true;
+}
+
+/**
+ * Create glowing material for Lorenz attractor particles
+ */
+function createLorenzMaterial(era: EraConfig): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            color: { value: new THREE.Color(era.particleColor) },
+            time: { value: 0 },
+        },
+        vertexShader: `
+            attribute float size;
+            varying vec3 vColor;
+            uniform float time;
+            
+            void main() {
+                vColor = color;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (250.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            uniform vec3 color;
+            
+            void main() {
+                float dist = length(gl_PointCoord - vec2(0.5));
+                float alpha = 1.0 - smoothstep(0.2, 0.5, dist);
+                float glow = exp(-dist * 5.0);
+                
+                vec3 finalColor = vColor * 1.2 + glow * color * 0.5;
+                gl_FragColor = vec4(finalColor, alpha * 0.9 + glow * 0.4);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        vertexColors: true,
+    });
 }
 
 /**
@@ -876,6 +1066,11 @@ export function updateEraEnvironment(
             const material = particles.material;
             if ((material as THREE.ShaderMaterial).uniforms) {
                 (material as THREE.ShaderMaterial).uniforms.time.value = time;
+            }
+
+            // Step Lorenz attractor ODE each frame
+            if (child.userData.particleType === 'lorenz') {
+                stepLorenzParticles(particles, deltaTime);
             }
         }
 
