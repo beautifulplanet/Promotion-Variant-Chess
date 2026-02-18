@@ -46,6 +46,8 @@ const otCreateBtn  = document.getElementById('ot-create-btn')       as HTMLButto
 const otNameInput  = document.getElementById('ot-name-input')       as HTMLInputElement;
 const otTableList  = document.getElementById('ot-table-list')       as HTMLElement;
 const mpQuickBtn   = document.getElementById('mp-quick-btn')        as HTMLButtonElement;
+const otGuestBtn   = document.getElementById('ot-guest-btn')        as HTMLButtonElement;
+const mpGuestBtn   = document.getElementById('mp-guest-btn')        as HTMLButtonElement;
 
 // Piece bank overlay
 const mpPieceBank  = document.getElementById('mp-piece-bank')       as HTMLElement;
@@ -262,6 +264,25 @@ function handleOtJoinClick(tableId: string) {
     }
   };
   tryJoin();
+}
+
+/** Generate a fun guest name */
+function generateGuestName(): string {
+  const adjectives = ['Swift', 'Bold', 'Clever', 'Noble', 'Silent', 'Brave', 'Lucky', 'Crafty', 'Fierce', 'Wise'];
+  const nouns = ['Pawn', 'Knight', 'Bishop', 'Rook', 'King', 'Queen', 'Castle', 'Dragon', 'Phoenix', 'Falcon'];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 100);
+  return `${adj}${noun}${num}`;
+}
+
+/** Guest button handler — fill name and create table */
+function handleGuestClick() {
+  const guestName = generateGuestName();
+  if (otNameInput) otNameInput.value = guestName;
+  if (mpPlayerName) mpPlayerName.value = guestName;
+  // Auto-create a table as guest
+  handleOtCreateClick();
 }
 
 /** Get player name from either input */
@@ -560,6 +581,10 @@ export function initMultiplayerUI() {
 
   // Open tables panel create button
   otCreateBtn?.addEventListener('click', handleOtCreateClick);
+
+  // Guest buttons — auto-generate name and create table
+  otGuestBtn?.addEventListener('click', handleGuestClick);
+  mpGuestBtn?.addEventListener('click', handleGuestClick);
 
   // Draw offer overlay
   drawAcceptBtn?.addEventListener('click', () => {

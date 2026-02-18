@@ -1619,7 +1619,10 @@
           <span>⚔ Open Tables</span>
           <button class="ot-create" id="ot-create-btn">+ Create</button>
         </div>
-        <input type="text" class="ot-name-input" id="ot-name-input" placeholder="Your name...">
+        <div style="display:flex; gap:4px; margin-bottom:4px;">
+          <input type="text" class="ot-name-input" id="ot-name-input" placeholder="Your name..." style="flex:1;">
+          <button id="ot-guest-btn" style="font-size:10px; padding:4px 8px; border:1px solid var(--sidebar-border,#ccc); border-radius:4px; background:var(--btn-muted,#444); color:var(--btn-muted-text,#ddd); cursor:pointer; white-space:nowrap;">👤 Guest</button>
+        </div>
         <div id="ot-table-list">
           <div class="ot-empty">No open tables — create one!</div>
         </div>
@@ -1728,8 +1731,12 @@
         <div class="sidebar-section" id="multiplayer-section">
           <h3>&#x1F310; Multiplayer</h3>
           <div id="mp-offline">
-            <input id="mp-player-name" type="text" placeholder="Your name..." style="width:100%; padding:10px; margin-bottom:8px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
-            <button id="mp-create-btn" class="btn-primary" style="width:100%; padding:12px; font-size:15px; font-weight:bold;">&#x1FA91; Create Table</button>
+            <input id="mp-player-name" type="text" placeholder="Your name..." style="width:100%; padding:10px; margin-bottom:4px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+              <button id="mp-create-btn" class="btn-primary" style="flex:1; padding:12px; font-size:15px; font-weight:bold;">🩡 Create Table</button>
+              <button id="mp-guest-btn" class="btn-muted" style="padding:12px; font-size:13px;">👤 Guest</button>
+            </div>
+            <div style="font-size:10px; color:var(--sidebar-text-muted); text-align:center;">No account needed — play instantly as a guest</div>
           </div>
           <div id="mp-lobby" style="display:none;">
             <div style="font-size:13px; font-weight:bold; color:var(--sidebar-text); margin-bottom:6px;">Open Tables</div>
