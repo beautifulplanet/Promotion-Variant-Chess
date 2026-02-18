@@ -22,7 +22,7 @@ export interface PieceStyleConfig {
     metalness?: number;
     glowEffect?: boolean;
     // 2D properties - canvas drawing style
-    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh' | 'editorial';
+    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh' | 'editorial' | 'art_deco' | 'steampunk' | 'tribal';
     // Sprite sheet properties (for image-based 2D styles)
     spriteSheet?: string;  // Path to sprite sheet image
     spriteLayout?: 'standard';  // Layout format: 'standard' = 2 rows (white/black) x 6 cols (K,Q,R,B,N,P)
@@ -243,6 +243,27 @@ const STYLES_2D: Record<string, PieceStyleConfig> = {
         type: '2d',
         spriteSheet: '/assets/pieces/Pharoh Set.png',
         spriteLayout: 'standard',
+    },
+    artdeco2d: {
+        id: 'artdeco2d',
+        name: 'Art Deco',
+        description: '1920s geometric gold',
+        type: '2d',
+        drawStyle: 'art_deco',
+    },
+    steampunk2d: {
+        id: 'steampunk2d',
+        name: 'Steampunk',
+        description: 'Gears, brass & copper',
+        type: '2d',
+        drawStyle: 'steampunk',
+    },
+    tribal2d: {
+        id: 'tribal2d',
+        name: 'Tribal',
+        description: 'Bold masks & war paint',
+        type: '2d',
+        drawStyle: 'tribal',
     },
 };
 

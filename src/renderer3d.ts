@@ -3481,6 +3481,503 @@ function drawPharaohPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: 
 }
 
 // =============================================================================
+// ART DECO STYLE — 1920s geometric with gold accents
+// =============================================================================
+
+function drawArtDecoPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const fill = isWhite ? '#f5f0e0' : '#1a1a2e';
+    const stroke = isWhite ? '#b8860b' : '#daa520';  // Gold
+    const accent = isWhite ? '#2a2a3e' : '#f5e6a8';
+
+    ctx.lineWidth = s * 0.03;
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    // Subtle gold shadow
+    ctx.shadowColor = isWhite ? 'rgba(184,134,11,0.3)' : 'rgba(218,165,32,0.3)';
+    ctx.shadowBlur = s * 0.03;
+
+    switch (type) {
+        case 'K': {
+            // Stepped pyramid crown with sunburst
+            ctx.beginPath();
+            // Base
+            ctx.rect(cx - s * 0.22, s * 0.7, s * 0.44, s * 0.18);
+            ctx.fill(); ctx.stroke();
+            // Middle step
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.17, s * 0.5, s * 0.34, s * 0.22);
+            ctx.fill(); ctx.stroke();
+            // Top step
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.12, s * 0.3, s * 0.24, s * 0.22);
+            ctx.fill(); ctx.stroke();
+            // Art deco sunburst at top
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.015;
+            for (let i = -2; i <= 2; i++) {
+                const angle = -Math.PI / 2 + i * 0.2;
+                ctx.beginPath();
+                ctx.moveTo(cx, s * 0.3);
+                ctx.lineTo(cx + Math.cos(angle) * s * 0.15, s * 0.3 + Math.sin(angle) * s * -0.2);
+                ctx.stroke();
+            }
+            break;
+        }
+        case 'Q': {
+            // Fan/shell motif
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx - s * 0.22, s * 0.5);
+            ctx.arc(cx, s * 0.5, s * 0.22, Math.PI, 0);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Radiating fan lines
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.012;
+            for (let i = 0; i < 5; i++) {
+                const a = Math.PI + i * Math.PI / 4;
+                ctx.beginPath();
+                ctx.moveTo(cx, s * 0.5);
+                ctx.lineTo(cx + Math.cos(a) * s * 0.2, s * 0.5 + Math.sin(a) * s * 0.2);
+                ctx.stroke();
+            }
+            // Crown point
+            ctx.fillStyle = stroke;
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.28, s * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+        case 'R': {
+            // Geometric tower with chevron detail
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.2, s * 0.25, s * 0.4, s * 0.63);
+            ctx.fill(); ctx.stroke();
+            // Top crenellations — wide deco style
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.25, s * 0.2, s * 0.14, s * 0.12);
+            ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.rect(cx + s * 0.11, s * 0.2, s * 0.14, s * 0.12);
+            ctx.fill(); ctx.stroke();
+            // Chevron detail
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.015;
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.12, s * 0.55);
+            ctx.lineTo(cx, s * 0.45);
+            ctx.lineTo(cx + s * 0.12, s * 0.55);
+            ctx.stroke();
+            break;
+        }
+        case 'B': {
+            // Elongated diamond
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.12);
+            ctx.lineTo(cx + s * 0.2, s * 0.5);
+            ctx.lineTo(cx, s * 0.88);
+            ctx.lineTo(cx - s * 0.2, s * 0.5);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Central line accent
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.015;
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.22);
+            ctx.lineTo(cx, s * 0.78);
+            ctx.stroke();
+            break;
+        }
+        case 'N': {
+            // Stylized horse head with geometric mane
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.12, s * 0.88);
+            ctx.lineTo(cx - s * 0.18, s * 0.5);
+            ctx.lineTo(cx - s * 0.08, s * 0.25);
+            ctx.lineTo(cx + s * 0.05, s * 0.15);
+            ctx.lineTo(cx + s * 0.18, s * 0.22);
+            ctx.lineTo(cx + s * 0.15, s * 0.4);
+            ctx.lineTo(cx + s * 0.08, s * 0.5);
+            ctx.lineTo(cx + s * 0.12, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Geometric mane stripes
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = s * 0.012;
+            for (let i = 0; i < 3; i++) {
+                const y = s * (0.3 + i * 0.08);
+                ctx.beginPath();
+                ctx.moveTo(cx - s * 0.14, y);
+                ctx.lineTo(cx - s * 0.06, y - s * 0.03);
+                ctx.stroke();
+            }
+            break;
+        }
+        case 'P': {
+            // Pointed arch / keystone shape
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.15, s * 0.88);
+            ctx.lineTo(cx - s * 0.15, s * 0.5);
+            ctx.quadraticCurveTo(cx - s * 0.15, s * 0.25, cx, s * 0.2);
+            ctx.quadraticCurveTo(cx + s * 0.15, s * 0.25, cx + s * 0.15, s * 0.5);
+            ctx.lineTo(cx + s * 0.15, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            break;
+        }
+    }
+    ctx.shadowColor = 'transparent';
+}
+
+// =============================================================================
+// STEAMPUNK STYLE — Gears, copper, brass mechanical
+// =============================================================================
+
+function drawSteampunkPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const fill = isWhite ? '#d4a76a' : '#2a1a0a';       // Brass / dark wood
+    const stroke = isWhite ? '#8b5e3c' : '#b87333';     // Copper
+    const gear = isWhite ? '#6b4226' : '#cd7f32';       // Gear accent color
+
+    ctx.lineWidth = s * 0.025;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    // Helper: draw a small gear at position
+    function drawGear(gx: number, gy: number, r: number, teeth: number) {
+        ctx.save();
+        ctx.strokeStyle = gear;
+        ctx.lineWidth = s * 0.015;
+        ctx.beginPath();
+        for (let i = 0; i < teeth; i++) {
+            const a1 = (i / teeth) * Math.PI * 2;
+            const a2 = ((i + 0.5) / teeth) * Math.PI * 2;
+            ctx.lineTo(gx + Math.cos(a1) * r, gy + Math.sin(a1) * r);
+            ctx.lineTo(gx + Math.cos(a2) * r * 1.3, gy + Math.sin(a2) * r * 1.3);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // Central hole
+        ctx.beginPath();
+        ctx.arc(gx, gy, r * 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    switch (type) {
+        case 'K': {
+            // Mechanical crown with gears
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.22, s * 0.88);
+            ctx.lineTo(cx - s * 0.22, s * 0.35);
+            ctx.lineTo(cx - s * 0.15, s * 0.25);
+            ctx.lineTo(cx - s * 0.08, s * 0.3);
+            ctx.lineTo(cx, s * 0.15);
+            ctx.lineTo(cx + s * 0.08, s * 0.3);
+            ctx.lineTo(cx + s * 0.15, s * 0.25);
+            ctx.lineTo(cx + s * 0.22, s * 0.35);
+            ctx.lineTo(cx + s * 0.22, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            drawGear(cx, s * 0.58, s * 0.08, 8);
+            break;
+        }
+        case 'Q': {
+            // Riveted bell shape
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.2, s * 0.88);
+            ctx.quadraticCurveTo(cx - s * 0.28, s * 0.5, cx - s * 0.12, s * 0.3);
+            ctx.lineTo(cx, s * 0.18);
+            ctx.lineTo(cx + s * 0.12, s * 0.3);
+            ctx.quadraticCurveTo(cx + s * 0.28, s * 0.5, cx + s * 0.2, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            drawGear(cx - s * 0.1, s * 0.6, s * 0.05, 6);
+            drawGear(cx + s * 0.1, s * 0.6, s * 0.05, 6);
+            // Crown rivet
+            ctx.fillStyle = gear;
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.18, s * 0.035, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+        case 'R': {
+            // Industrial tower with pipes
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.18, s * 0.3, s * 0.36, s * 0.58);
+            ctx.fill(); ctx.stroke();
+            // Pipe on side
+            ctx.beginPath();
+            ctx.rect(cx + s * 0.18, s * 0.45, s * 0.08, s * 0.3);
+            ctx.fill(); ctx.stroke();
+            // Chimney top
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.22, s * 0.22, s * 0.44, s * 0.1);
+            ctx.fill(); ctx.stroke();
+            drawGear(cx, s * 0.58, s * 0.07, 7);
+            break;
+        }
+        case 'B': {
+            // Pointed boiler dome
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx - s * 0.18, s * 0.45);
+            ctx.arc(cx, s * 0.45, s * 0.18, Math.PI, 0);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Spire
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.04, s * 0.28);
+            ctx.lineTo(cx, s * 0.12);
+            ctx.lineTo(cx + s * 0.04, s * 0.28);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            drawGear(cx, s * 0.62, s * 0.06, 6);
+            break;
+        }
+        case 'N': {
+            // Mechanical horse
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.12, s * 0.88);
+            ctx.lineTo(cx - s * 0.2, s * 0.55);
+            ctx.lineTo(cx - s * 0.15, s * 0.35);
+            ctx.lineTo(cx - s * 0.05, s * 0.2);
+            ctx.lineTo(cx + s * 0.1, s * 0.15);
+            ctx.lineTo(cx + s * 0.18, s * 0.25);
+            ctx.lineTo(cx + s * 0.12, s * 0.45);
+            ctx.lineTo(cx + s * 0.15, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            drawGear(cx - s * 0.02, s * 0.5, s * 0.06, 6);
+            // Eye rivet
+            ctx.fillStyle = gear;
+            ctx.beginPath();
+            ctx.arc(cx + s * 0.06, s * 0.22, s * 0.025, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+        case 'P': {
+            // Bolt/rivet shape
+            ctx.beginPath();
+            const sides = 6;
+            for (let i = 0; i <= sides; i++) {
+                const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+                const r = s * 0.18;
+                const px = cx + Math.cos(a) * r;
+                const py = s * 0.5 + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Central dot
+            ctx.fillStyle = gear;
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.5, s * 0.05, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+    }
+}
+
+// =============================================================================
+// TRIBAL STYLE — Bold angular shapes, mask-inspired
+// =============================================================================
+
+function drawTribalPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const s = size;
+    const cx = s / 2;
+
+    const fill = isWhite ? '#e8d4a0' : '#1a0e06';
+    const stroke = isWhite ? '#6b3410' : '#d4842a';
+    const markings = isWhite ? '#8b1a1a' : '#cc4422';  // War paint red
+
+    ctx.lineWidth = s * 0.035;
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+
+    switch (type) {
+        case 'K': {
+            // Tribal chief mask with headdress
+            ctx.beginPath();
+            // Wide headdress
+            ctx.moveTo(cx - s * 0.3, s * 0.35);
+            ctx.lineTo(cx - s * 0.15, s * 0.12);
+            ctx.lineTo(cx, s * 0.08);
+            ctx.lineTo(cx + s * 0.15, s * 0.12);
+            ctx.lineTo(cx + s * 0.3, s * 0.35);
+            // Face
+            ctx.lineTo(cx + s * 0.2, s * 0.6);
+            ctx.lineTo(cx + s * 0.15, s * 0.88);
+            ctx.lineTo(cx - s * 0.15, s * 0.88);
+            ctx.lineTo(cx - s * 0.2, s * 0.6);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // War paint — horizontal stripes
+            ctx.strokeStyle = markings;
+            ctx.lineWidth = s * 0.02;
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.15, s * 0.45);
+            ctx.lineTo(cx + s * 0.15, s * 0.45);
+            ctx.moveTo(cx - s * 0.12, s * 0.55);
+            ctx.lineTo(cx + s * 0.12, s * 0.55);
+            ctx.stroke();
+            // Eyes
+            ctx.fillStyle = markings;
+            ctx.fillRect(cx - s * 0.1, s * 0.38, s * 0.06, s * 0.04);
+            ctx.fillRect(cx + s * 0.04, s * 0.38, s * 0.06, s * 0.04);
+            break;
+        }
+        case 'Q': {
+            // Tribal queen — elongated face with ornamental points
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.18, s * 0.88);
+            ctx.lineTo(cx - s * 0.22, s * 0.4);
+            ctx.lineTo(cx - s * 0.12, s * 0.18);
+            ctx.lineTo(cx, s * 0.1);
+            ctx.lineTo(cx + s * 0.12, s * 0.18);
+            ctx.lineTo(cx + s * 0.22, s * 0.4);
+            ctx.lineTo(cx + s * 0.18, s * 0.88);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Zigzag markings
+            ctx.strokeStyle = markings;
+            ctx.lineWidth = s * 0.02;
+            ctx.beginPath();
+            let zy = s * 0.55;
+            ctx.moveTo(cx - s * 0.15, zy);
+            for (let i = 1; i <= 5; i++) {
+                const zx = cx - s * 0.15 + i * s * 0.06;
+                zy = s * 0.55 + (i % 2 === 1 ? s * 0.06 : 0);
+                ctx.lineTo(zx, zy);
+            }
+            ctx.stroke();
+            break;
+        }
+        case 'R': {
+            // Totem pole
+            ctx.beginPath();
+            ctx.rect(cx - s * 0.16, s * 0.15, s * 0.32, s * 0.73);
+            ctx.fill(); ctx.stroke();
+            // Face sections
+            ctx.strokeStyle = markings;
+            ctx.lineWidth = s * 0.018;
+            // Top face
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.3, s * 0.04, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, s * 0.55, s * 0.04, 0, Math.PI * 2);
+            ctx.stroke();
+            // Horizontal separators
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.14, s * 0.42);
+            ctx.lineTo(cx + s * 0.14, s * 0.42);
+            ctx.moveTo(cx - s * 0.14, s * 0.68);
+            ctx.lineTo(cx + s * 0.14, s * 0.68);
+            ctx.stroke();
+            break;
+        }
+        case 'B': {
+            // Spear shape
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.08);
+            ctx.lineTo(cx + s * 0.15, s * 0.35);
+            ctx.lineTo(cx + s * 0.06, s * 0.4);
+            ctx.lineTo(cx + s * 0.06, s * 0.88);
+            ctx.lineTo(cx - s * 0.06, s * 0.88);
+            ctx.lineTo(cx - s * 0.06, s * 0.4);
+            ctx.lineTo(cx - s * 0.15, s * 0.35);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Diamond markings on shaft
+            ctx.fillStyle = markings;
+            for (let i = 0; i < 3; i++) {
+                const dy = s * 0.5 + i * s * 0.12;
+                ctx.beginPath();
+                ctx.moveTo(cx, dy - s * 0.03);
+                ctx.lineTo(cx + s * 0.04, dy);
+                ctx.lineTo(cx, dy + s * 0.03);
+                ctx.lineTo(cx - s * 0.04, dy);
+                ctx.closePath();
+                ctx.fill();
+            }
+            break;
+        }
+        case 'N': {
+            // Animal head (lion/jaguar)
+            ctx.beginPath();
+            // Ears
+            ctx.moveTo(cx - s * 0.2, s * 0.3);
+            ctx.lineTo(cx - s * 0.18, s * 0.15);
+            ctx.lineTo(cx - s * 0.08, s * 0.22);
+            // Head top
+            ctx.lineTo(cx, s * 0.18);
+            ctx.lineTo(cx + s * 0.08, s * 0.22);
+            ctx.lineTo(cx + s * 0.18, s * 0.15);
+            ctx.lineTo(cx + s * 0.2, s * 0.3);
+            // Jaw
+            ctx.lineTo(cx + s * 0.2, s * 0.55);
+            ctx.lineTo(cx + s * 0.1, s * 0.7);
+            ctx.lineTo(cx + s * 0.12, s * 0.88);
+            ctx.lineTo(cx - s * 0.12, s * 0.88);
+            ctx.lineTo(cx - s * 0.1, s * 0.7);
+            ctx.lineTo(cx - s * 0.2, s * 0.55);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Eyes
+            ctx.fillStyle = markings;
+            ctx.fillRect(cx - s * 0.12, s * 0.32, s * 0.07, s * 0.04);
+            ctx.fillRect(cx + s * 0.05, s * 0.32, s * 0.07, s * 0.04);
+            // Nose
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.04, s * 0.45);
+            ctx.lineTo(cx, s * 0.42);
+            ctx.lineTo(cx + s * 0.04, s * 0.45);
+            ctx.stroke();
+            break;
+        }
+        case 'P': {
+            // Shield shape
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.16, s * 0.2);
+            ctx.lineTo(cx + s * 0.16, s * 0.2);
+            ctx.lineTo(cx + s * 0.16, s * 0.6);
+            ctx.lineTo(cx, s * 0.85);
+            ctx.lineTo(cx - s * 0.16, s * 0.6);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // Central marking
+            ctx.strokeStyle = markings;
+            ctx.lineWidth = s * 0.02;
+            ctx.beginPath();
+            ctx.moveTo(cx, s * 0.3);
+            ctx.lineTo(cx, s * 0.7);
+            ctx.stroke();
+            break;
+        }
+    }
+}
+
+// =============================================================================
 // SPRITE SHEET LOADING FOR IMAGE-BASED 2D STYLES
 // =============================================================================
 
@@ -3638,6 +4135,15 @@ function create2DPieceMaterial(piece: Piece): THREE.SpriteMaterial {
             break;
         case 'pharaoh':
             drawPharaohPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'art_deco':
+            drawArtDecoPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'steampunk':
+            drawSteampunkPiece(ctx, piece.type, isWhite, size);
+            break;
+        case 'tribal':
+            drawTribalPiece(ctx, piece.type, isWhite, size);
             break;
         case 'symbols':
         default:
