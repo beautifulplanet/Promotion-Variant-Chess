@@ -106,6 +106,199 @@ function shiftColor(baseColor: number, shift: number): number {
 }
 
 // =============================================================================
+// L-SYSTEM PROCEDURAL TREE GENERATOR
+// =============================================================================
+
+interface LSystemRule {
+    axiom: string;
+    rules: Record<string, string>;
+    angle: number;       // Branch angle in radians
+    lengthFactor: number; // Branch length shrink per iteration
+    iterations: number;
+    trunkColor: number;
+    leafColor: number;
+    leafSize: number;
+}
+
+const L_SYSTEM_PRESETS: Record<string, LSystemRule> = {
+    // Tall narrow cypress — iconic Italian garden look
+    cypress: {
+        axiom: 'F',
+        rules: { 'F': 'FF+[+F-F-F]-[-F+F+F]' },
+        angle: Math.PI / 9,      // 20° — tight branches
+        lengthFactor: 0.55,
+        iterations: 3,
+        trunkColor: 0x3d2817,
+        leafColor: 0x1a5c2a,
+        leafSize: 0.35,
+    },
+
+    // Broader ornamental garden tree
+    garden_tree: {
+        axiom: 'X',
+        rules: { 'X': 'F+[[X]-X]-F[-FX]+X', 'F': 'FF' },
+        angle: Math.PI / 7,      // ~25°
+        lengthFactor: 0.5,
+        iterations: 4,
+        trunkColor: 0x4a3020,
+        leafColor: 0x2d6b3e,
+        leafSize: 0.5,
+    },
+
+    // Oak-like spreading tree for Classical/Medieval eras
+    oak: {
+        axiom: 'F',
+        rules: { 'F': 'F[+F]F[-F][F]' },
+        angle: Math.PI / 5.5,    // ~33°
+        lengthFactor: 0.6,
+        iterations: 3,
+        trunkColor: 0x5a3a1a,
+        leafColor: 0x3a7a3a,
+        leafSize: 0.6,
+    },
+};
+
+/**
+ * Create an L-system procedural tree
+ * Uses Lindenmayer string rewriting + turtle graphics to build branching geometry
+ */
+function createLSystemTree(
+    group: THREE.Group,
+    config: MutatedAssetConfig,
+    random: () => number,
+    preset: string
+): void {
+    const rule = L_SYSTEM_PRESETS[preset] || L_SYSTEM_PRESETS.cypress;
+
+    // Step 1: Generate L-system string
+    let lString = rule.axiom;
+    for (let iter = 0; iter < rule.iterations; iter++) {
+        let next = '';
+        for (const ch of lString) {
+            next += rule.rules[ch] ?? ch;
+        }
+        lString = next;
+    }
+
+    // Step 2: Interpret with turtle graphics to build branch segments
+    const branchRadius = 0.15 + random() * 0.1;
+    const baseLength = 1.2 + random() * 0.8;
+
+    // Turtle state: position, direction, depth
+    interface TurtleState {
+        pos: THREE.Vector3;
+        dir: THREE.Vector3;
+        depth: number;
+    }
+
+    const stack: TurtleState[] = [];
+    let pos = new THREE.Vector3(0, 0, 0);
+    let dir = new THREE.Vector3(0, 1, 0); // Start pointing up
+    let depth = 0;
+    let segmentLength = baseLength;
+
+    const trunkMat = new THREE.MeshStandardMaterial({
+        color: shiftColor(rule.trunkColor, config.colorShift),
+        roughness: 0.9,
+    });
+    const leafMat = new THREE.MeshStandardMaterial({
+        color: shiftColor(rule.leafColor, config.colorShift),
+        roughness: 0.7,
+    });
+
+    // Limit total geometry to keep performance reasonable
+    let branchCount = 0;
+    const MAX_BRANCHES = 80;
+    let leafCount = 0;
+    const MAX_LEAVES = 40;
+
+    for (const ch of lString) {
+        if (branchCount >= MAX_BRANCHES) break;
+
+        switch (ch) {
+            case 'F': {
+                // Draw a branch segment
+                const len = segmentLength * Math.pow(rule.lengthFactor, depth);
+                const rad = Math.max(0.03, branchRadius * Math.pow(0.7, depth));
+
+                const cyl = new THREE.CylinderGeometry(rad * 0.7, rad, len, 5, 1);
+                const branch = new THREE.Mesh(cyl, trunkMat);
+
+                // Position at midpoint of segment
+                const mid = pos.clone().addScaledVector(dir, len * 0.5);
+                branch.position.copy(mid);
+
+                // Orient cylinder along direction
+                const up = new THREE.Vector3(0, 1, 0);
+                const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+                branch.setRotationFromQuaternion(quat);
+
+                group.add(branch);
+                branchCount++;
+
+                // Move turtle forward
+                pos = pos.clone().addScaledVector(dir, len);
+
+                // Add leaf cluster at branch tips (deeper branches)
+                if (depth >= 2 && leafCount < MAX_LEAVES && random() > 0.3) {
+                    const leafGeo = new THREE.SphereGeometry(
+                        rule.leafSize * (0.6 + random() * 0.6),
+                        6, 5
+                    );
+                    const leaf = new THREE.Mesh(leafGeo, leafMat);
+                    leaf.position.copy(pos);
+                    // Slight random offset for natural look
+                    leaf.position.x += (random() - 0.5) * 0.3;
+                    leaf.position.z += (random() - 0.5) * 0.3;
+                    group.add(leaf);
+                    leafCount++;
+                }
+                break;
+            }
+            case '+': {
+                // Turn right (rotate around Z axis with some random X component)
+                const angle = rule.angle * (0.8 + random() * 0.4);
+                const axis = new THREE.Vector3(
+                    (random() - 0.5) * 0.3,
+                    0,
+                    1
+                ).normalize();
+                dir = dir.clone().applyAxisAngle(axis, angle).normalize();
+                break;
+            }
+            case '-': {
+                // Turn left
+                const angle = rule.angle * (0.8 + random() * 0.4);
+                const axis = new THREE.Vector3(
+                    (random() - 0.5) * 0.3,
+                    0,
+                    1
+                ).normalize();
+                dir = dir.clone().applyAxisAngle(axis, -angle).normalize();
+                break;
+            }
+            case '[': {
+                // Push state (start a branch)
+                stack.push({ pos: pos.clone(), dir: dir.clone(), depth });
+                depth++;
+                break;
+            }
+            case ']': {
+                // Pop state (end branch, return to junction)
+                const state = stack.pop();
+                if (state) {
+                    pos = state.pos;
+                    dir = state.dir;
+                    depth = state.depth;
+                }
+                break;
+            }
+            // 'X' is a placeholder — interpreted only by rules, not by turtle
+        }
+    }
+}
+
+// =============================================================================
 // ERA 1: JURASSIC ASSETS - HIGH-END PREHISTORIC VEGETATION
 // =============================================================================
 
@@ -537,6 +730,13 @@ function createClassicalAsset(type: string, config: MutatedAssetConfig, seed: nu
     const group = new THREE.Group();
     const random = seededRandom(seed);
 
+    if (type === 'olive_tree') {
+        createLSystemTree(group, config, random, 'oak');
+        group.scale.copy(config.scale);
+        group.rotation.copy(config.rotationOffset);
+        return group;
+    }
+
     // Greek temple with columns
     const baseGeo = new THREE.BoxGeometry(4, 0.3, 2.5);
     const marbleMat = new THREE.MeshStandardMaterial({
@@ -614,25 +814,35 @@ function createRenaissanceAsset(type: string, config: MutatedAssetConfig, seed: 
     const group = new THREE.Group();
     const random = seededRandom(seed);
 
-    // Dome building
-    const baseGeo = new THREE.BoxGeometry(3, 2, 3);
-    const stuccoMat = new THREE.MeshStandardMaterial({
-        color: shiftColor(0xf5e6d3, config.colorShift),
-        roughness: 0.6,
-    });
-    const base = new THREE.Mesh(baseGeo, stuccoMat);
-    base.position.y = 1;
-    group.add(base);
+    switch (type) {
+        case 'cypress_tree':
+            createLSystemTree(group, config, random, 'cypress');
+            break;
+        case 'garden':
+            createLSystemTree(group, config, random, 'garden_tree');
+            break;
+        default: {
+            // Dome building (palazzo, dome, fountain, sculpture, archway)
+            const baseGeo = new THREE.BoxGeometry(3, 2, 3);
+            const stuccoMat = new THREE.MeshStandardMaterial({
+                color: shiftColor(0xf5e6d3, config.colorShift),
+                roughness: 0.6,
+            });
+            const base = new THREE.Mesh(baseGeo, stuccoMat);
+            base.position.y = 1;
+            group.add(base);
 
-    // Dome
-    const domeGeo = new THREE.SphereGeometry(1.8, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-    const domeMat = new THREE.MeshStandardMaterial({
-        color: 0xc87533,
-        roughness: 0.7,
-    });
-    const dome = new THREE.Mesh(domeGeo, domeMat);
-    dome.position.y = 2;
-    group.add(dome);
+            const domeGeo = new THREE.SphereGeometry(1.8, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const domeMat = new THREE.MeshStandardMaterial({
+                color: 0xc87533,
+                roughness: 0.7,
+            });
+            const dome = new THREE.Mesh(domeGeo, domeMat);
+            dome.position.y = 2;
+            group.add(dome);
+            break;
+        }
+    }
 
     group.scale.copy(config.scale);
     group.rotation.copy(config.rotationOffset);
