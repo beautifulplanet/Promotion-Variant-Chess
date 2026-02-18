@@ -48,6 +48,9 @@ const otTableList  = document.getElementById('ot-table-list')       as HTMLEleme
 const mpQuickBtn   = document.getElementById('mp-quick-btn')        as HTMLButtonElement;
 const otGuestBtn   = document.getElementById('ot-guest-btn')        as HTMLButtonElement;
 const mpGuestBtn   = document.getElementById('mp-guest-btn')        as HTMLButtonElement;
+const otLobbyView  = document.getElementById('ot-lobby-view')       as HTMLElement;
+const otHostingView = document.getElementById('ot-hosting-view')    as HTMLElement;
+const otCancelBtn  = document.getElementById('ot-cancel-btn')       as HTMLButtonElement;
 
 // Piece bank overlay
 const mpPieceBank  = document.getElementById('mp-piece-bank')       as HTMLElement;
@@ -102,12 +105,20 @@ function showIngame() {
   stopRefresh();
 }
 
-function showStatus(msg: string, color: string = '#666') {
+type StatusType = 'success' | 'error' | 'info';
+
+const STATUS_STYLES: Record<StatusType, { color: string; bg: string }> = {
+  success: { color: '#4CAF50', bg: 'rgba(76,175,80,0.1)' },
+  error:   { color: '#f44336', bg: 'rgba(244,67,54,0.1)' },
+  info:    { color: 'var(--sidebar-text-muted, #666)', bg: 'rgba(0,0,0,0.05)' },
+};
+
+function showStatus(msg: string, type: StatusType = 'info') {
+  const style = STATUS_STYLES[type];
   mpStatus.style.display = 'block';
   mpStatus.textContent = msg;
-  mpStatus.style.color = color;
-  mpStatus.style.background = color === '#4CAF50' ? 'rgba(76,175,80,0.1)' :
-                               color === '#f44336' ? 'rgba(244,67,54,0.1)' : 'rgba(0,0,0,0.05)';
+  mpStatus.style.color = style.color;
+  mpStatus.style.background = style.bg;
 }
 
 function hideStatus() {
@@ -181,12 +192,15 @@ function toggleOpenTablesPanel() {
     if (!multiplayer.connected) {
       multiplayer.connect(serverUrl);
     }
+    let listAttempts = 0;
     const tryList = () => {
       if (multiplayer.connected) {
         multiplayer.listTables();
         startRefresh();
-      } else {
+      } else if (++listAttempts < 15) {
         setTimeout(tryList, 200);
+      } else {
+        showStatus('Could not connect to server', 'error');
       }
     };
     tryList();
@@ -200,6 +214,30 @@ function toggleOpenTablesPanel() {
       stopRefresh();
     }
   }
+}
+
+/** Show the lobby view (name input + table list) in the OT panel */
+function showOtLobbyView() {
+  if (otLobbyView) otLobbyView.style.display = '';
+  if (otHostingView) otHostingView.style.display = 'none';
+  if (otCreateBtn) otCreateBtn.style.display = '';
+}
+
+/** Show the hosting/waiting view in the OT panel */
+function showOtHostingView() {
+  if (otLobbyView) otLobbyView.style.display = 'none';
+  if (otHostingView) otHostingView.style.display = '';
+  if (otCreateBtn) otCreateBtn.style.display = 'none';
+}
+
+/** Handle cancel from the OT panel */
+function handleOtCancelClick() {
+  multiplayer.leaveTable();
+  showLobby();
+  hideStatus();
+  showOtLobbyView();
+  // Refresh tables now
+  multiplayer.listTables();
 }
 
 function renderOpenTablesList(tables: TableInfo[]) {
@@ -237,12 +275,23 @@ function handleOtCreateClick() {
   if (!multiplayer.connected) {
     multiplayer.connect(serverUrl);
   }
+
+  // Show connecting feedback
+  if (otCreateBtn) otCreateBtn.textContent = 'Connecting...';
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = 15; // 15 * 200ms = 3 seconds
   const tryCreate = () => {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
       multiplayer.createTable(name, elo, buildPieceBank());
-    } else {
+      if (otCreateBtn) otCreateBtn.textContent = '+ Create';
+    } else if (++attempts < MAX_ATTEMPTS) {
       setTimeout(tryCreate, 200);
+    } else {
+      // Timeout — show error
+      if (otCreateBtn) otCreateBtn.textContent = '+ Create';
+      showStatus('Could not connect to server', 'error');
     }
   };
   tryCreate();
@@ -255,12 +304,17 @@ function handleOtJoinClick(tableId: string) {
   if (!multiplayer.connected) {
     multiplayer.connect(serverUrl);
   }
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = 15;
   const tryJoin = () => {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
       multiplayer.joinTable(tableId, name, elo, buildPieceBank());
-    } else {
+    } else if (++attempts < MAX_ATTEMPTS) {
       setTimeout(tryJoin, 200);
+    } else {
+      showStatus('Could not connect to server', 'error');
     }
   };
   tryJoin();
@@ -293,7 +347,7 @@ function getPlayerName(): string {
   if (!name) {
     if (otNameInput) {
       otNameInput.focus();
-      otNameInput.style.outline = '2px solid #f44336';
+      otNameInput.style.outline = `2px solid ${STATUS_STYLES.error.color}`;
       setTimeout(() => { if (otNameInput) otNameInput.style.outline = ''; }, 1500);
     }
     return '';
@@ -376,7 +430,7 @@ function buildPieceBank(): PieceBank {
 function handleCreateClick() {
   const name = mpPlayerName.value.trim();
   if (!name) {
-    showStatus('Enter your name first', '#f44336');
+    showStatus('Enter your name first', 'error');
     mpPlayerName.focus();
     return;
   }
@@ -392,15 +446,17 @@ function handleCreateClick() {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
       multiplayer.createTable(name, elo, buildPieceBank());
-    } else {
+    } else if (++createAttempts < 15) {
       setTimeout(tryCreate, 200);
     }
   };
 
-  // Give socket 2s to connect
+  let createAttempts = 0;
+
+  // Give socket 3s to connect
   setTimeout(() => {
     if (!multiplayer.connected) {
-      showStatus('Could not connect to server', '#f44336');
+      showStatus('Could not connect to server', 'error');
       showOffline();
     }
   }, 3000);
@@ -411,7 +467,7 @@ function handleCreateClick() {
 function handleJoinClick(tableId: string) {
   const name = mpPlayerName.value.trim();
   if (!name) {
-    showStatus('Enter your name first', '#f44336');
+    showStatus('Enter your name first', 'error');
     mpPlayerName.focus();
     return;
   }
@@ -423,18 +479,19 @@ function handleJoinClick(tableId: string) {
     multiplayer.connect(serverUrl);
   }
 
+  let joinAttempts = 0;
   const tryJoin = () => {
     if (multiplayer.connected) {
       const elo = Game.getState().elo;
       multiplayer.joinTable(tableId, name, elo, buildPieceBank());
-    } else {
+    } else if (++joinAttempts < 15) {
       setTimeout(tryJoin, 200);
     }
   };
 
   setTimeout(() => {
     if (!multiplayer.connected) {
-      showStatus('Could not connect to server', '#f44336');
+      showStatus('Could not connect to server', 'error');
       showOffline();
     }
   }, 3000);
@@ -446,6 +503,7 @@ function handleCancelHostClick() {
   multiplayer.leaveTable();
   showLobby();
   hideStatus();
+  showOtLobbyView();
   // Refresh tables now
   multiplayer.listTables();
 }
@@ -458,7 +516,7 @@ function handleResignClick() {
 
 function handleDrawClick() {
   multiplayer.offerDraw();
-  showStatus('Draw offer sent...', '#666');
+  showStatus('Draw offer sent...', 'info');
 }
 
 // ---------------------------------------------------------------------------
@@ -473,17 +531,20 @@ function onConnected() {
 
 function onDisconnected() {
   console.log('[MP UI] Disconnected');
+  showOtLobbyView();
   if (multiplayer.inGame) {
-    showStatus('Disconnected — trying to reconnect...', '#f44336');
+    showStatus('Disconnected — trying to reconnect...', 'error');
   } else {
     showOffline();
-    showStatus('Disconnected from server', '#f44336');
+    showStatus('Disconnected from server', 'error');
   }
 }
 
 function onTableCreated(_msg: TableCreatedMsg) {
   showHosting();
-  showStatus('Table created — waiting for opponent...', '#4CAF50');
+  showStatus('Table created — waiting for opponent...', 'success');
+  // Also show hosting state in the Open Tables panel
+  showOtHostingView();
 }
 
 function onTablesList(msg: TablesListMsg) {
@@ -495,6 +556,7 @@ function onGameFound(msg: GameFoundMsg) {
   console.log('[MP UI] Game found!', msg);
   showIngame();
   hideStatus();
+  showOtLobbyView(); // Reset OT panel back to lobby view
 
   mpOpponentName.textContent = msg.opponent.name;
   mpOpponentElo.textContent = `ELO: ${msg.opponent.elo}`;
@@ -539,7 +601,7 @@ function onGameOver(msg: GameOverMsg) {
 
   const resultText = msg.result === 'draw' ? 'Draw' :
     msg.winner ? `${msg.winner} wins` : msg.result + ' wins';
-  showStatus(`${resultText} — ${msg.reason}`, msg.result === 'draw' ? '#666' : '#4CAF50');
+  showStatus(`${resultText} — ${msg.reason}`, msg.result === 'draw' ? 'info' : 'success');
 }
 
 function onDrawOffer(msg: DrawOfferMsg) {
@@ -548,13 +610,13 @@ function onDrawOffer(msg: DrawOfferMsg) {
 }
 
 function onDrawDeclined() {
-  showStatus('Draw declined', '#f44336');
+  showStatus('Draw declined', 'error');
   setTimeout(hideStatus, 3000);
 }
 
 function onError(msg: ServerErrorMsg) {
   console.warn('[MP UI] Server error:', msg.code, msg.message);
-  showStatus(msg.message, '#f44336');
+  showStatus(msg.message, 'error');
 
   if (msg.code === 'TABLE_NOT_FOUND') {
     // Table was removed before we could join — refresh list
@@ -581,6 +643,9 @@ export function initMultiplayerUI() {
 
   // Open tables panel create button
   otCreateBtn?.addEventListener('click', handleOtCreateClick);
+
+  // Open tables panel cancel button
+  otCancelBtn?.addEventListener('click', handleOtCancelClick);
 
   // Guest buttons — auto-generate name and create table
   otGuestBtn?.addEventListener('click', handleGuestClick);

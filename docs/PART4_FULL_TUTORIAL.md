@@ -129,7 +129,7 @@ You should see:
 - A sidebar with game controls (difficulty, undo, settings)
 - Era-themed environment (starts at Stone Age for new players)
 
-**Play against AI:** Click a white piece to see legal moves highlighted in green. Click a destination to move. The AI responds in <1 second.
+**Play against AI:** Click a white piece to see legal moves highlighted with theme-aware colors (each board style has its own highlight palette). Click a destination to move. The AI responds in <1 second.
 
 **Controls:**
 | Input | Action |
@@ -196,10 +196,10 @@ Server runs on `http://localhost:3001`.
 # Frontend (420 tests, ~5s)
 npm test
 
-# Server (165 tests, ~8s)
+# Server (168 tests, ~8s)
 cd server && npm test
 
-# Rust engine (213 tests, ~2s)
+# Rust engine (218 tests, ~2s)
 cd rust-engine && cargo test
 
 # E2E browser tests (5 tests)
@@ -207,13 +207,13 @@ npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 803 unit/integration tests + 5 E2E tests**
+**Total: 806 unit/integration tests + 5 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
-| Server | 165 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
+| Server | 168 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
@@ -237,7 +237,7 @@ cd rust-engine
 wasm-pack build --target web --release --out-dir ../public/wasm
 
 # Verify
-cargo test    # All 213 tests
+cargo test    # All 218 tests
 ```
 
 Output goes to `public/wasm/` — a `.wasm` binary (~170 KB gzipped) + JavaScript glue code.
@@ -424,7 +424,22 @@ Bridge (`rustEngine.ts`): blob URL dynamic import (Vite-compatible), try/catch e
 
 ## B10. Rendering Pipeline
 
-Three.js WebGL: shadow mapping, orbit controls, 20 era environments (procedural skyboxes, themed materials, dynamic lighting, particles). Mobile adaptive: auto-detect → disable shadows/antialias, cap DPR at 2.0. Debounced resize (150ms).
+Three.js WebGL renderer (4,400+ lines in `renderer3d.ts`) with a deep visual customization system:
+
+**Board & Piece Visuals:**
+- **24 piece styles** — 7 3D geometry sets (Staunton, Lewis, Modern, Crystal, Neon, Marble, Wood) + 17 2D canvas-drawn styles (Classic, Staunton 2D, Modern, Symbols, Newspaper, Editorial, Outline, Figurine, Pixel Art, Gothic, Minimalist, Celtic, Sketch, Pharaoh sprite, Art Deco, Steampunk, Tribal)
+- **12 board styles** — Classic Wood, Tournament Green, Walnut & Maple, Ebony & Ivory, Italian Marble, Ancient Stone, Crystal Glass, Neon Grid, Newspaper Print, Ocean Depths, Forest Grove, Royal Purple — each with unique `selectedSquareColor` and `legalMoveColor` for theme-aware highlights
+
+**Environment Generation:**
+- **Procedural skyboxes** (`proceduralSkybox.ts`) — per-era sky colors, gradients, star fields with configurable density, and atmospheric effects
+- **L-system trees** (`assetMutator.ts`, 1,200 lines) — 3 grammar presets (Oak, Pine, Willow) generate procedural 3D trees via recursive string rewriting with configurable depth, branch angles, and leaf density
+- **Lorenz attractor particles** (`eraWorlds.ts`) — the Digital era features a chaotic attractor particle system using ODE integration (σ=10, ρ=28, β=8/3) rendered as animated point clouds
+- **Dynamic lighting** (`dynamicLighting.ts`, 1,100+ lines) — per-era ambient, directional, and point light configurations with real-time shadow mapping
+
+**Performance:**
+- Shadow mapping, orbit controls, 20 era environments with procedural skyboxes, themed materials, dynamic lighting, and particle systems
+- Mobile adaptive: auto-detect → disable shadows/antialias, cap DPR at 2.0
+- Debounced resize (150ms)
 
 ---
 
@@ -907,9 +922,9 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 
 | Layer | Tool | Count |
 |---|---|---|
-| Engine | cargo test | 213 |
+| Engine | cargo test | 218 |
 | Frontend | Vitest | 420 |
-| Server | Vitest | 165 |
+| Server | Vitest | 168 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
@@ -1004,17 +1019,28 @@ k6 run load-tests/stress-test.js
 ## E1. File Map
 
 ```
-├── src/                       # Frontend TypeScript
+├── src/                       # Frontend TypeScript (40+ files)
 │   ├── main-3d.ts             # Entry point, DOM wiring
-│   ├── gameController.ts      # Core game logic (1935 lines)
-│   ├── renderer3d.ts          # Three.js 3D rendering (4300+ lines)
+│   ├── gameController.ts      # Core game logic (1,831 lines)
+│   ├── renderer3d.ts          # Three.js 3D rendering (4,400+ lines)
+│   ├── pieceStyles.ts         # 24 piece style definitions (7 3D + 17 2D)
+│   ├── boardStyles.ts         # 12 board styles with theme-aware highlights
+│   ├── eraSystem.ts           # ELO → era progression (20 eras)
+│   ├── eraWorlds.ts           # 3D environment builder + Lorenz particles (1,157 lines)
+│   ├── assetMutator.ts        # L-system procedural tree generator (1,204 lines)
+│   ├── dynamicLighting.ts     # Per-era lighting configs (1,149 lines)
+│   ├── proceduralSkybox.ts    # Procedural sky, stars, gradients (460 lines)
 │   ├── chessEngine.ts         # chess.js wrapper engine
 │   ├── rustEngine.ts          # WASM bridge to Rust
 │   ├── stockfishEngine.ts     # Stockfish.js Worker wrapper
 │   ├── aiService.ts           # AI fallback chain orchestrator
-│   ├── eraSystem.ts           # ELO → era progression
-│   ├── eras/                  # 9 era-specific world definitions
-│   └── ...                    # Sound, save, stats, themes, overlays
+│   ├── overlayRenderer.ts     # Overlay bar UI controls
+│   ├── moveListUI.ts          # Move history panel
+│   ├── moveQualityAnalyzer.ts # Move quality evaluation
+│   ├── multiplayerClient.ts   # Socket.io client wrapper
+│   ├── multiplayerUI.ts       # Multiplayer + guest play UI
+│   ├── eras/                  # 10 era-specific world definitions
+│   └── ...                    # Sound, save, stats, themes, newspaper articles
 │
 ├── rust-engine/               # Rust chess engine → WASM
 │   └── src/
@@ -1032,7 +1058,7 @@ k6 run load-tests/stress-test.js
 │
 ├── server/                    # Multiplayer backend
 │   ├── src/
-│   │   ├── index.ts           # Express + Socket.io (1090 lines)
+│   │   ├── index.ts           # Express + Socket.io (1,020 lines)
 │   │   ├── resilience.ts      # Graceful shutdown, crash recovery, rate limiting
 │   │   ├── metrics.ts         # 16 Prometheus metrics
 │   │   ├── GameRoom.ts        # Game session management
@@ -1063,7 +1089,7 @@ k6 run load-tests/stress-test.js
 │   ├── ARCHITECTURE_FAQ.md    # "Why X over Y?" for every decision
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
-└── index.html                 # Single-page app entry (1638 lines)
+└── index.html                 # Single-page app entry (1,840 lines)
 ```
 
 ---
@@ -1140,7 +1166,7 @@ k6 run load-tests/stress-test.js
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 803 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 806 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
 
 ---
 

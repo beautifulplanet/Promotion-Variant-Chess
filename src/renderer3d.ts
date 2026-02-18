@@ -90,6 +90,7 @@ let cachedLegalMoves: Move[] = [];
 let cachedTurn: 'white' | 'black' = 'white';
 let cachedInCheck: boolean = false;
 let cachedPlayerColor: 'white' | 'black' = 'white';
+let viewFlipped: boolean = false; // User-toggled flip that persists across state updates
 
 // =============================================================================
 // DEBUG TOGGLES (Performance/Asset control)
@@ -1208,7 +1209,11 @@ export function updateState(
     cachedLegalMoves = legalMoves;
     cachedTurn = turn;
     cachedInCheck = inCheck;
-    cachedPlayerColor = playerColor || 'white';
+    // Apply viewFlipped override: if user toggled flip, invert the perspective
+    const baseColor = playerColor || 'white';
+    cachedPlayerColor = viewFlipped
+        ? (baseColor === 'white' ? 'black' : 'white')
+        : baseColor;
 
     updatePieces();
     updateSquareHighlights();
@@ -1229,10 +1234,41 @@ export function setPlayerColor(color: 'white' | 'black'): void {
 }
 
 /**
- * Get current player color
+ * Get current player color (accounts for flip override)
  */
 export function getPlayerColor(): 'white' | 'black' {
     return cachedPlayerColor;
+}
+
+/**
+ * Toggle board flip — purely visual, persists across state updates.
+ * Returns the new effective player color.
+ */
+export function toggleBoardFlip(): 'white' | 'black' {
+    viewFlipped = !viewFlipped;
+    // Recompute the effective color
+    const baseColor = cachedPlayerColor;
+    const newColor = viewFlipped
+        ? (baseColor === 'white' ? 'black' : 'white')
+        : baseColor;
+    // We need to re-derive from the un-flipped base, so recalc:
+    // The current cachedPlayerColor already has the OLD flip applied.
+    // Simplest: just invert current.
+    cachedPlayerColor = cachedPlayerColor === 'white' ? 'black' : 'white';
+    pieceMaterialCache.clear();
+    pieceSpritesCache.clear();
+    _prevBoardHash = '';
+    if (cachedBoard.length > 0) {
+        updatePieces();
+    }
+    return cachedPlayerColor;
+}
+
+/**
+ * Check if the board view is currently flipped
+ */
+export function isViewFlipped(): boolean {
+    return viewFlipped;
 }
 
 /**

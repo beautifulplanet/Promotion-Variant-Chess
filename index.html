@@ -10,7 +10,7 @@
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob:;
-    connect-src 'self' https://chess-server-falling-lake-2071.fly.dev wss://chess-server-falling-lake-2071.fly.dev blob:;
+    connect-src 'self' http://localhost:3001 ws://localhost:3001 https://chess-server-falling-lake-2071.fly.dev wss://chess-server-falling-lake-2071.fly.dev blob:;
     worker-src 'self' blob:;
     media-src 'self';
   ">
@@ -136,6 +136,14 @@
       margin-top: 4px;
     }
     .masthead-meta .meta-sep { color: var(--border-color); }
+    .masthead-badge {
+      display: inline-block;
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      color: var(--sidebar-text-muted);
+      letter-spacing: 0.5px;
+      font-style: italic;
+    }
     .masthead-era {
       font-weight: 700;
       color: var(--sidebar-accent);
@@ -1391,8 +1399,14 @@
       .masthead-meta { font-size: 8px; gap: 6px; }
 
       /* Board overlay buttons compact */
-      .board-overlay-btns { gap: 2px; padding: 3px 6px; }
-      .bo-btn { font-size: 11px; padding: 3px 6px; }
+      .board-overlay-btns {
+        gap: 2px; padding: 3px 4px;
+        flex-wrap: wrap;
+        justify-content: center;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.15) 90%, transparent 100%);
+      }
+      .bo-btn { font-size: 10px; padding: 2px 5px; }
+      .bo-sep { display: none; }
 
       /* Canvas wrapper */
       #canvas-wrapper {
@@ -1619,12 +1633,18 @@
           <span>⚔ Open Tables</span>
           <button class="ot-create" id="ot-create-btn">+ Create</button>
         </div>
-        <div style="display:flex; gap:4px; margin-bottom:4px;">
-          <input type="text" class="ot-name-input" id="ot-name-input" placeholder="Your name..." style="flex:1;">
-          <button id="ot-guest-btn" style="font-size:10px; padding:4px 8px; border:1px solid var(--sidebar-border,#ccc); border-radius:4px; background:var(--btn-muted,#444); color:var(--btn-muted-text,#ddd); cursor:pointer; white-space:nowrap;">👤 Guest</button>
+        <div id="ot-lobby-view">
+          <div style="display:flex; gap:4px; margin-bottom:4px;">
+            <input type="text" class="ot-name-input" id="ot-name-input" placeholder="Your name..." style="flex:1;">
+            <button id="ot-guest-btn" style="font-size:10px; padding:4px 8px; border:1px solid var(--sidebar-border,#ccc); border-radius:4px; background:var(--btn-muted,#444); color:var(--btn-muted-text,#ddd); cursor:pointer; white-space:nowrap;">👤 Guest</button>
+          </div>
+          <div id="ot-table-list">
+            <div class="ot-empty">No open tables — create one!</div>
+          </div>
         </div>
-        <div id="ot-table-list">
-          <div class="ot-empty">No open tables — create one!</div>
+        <div id="ot-hosting-view" style="display:none; text-align:center; padding:8px 0;">
+          <div style="font-size:13px; color:var(--text-color,#333); margin-bottom:6px;">⏳ Waiting for opponent...</div>
+          <button id="ot-cancel-btn" style="width:100%; padding:8px; font-size:12px; font-weight:bold; border:1px solid var(--sidebar-border,#ccc); border-radius:4px; background:var(--btn-secondary,#555); color:var(--btn-secondary-text,#fff); cursor:pointer;">✖ Cancel Table</button>
         </div>
       </div>
     </div>
@@ -1768,7 +1788,7 @@
         <!-- Game Controls -->
         <div class="sidebar-section">
           <h3>Game Controls</h3>
-          <button id="undo-btn" class="btn-secondary">&#x21A9;&#xFE0F; Undo Move</button>
+          <button id="sidebar-undo-btn" class="btn-secondary">&#x21A9;&#xFE0F; Undo Move</button>
           <button id="setup-btn" class="btn-muted" style="width:100%; margin-bottom:8px; padding:10px; font-size:14px;">&#x2699;&#xFE0F; Setup Board</button>
           <button id="load-btn" class="btn-muted" style="width:100%; padding:10px; font-size:14px;">&#x1F4C2; Load Game</button>
         </div>
@@ -1879,10 +1899,9 @@
           <li>The &#x1F916; AI uses real Stockfish engine calibrated to your level — it gets smarter as you do.</li>
         </ul>
 
-        <button id="htp-tutorial-btn" class="btn-primary" style="width:100%; padding:14px; font-size:15px; font-weight:bold; margin-top:16px; border-radius:6px; cursor:pointer;">&#x1F393; Start First Game Tutorial (Coming Soon)</button>
+        <button id="htp-tutorial-btn" class="btn-primary" style="width:100%; padding:14px; font-size:15px; font-weight:bold; margin-top:16px; border-radius:6px; cursor:pointer; opacity:0.5;" disabled>&#x1F393; Interactive Tutorial — Coming Soon</button>
 
         <div class="htp-footer">
-          &#x1F310; Website coming soon<br>
           &#x1F4AC; We read &amp; respond to all Google Play Store reviews same day
         </div>
       </div>
@@ -1993,12 +2012,12 @@
 
   <!-- DRAW OFFER MODAL -->
   <div id="draw-offer-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
-    <div style="background:#fff; border-radius:12px; padding:30px; text-align:center; max-width:350px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
-      <h3 style="margin:0 0 10px;">🤝 Draw Offered</h3>
-      <p id="draw-offer-from" style="margin-bottom:20px; color:#555;">Your opponent offers a draw</p>
+    <div style="background:var(--sidebar-bg, #f5f0e6); border:2px solid var(--sidebar-border); border-radius:12px; padding:30px; text-align:center; max-width:350px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+      <h3 style="margin:0 0 10px; font-family:'Playfair Display',serif; color:var(--sidebar-text, #333);">🤝 Draw Offered</h3>
+      <p id="draw-offer-from" style="margin-bottom:20px; color:var(--sidebar-text-muted, #555); font-family:'Old Standard TT',serif;">Your opponent offers a draw</p>
       <div style="display:flex; gap:10px; justify-content:center;">
-        <button id="draw-accept-btn" style="padding:10px 24px; font-size:15px; border:none; border-radius:8px; background:#4CAF50; color:#fff; cursor:pointer; font-weight:bold;">✓ Accept</button>
-        <button id="draw-decline-btn" style="padding:10px 24px; font-size:15px; border:none; border-radius:8px; background:#f44336; color:#fff; cursor:pointer; font-weight:bold;">✗ Decline</button>
+        <button id="draw-accept-btn" class="btn-primary" style="padding:10px 24px; font-size:15px; border-radius:8px; font-weight:bold;">✓ Accept</button>
+        <button id="draw-decline-btn" class="btn-secondary" style="padding:10px 24px; font-size:15px; border-radius:8px; font-weight:bold;">✗ Decline</button>
       </div>
     </div>
   </div> <!-- End Main Content -->

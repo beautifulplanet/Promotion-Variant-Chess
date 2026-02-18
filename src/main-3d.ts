@@ -341,13 +341,11 @@ const boBoardStyleBtn = document.getElementById('bo-board-style-btn');
 const boPiece2dBtn = document.getElementById('bo-piece-2d-btn');
 
 function doFlip() {
-  const current = Renderer.getPlayerColor();
-  const next = current === 'white' ? 'black' : 'white';
-  Renderer.setPlayerColor(next);
-  if (flipBtn) flipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
-  if (boFlipBtn) boFlipBtn.textContent = next === 'white' ? '🔄 Flip' : '🔃 Flipped';
+  const newColor = Renderer.toggleBoardFlip();
+  if (flipBtn) flipBtn.textContent = newColor === 'white' ? '🔄 Flip' : '🔃 Flipped';
+  if (boFlipBtn) boFlipBtn.textContent = newColor === 'white' ? '🔄 Flip' : '🔃 Flipped';
   Sound.play('move');
-  console.log('[Flip] Perspective:', next);
+  console.log('[Flip] Perspective:', newColor, '(viewFlipped:', Renderer.isViewFlipped(), ')');
 }
 
 if (flipBtn) {
@@ -690,7 +688,7 @@ if (trainAiBtn) {
 
     trainAiBtn.disabled = true;
     trainAiBtn.textContent = '🧠 0%';
-    trainAiBtn.style.background = '#666';
+    trainAiBtn.style.opacity = '0.5';
 
     try {
       const result = await Game.startTraining(gamesToTrain, (current, total) => {
@@ -709,7 +707,7 @@ if (trainAiBtn) {
 
     trainAiBtn.disabled = false;
     trainAiBtn.textContent = '🧠 Train';
-    trainAiBtn.style.background = '#a06020';
+    trainAiBtn.style.opacity = '1';
   });
 }
 
@@ -847,7 +845,7 @@ function updateInventoryUI(): void {
 
   if (deployedCountElem) {
     deployedCountElem.textContent = `(${totalDeployed}/${maxExtra} deployed)`;
-    deployedCountElem.style.color = totalDeployed >= maxExtra ? '#ff6b6b' : '#aaa';
+    deployedCountElem.style.color = totalDeployed >= maxExtra ? 'var(--sidebar-accent, #ff6b6b)' : 'var(--sidebar-text-muted, #aaa)';
   }
 
   if (hintElem) {
@@ -1567,20 +1565,11 @@ if (htpBtn && htpOverlay) {
   });
 }
 
-// Tutorial button (coming soon)
-const htpTutorialBtn = document.getElementById('htp-tutorial-btn');
-if (htpTutorialBtn) {
-  htpTutorialBtn.addEventListener('click', () => {
-    htpTutorialBtn.textContent = '🎓 Tutorial Coming Soon!';
-    htpTutorialBtn.setAttribute('disabled', 'true');
-    setTimeout(() => {
-      htpTutorialBtn.textContent = '🎓 Start First Game Tutorial (Coming Soon)';
-      htpTutorialBtn.removeAttribute('disabled');
-    }, 2000);
-  });
-}
+// Tutorial button (disabled — coming soon)
+// No click handler needed — button is disabled in HTML
 
 const undoBtn = document.getElementById('undo-btn');
+const sidebarUndoBtn = document.getElementById('sidebar-undo-btn');
 const soundBtn = document.getElementById('sound-btn');
 const themeBtn = document.getElementById('theme-btn');
 const statsBtn = document.getElementById('stats-btn');
@@ -1630,12 +1619,14 @@ function performUndo(): void {
 
     undoCooldown = true;
     if (undoBtn) undoBtn.setAttribute('disabled', 'true');
+    if (sidebarUndoBtn) sidebarUndoBtn.setAttribute('disabled', 'true');
     Sound.play('move');
     syncRendererState();
     MoveListUI.forceRefreshMoveList();
     setTimeout(() => {
       undoCooldown = false;
       if (undoBtn) undoBtn.removeAttribute('disabled');
+      if (sidebarUndoBtn) sidebarUndoBtn.removeAttribute('disabled');
     }, 300);
   } else {
     console.log('[UNDO] Nothing undone');
@@ -1652,6 +1643,13 @@ if (undoBtn) {
   console.log('[UNDO] Click handler registered on button');
 } else {
   console.error('[UNDO] WARNING: undo-btn element not found in DOM!');
+}
+
+// Sidebar undo button (separate from board overlay undo)
+if (sidebarUndoBtn) {
+  sidebarUndoBtn.addEventListener('click', () => {
+    performUndo();
+  });
 }
 
 // Ctrl+Z keyboard shortcut for undo (works even if button has issues)

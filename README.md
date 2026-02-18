@@ -6,7 +6,7 @@
 🔌 **[Multiplayer Server](https://chess-server-falling-lake-2071.fly.dev)** 🔌
 📈 **[Health Check](https://chess-server-falling-lake-2071.fly.dev/health)** · 📊 **[Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics)**
 
-> *803 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
+> *806 tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
 
 <!-- Screenshot placeholder: Replace with actual screenshot -->
 <!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
@@ -43,10 +43,11 @@ Each part is also available as a **standalone document** if you only want one se
 
 A chess game that combines:
 - **Custom Rust chess engine** compiled to WebAssembly (bitboards, magic bitboards, alpha-beta search, transposition tables)
-- **3D rendering** with Three.js — 20 procedurally generated era environments
+- **3D rendering** with Three.js — 20 procedurally generated era environments with procedural skyboxes, L-system trees, Lorenz attractor particles, and dynamic lighting
+- **24 piece styles** (7 3D + 17 2D canvas-drawn including Art Deco, Steampunk, and Tribal) and **12 board visual styles** with per-style theme-aware highlights
 - **AI Aggression system** — 20-level slider controlling bonus pieces, board rearrangement, and pawn upgrades
-- **Real-time multiplayer** via Socket.io with ELO matchmaking, JWT auth, game persistence
-- **Progressive Web App** — installable on mobile, offline-capable
+- **Real-time multiplayer** via Socket.io with ELO matchmaking, JWT auth, guest play, and game persistence
+- **Progressive Web App** — installable on mobile, offline-capable, with Android hybrid build via Capacitor
 
 ### Why It's Interesting (for Interviewers)
 
@@ -54,7 +55,7 @@ A chess game that combines:
 |---|---|
 | Systems programming | Rust engine: bitboard move gen, magic bitboard lookups, Zobrist hashing — all compiled to WASM |
 | Full-stack ownership | Frontend (TS + Three.js), backend (Node + Express + Prisma), engine (Rust), infra (Docker + Fly.io) |
-| Testing discipline | 803 tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 165 server (Vitest) |
+| Testing discipline | 806 tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 168 server (Vitest) |
 | Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
 | Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
@@ -65,12 +66,15 @@ A chess game that combines:
 | Metric | Value |
 |---|---|
 | Rust engine source | 12 files, ~7,000 lines (includes 866-line tournament runner) |
-| Frontend source | 20+ files, TypeScript |
-| Server source | 10+ files, 1,090-line main server + resilience module |
+| Frontend source | 40+ files, TypeScript (renderer3d.ts alone is 4,400+ lines) |
+| Server source | 10+ files, 1,020-line main server + resilience module |
 | Load test scripts | 3 k6 scripts (HTTP, WebSocket, stress) |
 | Perft correctness | Matches all standard values through depth 5 (4,865,609 nodes) |
 | WASM binary | ~170 KB gzipped |
-| Test count | 803 total across 3 languages |
+| Piece styles | 24 total — 7 3D + 17 2D canvas-drawn (Art Deco, Steampunk, Tribal, Celtic, Gothic, Pixel, and more) |
+| Board styles | 12 with per-style theme-aware highlight colors |
+| Era environments | 20 with procedural skyboxes, dynamic lighting, L-system trees, and particle systems |
+| Test count | 806 total across 3 languages |
 | Prometheus metrics | 16 custom metrics + Node.js defaults |
 
 ---
@@ -188,7 +192,7 @@ Server starts on `http://localhost:3001`.
 
 ```bash
 npm test                          # 420 frontend tests
-cd server && npm test             # 165 server tests
+cd server && npm test             # 168 server tests
 cd rust-engine && cargo test      # 218 Rust engine tests
 ```
 
@@ -340,7 +344,7 @@ You should see:
 - A sidebar with game controls (difficulty, undo, settings)
 - Era-themed environment (starts at Stone Age for new players)
 
-**Play against AI:** Click a white piece to see legal moves highlighted in green. Click a destination to move. The AI responds in <1 second.
+**Play against AI:** Click a white piece to see legal moves highlighted with theme-aware colors (each board style has its own highlight palette). Click a destination to move. The AI responds in <1 second.
 
 **Controls:**
 | Input | Action |
@@ -407,24 +411,24 @@ Server runs on `http://localhost:3001`.
 # Frontend (420 tests, ~5s)
 npm test
 
-# Server (165 tests, ~8s)
+# Server (168 tests, ~8s)
 cd server && npm test
 
 # Rust engine (218 tests, ~2s)
 cd rust-engine && cargo test
 
-# E2E browser tests (4 tests)
+# E2E browser tests (5 tests)
 npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 803 unit/integration tests + 4 E2E tests**
+**Total: 806 unit/integration tests + 5 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
-| Server | 165 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
+| Server | 168 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
 | E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
 
 ---
@@ -635,7 +639,22 @@ Bridge (`rustEngine.ts`): blob URL dynamic import (Vite-compatible), try/catch e
 
 ## B10. Rendering Pipeline
 
-Three.js WebGL: shadow mapping, orbit controls, 20 era environments (procedural skyboxes, themed materials, dynamic lighting, particles). Mobile adaptive: auto-detect → disable shadows/antialias, cap DPR at 2.0. Debounced resize (150ms).
+Three.js WebGL renderer (4,400+ lines in `renderer3d.ts`) with a deep visual customization system:
+
+**Board & Piece Visuals:**
+- **24 piece styles** — 7 3D geometry sets (Staunton, Lewis, Modern, Crystal, Neon, Marble, Wood) + 17 2D canvas-drawn styles (Classic, Staunton 2D, Modern, Symbols, Newspaper, Editorial, Outline, Figurine, Pixel Art, Gothic, Minimalist, Celtic, Sketch, Pharaoh sprite, Art Deco, Steampunk, Tribal)
+- **12 board styles** — Classic Wood, Tournament Green, Walnut & Maple, Ebony & Ivory, Italian Marble, Ancient Stone, Crystal Glass, Neon Grid, Newspaper Print, Ocean Depths, Forest Grove, Royal Purple — each with unique `selectedSquareColor` and `legalMoveColor` for theme-aware highlights
+
+**Environment Generation:**
+- **Procedural skyboxes** (`proceduralSkybox.ts`) — per-era sky colors, gradients, star fields with configurable density, and atmospheric effects
+- **L-system trees** (`assetMutator.ts`, 1,200 lines) — 3 grammar presets (Oak, Pine, Willow) generate procedural 3D trees via recursive string rewriting with configurable depth, branch angles, and leaf density
+- **Lorenz attractor particles** (`eraWorlds.ts`) — the Digital era features a chaotic attractor particle system using ODE integration (σ=10, ρ=28, β=8/3) rendered as animated point clouds
+- **Dynamic lighting** (`dynamicLighting.ts`, 1,100+ lines) — per-era ambient, directional, and point light configurations with real-time shadow mapping
+
+**Performance:**
+- Shadow mapping, orbit controls, 20 era environments with procedural skyboxes, themed materials, dynamic lighting, and particle systems
+- Mobile adaptive: auto-detect → disable shadows/antialias, cap DPR at 2.0
+- Debounced resize (150ms)
 
 ---
 
@@ -1141,7 +1160,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 |---|---|---|
 | Engine | cargo test | 218 |
 | Frontend | Vitest | 420 |
-| Server | Vitest | 165 |
+| Server | Vitest | 168 |
 | E2E | Playwright | 5 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
@@ -1394,17 +1413,28 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 ## E1. File Map
 
 ```
-├── src/                       # Frontend TypeScript
+├── src/                       # Frontend TypeScript (40+ files)
 │   ├── main-3d.ts             # Entry point, DOM wiring
-│   ├── gameController.ts      # Core game logic (1935 lines)
-│   ├── renderer3d.ts          # Three.js 3D rendering (4300+ lines)
+│   ├── gameController.ts      # Core game logic (1,831 lines)
+│   ├── renderer3d.ts          # Three.js 3D rendering (4,400+ lines)
+│   ├── pieceStyles.ts         # 24 piece style definitions (7 3D + 17 2D)
+│   ├── boardStyles.ts         # 12 board styles with theme-aware highlights
+│   ├── eraSystem.ts           # ELO → era progression (20 eras)
+│   ├── eraWorlds.ts           # 3D environment builder + Lorenz particles (1,157 lines)
+│   ├── assetMutator.ts        # L-system procedural tree generator (1,204 lines)
+│   ├── dynamicLighting.ts     # Per-era lighting configs (1,149 lines)
+│   ├── proceduralSkybox.ts    # Procedural sky, stars, gradients (460 lines)
 │   ├── chessEngine.ts         # chess.js wrapper engine
 │   ├── rustEngine.ts          # WASM bridge to Rust
 │   ├── stockfishEngine.ts     # Stockfish.js Worker wrapper
 │   ├── aiService.ts           # AI fallback chain orchestrator
-│   ├── eraSystem.ts           # ELO → era progression
-│   ├── eras/                  # 9 era-specific world definitions
-│   └── ...                    # Sound, save, stats, themes, overlays
+│   ├── overlayRenderer.ts     # Overlay bar UI controls
+│   ├── moveListUI.ts          # Move history panel
+│   ├── moveQualityAnalyzer.ts # Move quality evaluation
+│   ├── multiplayerClient.ts   # Socket.io client wrapper
+│   ├── multiplayerUI.ts       # Multiplayer + guest play UI
+│   ├── eras/                  # 10 era-specific world definitions
+│   └── ...                    # Sound, save, stats, themes, newspaper articles
 │
 ├── rust-engine/               # Rust chess engine → WASM
 │   └── src/
@@ -1422,7 +1452,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │
 ├── server/                    # Multiplayer backend
 │   ├── src/
-│   │   ├── index.ts           # Express + Socket.io (1090 lines)
+│   │   ├── index.ts           # Express + Socket.io (1,020 lines)
 │   │   ├── resilience.ts      # Graceful shutdown, crash recovery, rate limiting
 │   │   ├── metrics.ts         # 16 Prometheus metrics
 │   │   ├── GameRoom.ts        # Game session management
@@ -1453,7 +1483,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── ARCHITECTURE_FAQ.md    # "Why X over Y?" for every decision
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
-└── index.html                 # Single-page app entry (1638 lines)
+└── index.html                 # Single-page app entry (1,840 lines)
 ```
 
 ---
@@ -1651,4 +1681,4 @@ Tournament Runner                             Tournament SQLite DB
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 803 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 806 tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
