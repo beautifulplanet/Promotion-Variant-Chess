@@ -825,6 +825,49 @@ export class DynamicLighting {
         if (!this.enabled) return;
         this.time += deltaTime * 0.001;
 
+        // =====================================================================
+        // DAY/NIGHT CYCLE - synchronized with skybox (240 second period)
+        // =====================================================================
+        const DAY_NIGHT_PERIOD = 240.0;
+        const dayAngle = (this.time / DAY_NIGHT_PERIOD) * Math.PI * 2;
+        // nightFactor: 1 at noon, 0 at midnight
+        const nightFactor = Math.max(0, Math.min(1, (Math.cos(dayAngle) + 1) * 0.5));
+        // sunsetFactor: peaks during transitions (phase ~0.2 and ~0.8)
+        const dayPhase = (this.time / DAY_NIGHT_PERIOD) % 1.0;
+        const sunsetFactor = Math.max(
+            Math.max(0, 1 - Math.abs(dayPhase - 0.2) * 8),
+            Math.max(0, 1 - Math.abs(dayPhase - 0.8) * 8)
+        );
+
+        // Modulate sun intensity by day/night (always keep some light for gameplay)
+        const era = getEraForElo(this.currentElo);
+        const dnSunMult = 0.25 + 0.75 * nightFactor; // min 25% at midnight
+        this.sun.intensity = era.sunIntensity * dnSunMult;
+
+        // Sun position: orbit with day/night
+        const sunY = Math.cos(dayAngle) * 60 + 40;
+        const sunAngle = era.sunAngleBase + dayAngle * 0.3;
+        this.sun.position.set(
+            Math.cos(sunAngle) * 100,
+            sunY,
+            Math.sin(sunAngle * 0.5) * 50 - 20
+        );
+
+        // Sunset tint on sun color
+        if (sunsetFactor > 0.01) {
+            const warmR = Math.min(1, (era.sunColor >> 16 & 0xff) / 255 + sunsetFactor * 0.3);
+            const warmG = Math.max(0, (era.sunColor >> 8 & 0xff) / 255 - sunsetFactor * 0.15);
+            const warmB = Math.max(0, (era.sunColor & 0xff) / 255 - sunsetFactor * 0.3);
+            this.sun.color.setRGB(warmR, warmG, warmB);
+        }
+
+        // Ambient dims at night but never too dark (board needs to stay playable)
+        this.ambient.intensity = era.ambientIntensity * (0.35 + 0.65 * nightFactor);
+        this.hemisphere.intensity = era.ambientIntensity * 0.5 * (0.3 + 0.7 * nightFactor);
+
+        // Board spotlight gets slightly brighter at night to compensate
+        this.boardSpotlight.intensity = 1.5 + (1 - nightFactor) * 0.8;
+
         // Smooth transition between ELO values
         if (this.transitionProgress < 1.0) {
             this.transitionProgress = Math.min(1.0, this.transitionProgress + deltaTime * 0.002);
@@ -836,19 +879,19 @@ export class DynamicLighting {
             }
         }
 
-        // Animate god rays
+        // Animate god rays (fade at night)
         if (this.godRayMesh) {
             const material = this.godRayMesh.material as THREE.ShaderMaterial;
             material.uniforms.time.value = this.time;
+            material.uniforms.intensity.value = era.sunIntensity * 0.3 * nightFactor;
         }
 
-        // Animate eerie fog
+        // Animate eerie fog (brighter at night)
         if (this.eerieFogMesh) {
             const fogMat = this.eerieFogMesh.material as THREE.ShaderMaterial;
             fogMat.uniforms.time.value = this.time;
         }
 
-        const era = getEraForElo(this.currentElo);
         const eerieConfig = this.getEerieConfig(era);
         const t = this.time;
 

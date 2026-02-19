@@ -117,7 +117,16 @@ type GameOverCallback = (message: string) => void;
 type AIThinkingCallback = (thinking: boolean) => void;
 type WinAnimationCallback = () => Promise<void>;
 type PlayerWinCallback = () => void;
-
+type MoveAnimationCallback = (data: {
+  fromRow: number; fromCol: number;
+  toRow: number; toCol: number;
+  isCapture: boolean;
+  capturedType?: string;
+  movingPieceType?: string;
+  isCastling?: boolean;
+  rookFromCol?: number;
+  rookToCol?: number;
+}) => void;
 let onStateChange: StateChangeCallback | null = null;
 let onLevelChange: LevelChangeCallback | null = null;
 let onGameOver: GameOverCallback | null = null;
@@ -125,6 +134,7 @@ let onAIThinking: AIThinkingCallback | null = null;
 let onWinAnimation: WinAnimationCallback | null = null;
 let onPlayerWin: PlayerWinCallback | null = null;
 let onMultiplayerMove: ((san: string) => void) | null = null;
+let onMoveAnimation: MoveAnimationCallback | null = null;
 
 // Current session save data (in-memory, not persisted until player saves)
 let currentSaveData: SaveData = createDefaultSave();
@@ -508,6 +518,9 @@ export function handleSquareClick(row: number, col: number): boolean {
       if (result) {
         DEBUG_LOG('[Game] Move made:', result.san);
 
+        // Fire move animation BEFORE state change
+        fireMoveAnimation(state.selectedSquare, { row, col }, result.piece, result.captured, result.flags);
+
         // In multiplayer mode, send the move to the server
         if (multiplayerMode && onMultiplayerMove) {
           onMultiplayerMove(result.san);
@@ -575,6 +588,9 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
 
   if (result) {
     DEBUG_LOG('[Game] Promotion move made:', result.san);
+
+    // Fire move animation BEFORE state change
+    fireMoveAnimation(from, to, result.piece, result.captured, result.flags);
 
     // In multiplayer mode, send the promotion move to the server
     if (multiplayerMode && onMultiplayerMove) {
@@ -1300,6 +1316,7 @@ export function registerCallbacks(callbacks: {
   onWinAnimation?: () => Promise<void>;
   onPlayerWin?: PlayerWinCallback;
   onMultiplayerMove?: (san: string) => void;
+  onMoveAnimation?: MoveAnimationCallback;
 }): void {
   if (callbacks.onStateChange) onStateChange = callbacks.onStateChange;
   if (callbacks.onLevelChange) onLevelChange = callbacks.onLevelChange;
@@ -1308,6 +1325,37 @@ export function registerCallbacks(callbacks: {
   if (callbacks.onWinAnimation) onWinAnimation = callbacks.onWinAnimation;
   if (callbacks.onPlayerWin) onPlayerWin = callbacks.onPlayerWin;
   if (callbacks.onMultiplayerMove) onMultiplayerMove = callbacks.onMultiplayerMove;
+  if (callbacks.onMoveAnimation) onMoveAnimation = callbacks.onMoveAnimation;
+}
+
+/**
+ * Fire the move animation callback with data extracted from a move result.
+ * Must be called BEFORE notifyStateChange() so the renderer gets animation
+ * data before it rebuilds pieces.
+ */
+function fireMoveAnimation(
+  from: { row: number; col: number },
+  to: { row: number; col: number },
+  movingPieceType: string,
+  captured?: string,
+  flags?: string
+): void {
+  if (!onMoveAnimation) return;
+  const isCapture = !!captured || flags === 'e';
+  const isCastling = flags === 'k' || flags === 'q';
+  let rookFromCol: number | undefined;
+  let rookToCol: number | undefined;
+  if (isCastling) {
+    if (flags === 'k') { rookFromCol = 7; rookToCol = 5; }
+    else { rookFromCol = 0; rookToCol = 3; }
+  }
+  onMoveAnimation({
+    fromRow: from.row, fromCol: from.col,
+    toRow: to.row, toCol: to.col,
+    isCapture, capturedType: captured,
+    movingPieceType: movingPieceType.toUpperCase(),
+    isCastling, rookFromCol, rookToCol,
+  });
 }
 
 // =============================================================================
@@ -1806,6 +1854,11 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
       console.error('[AI] Move was rejected by engine!', move);
     }
 
+    // Fire move animation for AI moves
+    if (result) {
+      fireMoveAnimation(move.from, move.to, result.piece, result.captured, result.flags);
+    }
+
     // Update opening name detection after AI move
     updateOpeningName(engine.getFEN());
 
@@ -2054,6 +2107,7 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
       const result = engine.makeMove(from, to, move.promotion);
       if (result) {
         console.log('[Multiplayer] Applied opponent move (UCI match):', moveStr);
+        fireMoveAnimation(from, to, result.piece, result.captured, result.flags);
         updateOpeningName(engine.getFEN());
         notifyStateChange();
         return true;
@@ -2068,6 +2122,7 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
     const result = engine.makeMove(move.from, move.to, move.promotion);
     if (result && result.san === moveStr) {
       console.log('[Multiplayer] Applied opponent move (SAN match):', moveStr);
+      fireMoveAnimation(move.from, move.to, result.piece, result.captured, result.flags);
       updateOpeningName(engine.getFEN());
       notifyStateChange();
       return true;

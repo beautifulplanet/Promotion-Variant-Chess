@@ -1361,12 +1361,38 @@
       .bo-sep { display: none; }
       .bo-btn { font-size: 12px; padding: 4px 8px; }
     }
+    /* Narrow: wrap articles below the board instead of hiding them */
     @media (max-width: 900px) {
-      .article-column.right { display: none; }
-      .article-column.left { flex: 0 0 200px; }
+      .newspaper-body {
+        flex-wrap: wrap;
+      }
+      #center-section {
+        flex: 1 0 100%;
+        order: -1;
+      }
+      .article-column {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: 180px;
+        overflow-y: auto;
+        border-left: none !important;
+        border-right: none !important;
+        border-top: 1px solid var(--border-color);
+        padding: 4px 10px;
+      }
+      .article-column.left { order: 1; border-right: 1px solid var(--border-color) !important; }
+      .article-column.right { order: 2; display: flex !important; }
+      .article-headline { font-size: 12px; }
+      .article-snippet { font-size: 11px; }
     }
-    @media (max-width: 700px) {
-      .article-column { display: none !important; }
+    /* Very narrow: stack articles into a single column below */
+    @media (max-width: 500px) {
+      .article-column {
+        flex: 1 0 100% !important;
+        max-height: 140px;
+      }
+      .article-column.left { border-right: none !important; border-bottom: 1px solid var(--border-color); }
     }
 
     /* ==========================================================================
@@ -1875,7 +1901,7 @@
           <li><strong>&#x25B6; New</strong> &#x2014; Start a new game.</li>
           <li><strong>&#x21A9; Undo</strong> &#x2014; Take back your last move.</li>
           <li><strong>&#x1F4BE; Save</strong> &#x2014; Save your progress (ELO, inventory, settings).</li>
-          <li><strong>Right-click drag / Two-finger drag</strong> &#x2014; Orbit the camera to explore the 3D world. Press V to reset view.</li>
+          <li><strong>Right-click drag / Alt+drag / Two-finger drag</strong> &#x2014; Orbit the camera to explore the 3D world. Press V to reset view.</li>
           <li><strong>&#x2699;&#xFE0F; Opt</strong> &#x2014; Open options: AI controls, multiplayer, styles, stats.</li>
           <li><strong>&#x1F504; Flip</strong> &#x2014; Flip the board perspective.</li>
           <li><strong>&#x1F3C1; Board</strong> &#x2014; Cycle board color themes (classic, marble, neon, etc.).</li>
@@ -1896,7 +1922,7 @@
           <li>Open &#x2699;&#xFE0F; Setup Board before each game to see your 3 rows and your piece bank.</li>
           <li>You can start a game with fewer pieces on purpose. It's a valid strategy to stockpile for harder games later.</li>
           <li>Try different board themes and piece styles to customize your look.</li>
-          <li>Right-click drag (desktop) or two-finger drag (mobile) to orbit the 3D world. Scroll/pinch to zoom.</li>
+          <li>Right-click drag or Alt+drag (desktop) or two-finger drag (mobile) to orbit the 3D world. Scroll/pinch to zoom.</li>
           <li>Watch AI vs AI games with the &#x1F916; Watch AI button in Options.</li>
           <li>The &#x1F916; AI uses real Stockfish engine calibrated to your level — it gets smarter as you do.</li>
         </ul>

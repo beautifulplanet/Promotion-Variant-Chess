@@ -7,15 +7,15 @@
 // =============================================================================
 
 const FONT_FAMILY = '"Old Standard TT", "Times New Roman", serif';
-const LIST_WIDTH = 200;
-const LIST_HEIGHT = 300;
-const PADDING = 15;
-const ROW_HEIGHT = 24;
+const LIST_WIDTH = 90;
+const LIST_HEIGHT = 108;
+const PADDING = 6;
+const ROW_HEIGHT = 11;
 const BG_COLOR = 'rgba(250, 246, 237, 0.9)'; // Parchment-like
 const BORDER_COLOR = '#8b7355';
 const TEXT_COLOR = '#2a2a2a';
 const HIGHLIGHT_COLOR = 'rgba(139, 69, 19, 0.15)';
-const HEADER_HEIGHT = 40;
+const HEADER_HEIGHT = 17;
 
 // =============================================================================
 // STATE
@@ -93,8 +93,8 @@ function draw(): void {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Position: Top Right with margin
-    const x = canvas.width - LIST_WIDTH - 20;
-    const y = 20;
+    const x = canvas.width - LIST_WIDTH - 8;
+    const y = 8;
 
     drawPanel(x, y);
     drawHeader(x, y);
@@ -106,9 +106,9 @@ function drawPanel(x: number, y: number): void {
 
     // Shadow
     ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 4;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
 
     // Background
     ctx.fillStyle = BG_COLOR;
@@ -117,13 +117,13 @@ function drawPanel(x: number, y: number): void {
     // Border
     ctx.shadowColor = 'transparent';
     ctx.strokeStyle = BORDER_COLOR;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     ctx.strokeRect(x, y, LIST_WIDTH, LIST_HEIGHT);
 
     // Inner detail line
     ctx.strokeStyle = 'rgba(139, 115, 85, 0.3)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 4, y + 4, LIST_WIDTH - 8, LIST_HEIGHT - 8);
+    ctx.strokeRect(x + 2, y + 2, LIST_WIDTH - 4, LIST_HEIGHT - 4);
 
     ctx.restore();
 }
@@ -132,17 +132,17 @@ function drawHeader(x: number, y: number): void {
     ctx.save();
 
     const centerX = x + LIST_WIDTH / 2;
-    const headerY = y + 25;
+    const headerY = y + 12;
 
-    ctx.font = `bold 18px ${FONT_FAMILY}`;
+    ctx.font = `bold 9px ${FONT_FAMILY}`;
     ctx.fillStyle = '#4a3a2a'; // Dark brown
     ctx.textAlign = 'center';
     ctx.fillText('Move History', centerX, headerY);
 
     // Separator line
     ctx.beginPath();
-    ctx.moveTo(x + 10, y + HEADER_HEIGHT);
-    ctx.lineTo(x + LIST_WIDTH - 10, y + HEADER_HEIGHT);
+    ctx.moveTo(x + 6, y + HEADER_HEIGHT);
+    ctx.lineTo(x + LIST_WIDTH - 6, y + HEADER_HEIGHT);
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
     ctx.stroke();
 
@@ -157,7 +157,7 @@ function drawMoveContent(x: number, y: number): void {
     ctx.rect(x + 2, y + HEADER_HEIGHT, LIST_WIDTH - 4, LIST_HEIGHT - HEADER_HEIGHT - 2);
     ctx.clip();
 
-    const startY = y + HEADER_HEIGHT + 20; // Plus some padding
+    const startY = y + HEADER_HEIGHT + 7; // Plus some padding
     const totalRows = Math.ceil(moves.length / 2);
 
     // Start drawing from scrollOffset
@@ -167,7 +167,7 @@ function drawMoveContent(x: number, y: number): void {
     const visibleStartRow = scrollOffset;
     const visibleEndRow = scrollOffset + maxVisibleRows + 1;
 
-    ctx.font = `16px ${FONT_FAMILY}`;
+    ctx.font = `8px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
 
     for (let i = 0; i < totalRows; i++) {
@@ -181,7 +181,7 @@ function drawMoveContent(x: number, y: number): void {
         // Highlight active row (last one)
         if (i === totalRows - 1) {
             ctx.fillStyle = HIGHLIGHT_COLOR;
-            ctx.fillRect(x + 6, renderY - 14, LIST_WIDTH - 12, ROW_HEIGHT);
+            ctx.fillRect(x + 2, renderY - 8, LIST_WIDTH - 4, ROW_HEIGHT);
         }
 
         const moveNum = i + 1;
@@ -190,25 +190,25 @@ function drawMoveContent(x: number, y: number): void {
 
         // Draw Move Number
         ctx.fillStyle = '#6a5a4a'; // Muted brown
-        ctx.fillText(`${moveNum}.`, x + 15, renderY);
+        ctx.fillText(`${moveNum}.`, x + 5, renderY);
 
         // Draw White Move
         ctx.fillStyle = TEXT_COLOR;
-        ctx.fillText(whiteMove, x + 50, renderY);
+        ctx.fillText(whiteMove, x + 22, renderY);
 
         // Draw Black Move
         if (blackMove) {
-            ctx.fillText(blackMove, x + 120, renderY);
+            ctx.fillText(blackMove, x + 54, renderY);
         }
     }
 
     // Draw scrollbar indicator if needed
     if (totalRows > maxVisibleRows) {
-        const scrollBarHeight = (maxVisibleRows / totalRows) * (LIST_HEIGHT - HEADER_HEIGHT - 10);
-        const scrollBarY = y + HEADER_HEIGHT + 5 + (scrollOffset / totalRows) * (LIST_HEIGHT - HEADER_HEIGHT - 10);
+        const scrollBarHeight = (maxVisibleRows / totalRows) * (LIST_HEIGHT - HEADER_HEIGHT - 6);
+        const scrollBarY = y + HEADER_HEIGHT + 3 + (scrollOffset / totalRows) * (LIST_HEIGHT - HEADER_HEIGHT - 6);
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.fillRect(x + LIST_WIDTH - 6, scrollBarY, 4, scrollBarHeight);
+        ctx.fillRect(x + LIST_WIDTH - 4, scrollBarY, 3, scrollBarHeight);
     }
 
     ctx.restore();

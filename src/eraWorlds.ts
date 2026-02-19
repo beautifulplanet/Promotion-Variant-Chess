@@ -171,10 +171,17 @@ function addEraParticles(
         MAX_PARTICLES
     );
 
-    // Lorenz attractor gets special initialization
+    // Lorenz attractor gets special initialization for its dedicated era
     if (era.particleType === 'lorenz') {
         addLorenzParticles(era, group, offset, particleCount);
         return;
+    }
+
+    // --- Lorenz attractor overlay for ALL eras ---
+    // A smaller, era-tinted Lorenz system floats above every world
+    const lorenzCount = Math.min(Math.floor(60 * particleDensityScale), 100);
+    if (lorenzCount > 0) {
+        addLorenzParticles(era, group, offset, lorenzCount);
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -295,6 +302,7 @@ function addLorenzParticles(
     particles.userData.particleType = 'lorenz';
     particles.userData.scrollable = true;
     particles.userData.lorenzState = lorenzState;  // Attach ODE state
+    particles.userData.lorenzBaseColor = era.particleColor;  // Era tint for animation
 
     group.add(particles);
 }
@@ -310,7 +318,9 @@ export function stepLorenzParticles(particles: THREE.Points, _deltaTime: number)
     const colorAttr = particles.geometry.getAttribute('color') as THREE.BufferAttribute;
     const count = posAttr.count;
 
-    const baseColor = new THREE.Color(0x00ff80);
+    // Use era-specific color stored on the Points object, fallback to green/cyan
+    const storedColor = particles.userData.lorenzBaseColor;
+    const baseColor = new THREE.Color(storedColor != null ? storedColor : 0x00ff80);
     const accentColor = new THREE.Color(0x00ccff);
 
     // Take multiple small steps per frame for smooth motion
@@ -1007,6 +1017,17 @@ function addUrbanRoadway(group: THREE.Group, offset: number, era: EraConfig): vo
  * Update environment animations each frame
  * Now with frustum culling - only update visible objects
  */
+
+// Weather state: slowly evolving wind gusts and fog variation
+let weatherWindX = 0;
+let weatherWindZ = 0;
+let weatherFogMult = 1.0;
+let weatherTargetWindX = 0;
+let weatherTargetWindZ = 0;
+let weatherTargetFogMult = 1.0;
+let weatherChangeTimer = 0;
+const WEATHER_CHANGE_INTERVAL = 30; // seconds between weather shifts
+
 export function updateEraEnvironment(
     group: THREE.Group,
     deltaTime: number,
@@ -1016,6 +1037,23 @@ export function updateEraEnvironment(
     if (!group.visible) return;
 
     const time = performance.now() * 0.001;
+
+    // =========================================================================
+    // WEATHER VARIATION - wind gusts and fog density shift every ~30 seconds
+    // =========================================================================
+    weatherChangeTimer += deltaTime * 0.001;
+    if (weatherChangeTimer >= WEATHER_CHANGE_INTERVAL) {
+        weatherChangeTimer = 0;
+        // Pick new weather targets
+        weatherTargetWindX = (Math.random() - 0.5) * 0.06;
+        weatherTargetWindZ = (Math.random() - 0.5) * 0.04;
+        weatherTargetFogMult = 0.6 + Math.random() * 0.8; // 0.6 - 1.4
+    }
+    // Smoothly interpolate toward targets
+    const weatherLerp = Math.min(1, deltaTime * 0.0005);
+    weatherWindX += (weatherTargetWindX - weatherWindX) * weatherLerp;
+    weatherWindZ += (weatherTargetWindZ - weatherWindZ) * weatherLerp;
+    weatherFogMult += (weatherTargetFogMult - weatherFogMult) * weatherLerp;
 
     // Process only a subset of children each frame for performance
     const childCount = group.children.length;
@@ -1060,12 +1098,25 @@ export function updateEraEnvironment(
             child.rotation.z += child.userData.rotationSpeed * deltaTime * 0.001;
         }
 
-        // Update particle shader time
+        // Update particle shader time + apply weather wind drift
         if (child.userData.isParticles) {
             const particles = child as THREE.Points;
             const material = particles.material;
             if ((material as THREE.ShaderMaterial).uniforms) {
                 (material as THREE.ShaderMaterial).uniforms.time.value = time;
+            }
+
+            // Wind drift: gently push non-Lorenz particles
+            if (child.userData.particleType !== 'lorenz') {
+                const posAttr = particles.geometry.getAttribute('position') as THREE.BufferAttribute;
+                if (posAttr) {
+                    // Apply small per-frame wind offset (weatherWindX/Z are tiny values)
+                    particles.position.x += weatherWindX * deltaTime * 0.01;
+                    particles.position.z += weatherWindZ * deltaTime * 0.01;
+                    // Reset drift periodically to prevent particles wandering too far
+                    if (Math.abs(particles.position.x) > 15) particles.position.x *= 0.95;
+                    if (Math.abs(particles.position.z) > 15) particles.position.z *= 0.95;
+                }
             }
 
             // Step Lorenz attractor ODE each frame
@@ -1080,18 +1131,37 @@ export function updateEraEnvironment(
             child.rotation.y += 0.002 * deltaTime;
         }
 
-        // Animate dinosaur walking (bobbing, sway, and leg movement)
+        // Animate dinosaurs — flyers soar, ground walkers bob
         if (child.userData.isDinosaur) {
             const bobSpeed = child.userData.bobSpeed || 2;
             const bobAmount = child.userData.bobAmount || 0.05;
-            child.position.y = -0.5 + Math.sin(time * bobSpeed + child.id) * bobAmount;
-            // Subtle side-to-side sway
-            child.rotation.z = Math.sin(time * bobSpeed * 0.5 + child.id) * 0.02;
+            const baseScale = child.userData.baseScale || 20;
+            const sign = child.scale.x < 0 ? -1 : 1;
 
-            // Animate legs if they exist
+            if (child.userData.isFlyer) {
+                // --- Flyer animation: lazy soaring in the sky ---
+                const baseY = child.userData.baseY || 30;
+                // Gentle vertical undulation (soaring on thermals)
+                child.position.y = baseY + Math.sin(time * bobSpeed + child.id) * bobAmount;
+                // Banking / tilting as they glide
+                child.rotation.z = Math.sin(time * bobSpeed * 0.3 + child.id) * 0.08;
+                // Slight scale pulse (wing flap illusion)
+                const wingFlap = 1.0 + Math.sin(time * bobSpeed * 1.5 + child.id) * 0.04;
+                child.scale.set(sign * baseScale * wingFlap, baseScale * wingFlap, 1);
+            } else {
+                // --- Ground walker animation: walking bob + sway ---
+                // Bottom-anchored at y=0; bob slightly above ground
+                child.position.y = Math.sin(time * bobSpeed + child.id) * bobAmount;
+                // Subtle side-to-side sway
+                child.rotation.z = Math.sin(time * bobSpeed * 0.5 + child.id) * 0.02;
+                // Scale breathing: slow grow/shrink to simulate depth perspective
+                const breathe = 1.0 + Math.sin(time * 0.3 + child.id * 0.7) * 0.06;
+                child.scale.set(sign * baseScale * breathe, baseScale * breathe, 1);
+            }
+
+            // Animate legs if they exist (ground walkers only)
             child.children.forEach((part) => {
                 if (part.userData.animPhase !== undefined) {
-                    // This is a leg group - animate it
                     const phase = part.userData.animPhase;
                     const legSwing = Math.sin(time * bobSpeed * 1.5 + phase) * 0.15;
                     part.rotation.x = legSwing;
@@ -1146,8 +1216,8 @@ export function updateEraEnvironment(
             for (let p = 0; p < posArray.length; p += 3) {
                 // Fall down
                 posArray[p + 1] -= 0.1;
-                // Drift sideways
-                posArray[p] += (Math.sin(time + p) * 0.01);
+                // Drift sideways (weather wind)
+                posArray[p] += (Math.sin(time + p) * 0.01) + weatherWindX * 0.3;
 
                 // Reset if below ground
                 if (posArray[p + 1] < 0) {
@@ -1233,7 +1303,7 @@ export function updateEraEnvironment(
             }
         }
 
-        // Animate heavy snowfall (thick blizzard)
+        // Animate heavy snowfall (thick blizzard + weather wind)
         if (child.userData.isHeavySnow) {
             const points = child as THREE.Points;
             if (points.geometry && points.geometry.attributes && points.geometry.attributes.position) {
@@ -1243,10 +1313,10 @@ export function updateEraEnvironment(
                 for (let p = 0; p < posArray.length; p += 3) {
                     // Fall down faster (blizzard)
                     posArray[p + 1] -= 0.2 + Math.random() * 0.1;
-                    // Strong wind drift
-                    posArray[p] += Math.sin(time * 2 + p * 0.01) * 0.05;
+                    // Strong wind drift + weather gusts
+                    posArray[p] += Math.sin(time * 2 + p * 0.01) * 0.05 + weatherWindX * 0.8;
                     // Forward drift (wind pushing toward camera)
-                    posArray[p + 2] += 0.1;
+                    posArray[p + 2] += 0.1 + weatherWindZ * 0.5;
 
                     // Reset if below ground
                     if (posArray[p + 1] < -1) {
@@ -1259,13 +1329,13 @@ export function updateEraEnvironment(
             }
         }
 
-        // Animate ground fog (gentle drift and opacity pulse)
+        // Animate ground fog (gentle drift and opacity pulse + weather variation)
         if (child.userData.isGroundFog) {
             const layer = child.userData.fogLayer || 0;
-            child.position.x = Math.sin(time * 0.3 + layer) * 5;
+            child.position.x = Math.sin(time * 0.3 + layer) * 5 + weatherWindX * 20;
             const mesh = child as THREE.Mesh;
             if (mesh.material && !Array.isArray(mesh.material)) {
-                (mesh.material as THREE.Material).opacity = 0.12 + Math.sin(time * 0.5 + layer * 0.5) * 0.05;
+                (mesh.material as THREE.Material).opacity = (0.12 + Math.sin(time * 0.5 + layer * 0.5) * 0.05) * weatherFogMult;
             }
         }
 

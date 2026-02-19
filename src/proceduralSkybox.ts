@@ -33,6 +33,7 @@ uniform float auroraIntensity;
 uniform vec3 sunPosition;
 uniform float sunIntensity;
 uniform vec3 sunColor;
+uniform float dayNightPhase;
 
 varying vec3 vWorldPosition;
 varying vec2 vUv;
@@ -146,6 +147,80 @@ vec3 sunGlow(vec3 worldPos, vec3 sunPos, float intensity, vec3 color) {
     return color * (glow + halo);
 }
 
+// Shooting stars and comets
+float shootingStar(vec2 uv, float t) {
+    float result = 0.0;
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        float period = 5.0 + fi * 3.5;
+        float slot = floor(t / period);
+        float phase = fract(t / period);
+        float duration = 0.06 + fi * 0.01;
+        if (phase < duration) {
+            float p = phase / duration;
+            float startX = hash(vec2(slot, fi + 100.0));
+            float startY = 0.55 + hash(vec2(slot + 50.0, fi + 200.0)) * 0.35;
+            float angle = -0.4 - hash(vec2(fi + 300.0, slot)) * 0.6;
+            float speed = 0.35 + hash(vec2(slot * 3.0, fi + 400.0)) * 0.25;
+            vec2 head = vec2(startX + cos(angle) * p * speed, startY + sin(angle) * p * speed);
+            float tailT = max(0.0, p - 0.35);
+            vec2 tail = vec2(startX + cos(angle) * tailT * speed, startY + sin(angle) * tailT * speed);
+            vec2 ab = head - tail;
+            float abLen = length(ab);
+            if (abLen > 0.001) {
+                float proj = clamp(dot(uv - tail, ab) / dot(ab, ab), 0.0, 1.0);
+                float dist = length(uv - tail - ab * proj);
+                float brightness = smoothstep(0.006, 0.0, dist) * (1.0 - p * 0.4);
+                brightness *= 0.2 + 0.8 * proj;
+                result += brightness * 1.8;
+            }
+        }
+    }
+    // Comet: rarer, brighter, with wider glow tail
+    {
+        float cPeriod = 35.0;
+        float cSlot = floor(t / cPeriod);
+        float cPhase = fract(t / cPeriod);
+        if (cPhase < 0.12) {
+            float p = cPhase / 0.12;
+            float sx = hash(vec2(cSlot, 999.0));
+            float sy = 0.7 + hash(vec2(cSlot + 1.0, 999.0)) * 0.2;
+            float ca = -0.25 - hash(vec2(cSlot, 888.0)) * 0.3;
+            float cs = 0.2;
+            vec2 cHead = vec2(sx + cos(ca) * p * cs, sy + sin(ca) * p * cs);
+            float cTailT = max(0.0, p - 0.2);
+            vec2 cTail = vec2(sx + cos(ca) * cTailT * cs, sy + sin(ca) * cTailT * cs);
+            vec2 cab = cHead - cTail;
+            if (length(cab) > 0.001) {
+                float cProj = clamp(dot(uv - cTail, cab) / dot(cab, cab), 0.0, 1.0);
+                float cDist = length(uv - cTail - cab * cProj);
+                float cBright = smoothstep(0.015, 0.0, cDist) * (1.0 - p * 0.3);
+                cBright *= 0.1 + 0.9 * cProj;
+                // Comet glow halo
+                float halo = smoothstep(0.04, 0.0, cDist) * 0.3 * (1.0 - p * 0.3) * cProj;
+                result += (cBright * 2.5 + halo);
+            }
+        }
+    }
+    return min(result, 4.0);
+}
+
+// Moon glow
+vec3 moonGlow(vec3 worldPos, float dayPhase) {
+    // Moon is opposite the sun
+    float moonAngle = dayPhase * 6.28318 + 3.14159;
+    vec3 moonDir = normalize(vec3(cos(moonAngle) * 0.5, sin(moonAngle) * 0.4 + 0.3, 0.3));
+    vec3 viewDir = normalize(worldPos);
+    float moonDot = max(0.0, dot(viewDir, moonDir));
+    float disc = smoothstep(0.997, 0.999, moonDot);
+    float halo = pow(moonDot, 64.0) * 0.3;
+    float outerHalo = pow(moonDot, 8.0) * 0.08;
+    // Moon only visible at night (phase near 0.5)
+    float nightFactor = smoothstep(0.15, 0.35, dayPhase) * smoothstep(0.85, 0.65, dayPhase);
+    vec3 moonColor = vec3(0.85, 0.9, 1.0);
+    return moonColor * (disc * 1.5 + halo + outerHalo) * nightFactor;
+}
+
 void main() {
     vec3 worldDir = normalize(vWorldPosition);
     float height = worldDir.y * 0.5 + 0.5;
@@ -164,24 +239,47 @@ void main() {
     horizonFactor = pow(horizonFactor, 2.0);
     skyColor = mix(skyColor, horizonGlow, horizonFactor * 0.6);
     
-    // Add stars
+    // Day/night cycle: 0=noon 0.5=midnight
+    float nightFactor = smoothstep(0.15, 0.4, dayNightPhase) * smoothstep(0.85, 0.6, dayNightPhase);
+    float dayBrightness = mix(1.0, 0.12, nightFactor);
+    
+    // Sunset/sunrise warm tint (around phase 0.2 and 0.8)
+    float sunsetFactor = max(
+        smoothstep(0.1, 0.2, dayNightPhase) * smoothstep(0.35, 0.25, dayNightPhase),
+        smoothstep(0.65, 0.75, dayNightPhase) * smoothstep(0.9, 0.8, dayNightPhase)
+    );
+    vec3 sunsetTint = vec3(1.0, 0.5, 0.2) * sunsetFactor * 0.4;
+    
+    // Darken sky at night, add sunset tint during transitions
+    skyColor = skyColor * dayBrightness + sunsetTint;
+    
+    // Add stars (much brighter at night)
     vec2 starUv = vec2(atan(worldDir.x, worldDir.z) / 6.28318 + 0.5, height);
-    float starBrightness = stars(starUv + time * 0.001, starDensity);
+    float nightStarBoost = mix(1.0, 5.0, nightFactor);
+    float starBrightness = stars(starUv + time * 0.001, starDensity) * nightStarBoost;
     skyColor += vec3(starBrightness);
+    
+    // Add shooting stars and comets (more visible at night)
+    float meteorBoost = mix(0.6, 1.5, nightFactor);
+    float meteorBrightness = shootingStar(starUv, time) * meteorBoost;
+    skyColor += vec3(meteorBrightness * 0.9, meteorBrightness * 0.95, meteorBrightness);
+    
+    // Add moon (visible at night)
+    skyColor += moonGlow(vWorldPosition, dayNightPhase);
     
     // Add nebula
     vec2 nebulaUv = vec2(atan(worldDir.x, worldDir.z) / 6.28318, height);
-    skyColor += nebula(nebulaUv, nebulaIntensity);
+    skyColor += nebula(nebulaUv, nebulaIntensity) * mix(1.0, 1.5, nightFactor);
     
-    // Add aurora
-    skyColor += aurora(nebulaUv, auroraIntensity);
+    // Add aurora (brighter at night)
+    skyColor += aurora(nebulaUv, auroraIntensity) * mix(1.0, 1.8, nightFactor);
     
-    // Add sun glow
-    skyColor += sunGlow(vWorldPosition, sunPosition, sunIntensity, sunColor);
+    // Add sun glow (fades at night)
+    skyColor += sunGlow(vWorldPosition, sunPosition, sunIntensity * dayBrightness, sunColor);
     
     // Atmospheric fog at horizon
     float fog = 1.0 - smoothstep(0.0, 0.15, abs(height - 0.3));
-    skyColor = mix(skyColor, horizonGlow, fog * 0.3);
+    skyColor = mix(skyColor, horizonGlow * dayBrightness, fog * 0.3);
     
     gl_FragColor = vec4(skyColor, 1.0);
 }
@@ -206,6 +304,7 @@ export class ProceduralSkybox {
         sunPosition: { value: THREE.Vector3 };
         sunIntensity: { value: number };
         sunColor: { value: THREE.Color };
+        dayNightPhase: { value: number };
     };
 
     private currentElo: number = 400;
@@ -225,6 +324,7 @@ export class ProceduralSkybox {
             sunPosition: { value: new THREE.Vector3(100, 50, 100) },
             sunIntensity: { value: 1.0 },
             sunColor: { value: new THREE.Color(0xffffff) },
+            dayNightPhase: { value: 0 },
         };
 
         this.material = new THREE.ShaderMaterial({
@@ -306,13 +406,27 @@ export class ProceduralSkybox {
             }
         }
 
-        // Subtle sun movement
-        const sunAngle = this.uniforms.time.value * 0.02;
+        // Day/night cycle: full cycle every ~4 minutes (240s)
+        const DAY_NIGHT_PERIOD = 240.0;
+        const dayNightPhase = (this.uniforms.time.value / DAY_NIGHT_PERIOD) % 1.0;
+        this.uniforms.dayNightPhase.value = dayNightPhase;
+
+        // Sun orbits with day/night cycle
         const era = getEraForElo(this.currentElo);
         const baseAngle = era.sunAngleBase;
+        const dayAngle = dayNightPhase * Math.PI * 2; // Full rotation
 
-        this.uniforms.sunPosition.value.x = Math.cos(baseAngle + sunAngle * 0.1) * 100;
-        this.uniforms.sunPosition.value.z = Math.sin(baseAngle + sunAngle * 0.05) * 100;
+        // Sun Y: high at noon (phase 0), below horizon at midnight (phase 0.5)
+        const sunY = Math.cos(dayAngle) * 60 + 30;
+        this.uniforms.sunPosition.value.set(
+            Math.cos(baseAngle + dayAngle * 0.3) * 100,
+            sunY,
+            Math.sin(baseAngle + dayAngle * 0.15) * 100
+        );
+
+        // Dim sun intensity at night
+        const nightFactor = Math.max(0, Math.min(1, (Math.cos(dayAngle) + 1) * 0.5));
+        this.uniforms.sunIntensity.value = era.sunIntensity * (0.05 + 0.95 * nightFactor);
     }
 
     /**

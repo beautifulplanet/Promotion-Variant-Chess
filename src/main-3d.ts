@@ -1398,7 +1398,11 @@ Game.registerCallbacks({
     } else {
       loadRandomArticles();
     }
-  }
+  },
+
+  onMoveAnimation: (data) => {
+    Renderer.setPendingMoveAnimation(data);
+  },
 });
 
 // Era/World change callback

@@ -38,6 +38,12 @@ const dinoTextures: THREE.Texture[] = [];
 const dinoMaterials: THREE.SpriteMaterial[] = []; // Cache materials to reduce GPU state changes
 let dinoResourcesLoaded = false;
 
+// Classify sprites by type based on actual image proportions:
+// Flyers: very wide aspect ratio (pterodactyl silhouettes)
+// Ground: taller/squarish (T-Rex, Stego, Trike, Brachi, etc.)
+const FLYER_INDICES = new Set([3, 9, 12]);  // ratio>2.0: dino_3(2.19), dino_9(2.52), dino_12(17.6)
+const GROUND_INDICES = [0, 1, 2, 4, 5, 6, 7, 8, 10, 11];  // all ground-walkers
+
 function loadDinoResources() {
     if (dinoResourcesLoaded) return;
 
@@ -47,13 +53,6 @@ function loadDinoResources() {
         const texture = loader.load(`/assets/dinos/dino_${i}.png`);
         texture.colorSpace = THREE.SRGBColorSpace;
         dinoTextures[i] = texture;
-
-        // Pre-create material for batching efficiency
-        // We use a slightly different color per instance in the old code (maybe not? it was hardcoded 0x1a1a1a)
-        // If we want color variation, we can't fully batch, but reusing the base material and cloning is still better,
-        // or just sharing one material if they are identical.
-        // The previous code had: color: 0x1a1a1a, opacity: 0.85. Identical for all.
-        // So we can share ONE material per texture.
 
         dinoMaterials[i] = new THREE.SpriteMaterial({
             map: texture,
@@ -67,7 +66,8 @@ function loadDinoResources() {
 }
 
 /**
- * Add dinosaur vector silhouettes to the background
+ * Add dinosaur silhouette sprites to the background
+ * Flyers go in the sky, ground-walkers stay on the ground
  */
 function addJurassicDinosaurs(group: THREE.Group, offset: number, progress: number): void {
     // Ensure textures/materials are loading
@@ -80,36 +80,76 @@ function addJurassicDinosaurs(group: THREE.Group, offset: number, progress: numb
         const seed = 400000 + i * 999;
         const random = seededRandom(seed);
 
-        const dinoIndex = Math.floor(random() * 13);
+        // Decide: ~20% chance of flyer, ~80% ground  
+        const isFlyer = random() < 0.2;
+        let dinoIndex: number;
+        if (isFlyer) {
+            const flyerArr = Array.from(FLYER_INDICES);
+            dinoIndex = flyerArr[Math.floor(random() * flyerArr.length)];
+        } else {
+            dinoIndex = GROUND_INDICES[Math.floor(random() * GROUND_INDICES.length)];
+        }
 
         // Use Cached Material
-        if (!dinoMaterials[dinoIndex]) continue; // Skip if not ready (though sync in logic, async in reality)
+        if (!dinoMaterials[dinoIndex]) continue;
         const material = dinoMaterials[dinoIndex];
 
-        // Random placement
         const side = random() > 0.5 ? 1 : -1;
-        const distFromCenter = 40 + random() * 80;
-        const height = 5 + random() * 20;
         const depth = (random() - 0.5) * 400 + offset;
 
-        // Size variation
-        const scale = 15 + random() * 25;
+        let yPos: number;
+        let scale: number;
+        let distFromCenter: number;
+
+        if (isFlyer) {
+            // Flyers: high in the sky, further out, smaller scale for realism
+            yPos = 20 + random() * 35;            // 20-55 units up in the sky
+            scale = 8 + random() * 12;            // smaller (they're far away)
+            distFromCenter = 30 + random() * 60;  // moderate lateral spread
+        } else {
+            // Ground walkers: firmly on the ground, larger since they're "closer"
+            yPos = 0;                              // bottom-anchored at ground level
+            scale = 15 + random() * 25;            // larger silhouettes
+            distFromCenter = 40 + random() * 80;   // further to the sides
+        }
 
         const sprite = new THREE.Sprite(material);
-        sprite.position.set(side * distFromCenter, height, depth);
 
-        // Variable scale
+        if (isFlyer) {
+            // Center-anchor for flyers (they float in the sky)
+            sprite.center.set(0.5, 0.5);
+        } else {
+            // Bottom-anchor for ground walkers
+            sprite.center.set(0.5, 0);
+        }
+
+        sprite.position.set(side * distFromCenter, yPos, depth);
         sprite.scale.set(scale, scale, 1);
 
         // Randomly flip horizontally
         if (random() > 0.5) {
-            sprite.center.set(0.5, 0.5);
             sprite.scale.x = -scale;
         }
 
         sprite.userData.scrollable = true;
-        sprite.userData.isDinosaur = true; // Mark for specialized update logic
+        sprite.userData.isDinosaur = true;
+        sprite.userData.isFlyer = isFlyer;
         sprite.userData.era = 1;
+
+        if (isFlyer) {
+            // Flyers: gentle soaring motion
+            sprite.userData.walkSpeed = 0.08 + random() * 0.15;  // slow drift
+            sprite.userData.bobSpeed = 0.5 + random() * 1.0;     // lazy wing flap rhythm
+            sprite.userData.bobAmount = 0.5 + random() * 1.5;    // vertical soar range
+            sprite.userData.baseScale = scale;
+            sprite.userData.baseY = yPos;                         // remember sky height
+        } else {
+            // Ground: walking variation
+            sprite.userData.walkSpeed = 0.15 + random() * 0.45;
+            sprite.userData.bobSpeed = 1.0 + random() * 3.0;
+            sprite.userData.bobAmount = 0.02 + random() * 0.12;
+            sprite.userData.baseScale = scale;
+        }
 
         group.add(sprite);
     }

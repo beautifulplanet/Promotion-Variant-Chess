@@ -236,6 +236,11 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     scene.add(environmentGroup);
     scene.add(uiGroup);
 
+    // Effects group for capture/dust animations (lives outside piecesGroup)
+    effectsGroup = new THREE.Group();
+    effectsGroup.name = 'effectsGroup';
+    scene.add(effectsGroup);
+
     // ==========================================================================
     // PBR ENVIRONMENT MAP SETUP - Critical for realistic reflections
     // ==========================================================================
@@ -847,11 +852,15 @@ const DRAG_THRESHOLD = 8;
 
 function setupCameraControls(): void {
     // --- MOUSE EVENTS ---
-    // Right-click drag = orbit camera (always available, no mode toggle needed)
-    // Left-click = piece selection (handled by click handler)
+    // Right-click drag = orbit camera (mouse users)
+    // Middle-click drag = orbit camera (alternative)
+    // Alt + left-click drag = orbit camera (trackpad / 3D-app convention)
+    // Left-click (no Alt) = piece selection (handled by click handler)
     canvas.addEventListener('mousedown', (e) => {
-        if (e.button === 2) {
-            // Right-click: start orbit
+        const isOrbitTrigger = e.button === 2              // right-click
+                            || e.button === 1              // middle-click
+                            || (e.button === 0 && e.altKey); // Alt+left-click
+        if (isOrbitTrigger) {
             e.preventDefault();
             isDragging = false;
             dragStartX = e.clientX;
@@ -900,6 +909,11 @@ function setupCameraControls(): void {
     // Prevent context menu on right-click (we use it for orbit)
     canvas.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+    });
+
+    // Prevent middle-click auto-scroll (we use it for orbit)
+    canvas.addEventListener('auxclick', (e) => {
+        if (e.button === 1) e.preventDefault();
     });
 
     // Scroll wheel = zoom (always available)
@@ -1042,8 +1056,8 @@ function updateCameraPosition(): void {
 
 function setupClickHandler(): void {
     canvas.addEventListener('click', (e) => {
-        // Don't process clicks during drag operations
-        if (isDragging) return;
+        // Don't process clicks during drag operations or Alt+clicks (orbit trigger)
+        if (isDragging || e.altKey) return;
 
         const boardPos = screenToBoard(e.clientX, e.clientY);
         if (boardPos && onSquareClickCallback) {
@@ -4382,6 +4396,349 @@ function getPieceMaterials(piece: Piece): {
 // PERFORMANCE: Track previous board state to avoid unnecessary updates
 let _prevBoardHash: string = '';
 
+// =============================================================================
+// PIECE MOVE ANIMATION — Cartoonish arc + squash/stretch + capture effects
+// =============================================================================
+
+// Separate group for effects so updatePieces clearing piecesGroup won't kill them
+let effectsGroup: THREE.Group;
+
+interface MoveAnimationData {
+    fromRow: number;
+    fromCol: number;
+    toRow: number;
+    toCol: number;
+    isCapture: boolean;
+    capturedType?: string;
+    movingPieceType?: string;
+    isCastling?: boolean;
+    rookFromCol?: number;
+    rookToCol?: number;
+}
+
+// Set by gameController before notifyStateChange
+let pendingMoveAnim: MoveAnimationData | null = null;
+
+// Waiting for piece to appear (handles async sprite sheet creation)
+let pendingStartAnim: MoveAnimationData | null = null;
+let pendingStartTime: number = 0;
+
+interface ActiveMoveAnimation {
+    toRow: number;
+    toCol: number;
+    fromX: number;
+    fromZ: number;
+    toX: number;
+    toZ: number;
+    baseY: number;
+    startTime: number;
+    duration: number;
+    isCapture: boolean;
+    arcHeight: number;
+    isCastling?: boolean;
+    rookToRow?: number;
+    rookToCol?: number;
+    rookFromX?: number;
+    rookToX?: number;
+}
+
+let activeMoveAnim: ActiveMoveAnimation | null = null;
+
+// Landing bounce state (separate from main animation)
+let landingBounce: { row: number; col: number; startTime: number; duration: number } | null = null;
+
+interface CaptureEffect {
+    object: THREE.Object3D;
+    startTime: number;
+    duration: number;
+    effectType: 'poof' | 'squish' | 'spiral' | 'pop';
+    basePos: { x: number; y: number; z: number };
+}
+let activeCaptureEffects: CaptureEffect[] = [];
+
+interface DustPuff {
+    particles: THREE.Points;
+    startTime: number;
+    duration: number;
+}
+let activeDustPuffs: DustPuff[] = [];
+
+/** Queue a move animation. Called BEFORE notifyStateChange. */
+export function setPendingMoveAnimation(data: MoveAnimationData): void {
+    console.log('[ANIM] setPending:', data.fromRow, data.fromCol, '->', data.toRow, data.toCol, 'capture:', data.isCapture);
+    pendingMoveAnim = data;
+}
+
+function _sqWorld(row: number, col: number): { x: number; z: number } {
+    return {
+        x: col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+        z: row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+    };
+}
+
+function _findPiece(row: number, col: number): THREE.Object3D | undefined {
+    return piecesGroup.children.find(
+        c => c.userData.row === row && c.userData.col === col
+    );
+}
+
+function _resetScale(piece: THREE.Object3D): void {
+    if (piece instanceof THREE.Sprite) piece.scale.set(0.9, 0.9, 1);
+    else if (piece instanceof THREE.Group) piece.scale.set(1, 1, 1);
+}
+
+/** Snap any running animation to its final position. */
+function _finishAnim(): void {
+    if (!activeMoveAnim) return;
+    const a = activeMoveAnim;
+    const p = _findPiece(a.toRow, a.toCol);
+    if (p) {
+        p.position.set(a.toX, a.baseY, a.toZ);
+        _resetScale(p);
+    }
+    if (a.isCastling && a.rookToCol !== undefined && a.rookToX !== undefined) {
+        const rook = _findPiece(a.rookToRow!, a.rookToCol);
+        if (rook) rook.position.x = a.rookToX;
+    }
+    activeMoveAnim = null;
+    landingBounce = null;
+}
+
+/** Try to start the animation. Returns false if piece not found yet (async). */
+function _tryStartAnim(anim: MoveAnimationData): boolean {
+    const piece = _findPiece(anim.toRow, anim.toCol);
+    if (!piece) return false;
+
+    const from = _sqWorld(anim.fromRow, anim.fromCol);
+    const to = _sqWorld(anim.toRow, anim.toCol);
+    const baseY = piece.position.y;
+
+    // Snap piece to source position
+    piece.position.x = from.x;
+    piece.position.z = from.z;
+
+    const isKnight = anim.movingPieceType === 'N';
+    const dist = Math.sqrt((to.x - from.x) ** 2 + (to.z - from.z) ** 2);
+    const arcHeight = isKnight ? 1.8 + dist * 0.3 : 0.4 + dist * 0.12;
+    const duration = isKnight ? 400 : 280;
+
+    if (anim.isCapture) _spawnCapture(anim.toRow, anim.toCol);
+
+    let rookFromX: number | undefined;
+    let rookToX: number | undefined;
+    if (anim.isCastling && anim.rookFromCol !== undefined && anim.rookToCol !== undefined) {
+        const rook = _findPiece(anim.toRow, anim.rookToCol);
+        if (rook) {
+            const rf = _sqWorld(anim.fromRow, anim.rookFromCol);
+            const rt = _sqWorld(anim.toRow, anim.rookToCol);
+            rook.position.x = rf.x;
+            rookFromX = rf.x;
+            rookToX = rt.x;
+        }
+    }
+
+    activeMoveAnim = {
+        toRow: anim.toRow, toCol: anim.toCol,
+        fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z,
+        baseY, startTime: performance.now(), duration,
+        isCapture: anim.isCapture, arcHeight,
+        isCastling: anim.isCastling,
+        rookToRow: anim.toRow, rookToCol: anim.rookToCol,
+        rookFromX, rookToX,
+    };
+    return true;
+}
+
+function _spawnCapture(row: number, col: number): void {
+    if (!effectsGroup) return;
+    const pos = _sqWorld(row, col);
+    const types: CaptureEffect['effectType'][] = ['poof', 'squish', 'spiral', 'pop'];
+    const effectType = types[Math.floor(Math.random() * types.length)];
+    const geo = new THREE.RingGeometry(0.05, 0.35, 16);
+    const mat = new THREE.MeshBasicMaterial({
+        color: effectType === 'poof' ? 0xffcc44 : effectType === 'squish' ? 0xff4444 :
+               effectType === 'spiral' ? 0x44aaff : 0xff8800,
+        transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, 0.7, pos.z);
+    mesh.rotation.x = -Math.PI / 2;
+    effectsGroup.add(mesh);
+    activeCaptureEffects.push({
+        object: mesh, startTime: performance.now(),
+        duration: effectType === 'spiral' ? 500 : 350,
+        effectType, basePos: { x: pos.x, y: 0.7, z: pos.z },
+    });
+}
+
+function _spawnDust(x: number, z: number): void {
+    if (!effectsGroup) return;
+    const count = 8;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+        pos[i * 3] = (Math.random() - 0.5) * 0.3;
+        pos[i * 3 + 1] = Math.random() * 0.15;
+        pos[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+        color: 0xccbbaa, size: 0.12, transparent: true, opacity: 0.7, depthWrite: false,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.position.set(x, 0.15, z);
+    effectsGroup.add(pts);
+    activeDustPuffs.push({ particles: pts, startTime: performance.now(), duration: 300 });
+}
+
+function _easeOutBack(t: number): number {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function _easeOutQuad(t: number): number {
+    return 1 - (1 - t) * (1 - t);
+}
+
+/** Tick all animations. Called every frame from render loop. */
+function tickMoveAnimations(): void {
+    const now = performance.now();
+
+    // --- Poll for pending animation start (piece may be async) ---
+    if (pendingStartAnim) {
+        const found = _findPiece(pendingStartAnim.toRow, pendingStartAnim.toCol);
+        console.log('[ANIM] polling for piece at', pendingStartAnim.toRow, pendingStartAnim.toCol, 'found:', !!found, 'children:', piecesGroup.children.length, 'elapsed:', Math.round(now - pendingStartTime), 'ms');
+        if (found && _tryStartAnim(pendingStartAnim)) {
+            console.log('[ANIM] animation STARTED!');
+            pendingStartAnim = null;
+        } else if (now - pendingStartTime > 500) {
+            console.warn('[ANIM] poll timeout - piece never appeared');
+            pendingStartAnim = null; // timeout
+        }
+    }
+
+    // --- Active move animation ---
+    if (activeMoveAnim) {
+        const a = activeMoveAnim;
+        const t = Math.min((now - a.startTime) / a.duration, 1);
+        const piece = _findPiece(a.toRow, a.toCol);
+
+        if (!piece) {
+            activeMoveAnim = null;
+        } else {
+            const ease = _easeOutBack(t);
+            piece.position.x = a.fromX + (a.toX - a.fromX) * ease;
+            piece.position.z = a.fromZ + (a.toZ - a.fromZ) * ease;
+
+            const arc = Math.sin(t * Math.PI);
+            piece.position.y = a.baseY + arc * a.arcHeight;
+
+            // Squash-and-stretch
+            if (piece instanceof THREE.Sprite) {
+                piece.scale.set(0.9 * (1 - arc * 0.1), 0.9 * (1 + arc * 0.25), 1);
+            } else if (piece instanceof THREE.Group) {
+                piece.scale.set(1 - arc * 0.08, 1 + arc * 0.2, 1 - arc * 0.08);
+            }
+
+            // Castling rook slide
+            if (a.isCastling && a.rookToCol !== undefined && a.rookFromX !== undefined && a.rookToX !== undefined) {
+                const rook = _findPiece(a.rookToRow!, a.rookToCol);
+                if (rook) rook.position.x = a.rookFromX + (a.rookToX - a.rookFromX) * _easeOutQuad(t);
+            }
+
+            if (t >= 1) {
+                piece.position.set(a.toX, a.baseY, a.toZ);
+                _resetScale(piece);
+                if (a.isCastling && a.rookToCol !== undefined && a.rookToX !== undefined) {
+                    const rook = _findPiece(a.rookToRow!, a.rookToCol);
+                    if (rook) rook.position.x = a.rookToX;
+                }
+                _spawnDust(a.toX, a.toZ);
+                landingBounce = { row: a.toRow, col: a.toCol, startTime: now, duration: 120 };
+                activeMoveAnim = null;
+            }
+        }
+    }
+
+    // --- Landing bounce ---
+    if (landingBounce) {
+        const lb = landingBounce;
+        const t = Math.min((now - lb.startTime) / lb.duration, 1);
+        const piece = _findPiece(lb.row, lb.col);
+        if (!piece) {
+            landingBounce = null;
+        } else {
+            const squash = Math.sin(t * Math.PI);
+            if (piece instanceof THREE.Sprite) {
+                piece.scale.set(0.9 * (1 + squash * 0.12), 0.9 * (1 - squash * 0.15), 1);
+            } else if (piece instanceof THREE.Group) {
+                piece.scale.set(1 + squash * 0.1, 1 - squash * 0.12, 1 + squash * 0.1);
+            }
+            if (t >= 1) {
+                _resetScale(piece);
+                landingBounce = null;
+            }
+        }
+    }
+
+    // --- Capture effects ---
+    for (let i = activeCaptureEffects.length - 1; i >= 0; i--) {
+        const fx = activeCaptureEffects[i];
+        const t = Math.min((now - fx.startTime) / fx.duration, 1);
+        const mat = (fx.object as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        switch (fx.effectType) {
+            case 'poof': {
+                const s = 1 + t * 3;
+                fx.object.scale.set(s, s, s);
+                mat.opacity = 0.9 * (1 - t);
+                break;
+            }
+            case 'squish': {
+                const sy = t < 0.4 ? 1 - (t / 0.4) * 0.9 : 0.1;
+                const sx = t < 0.4 ? 1 + (t / 0.4) * 0.5 : Math.max(0.01, 1.5 - (t - 0.4) / 0.6 * 1.5);
+                fx.object.scale.set(Math.max(0.01, sx), Math.max(0.01, sy), 1);
+                mat.opacity = t < 0.4 ? 0.9 : 0.9 * (1 - (t - 0.4) / 0.6);
+                break;
+            }
+            case 'spiral': {
+                fx.object.rotation.z = t * Math.PI * 4;
+                const shrink = 1 - t;
+                fx.object.scale.set(shrink, shrink, shrink);
+                fx.object.position.y = fx.basePos.y + t * 1.5;
+                mat.opacity = 0.9 * (1 - t * t);
+                break;
+            }
+            case 'pop': {
+                const ps = t < 0.3 ? 1 + (t / 0.3) * 2.5 : Math.max(0.01, 3.5 * (1 - (t - 0.3) / 0.7));
+                fx.object.scale.set(ps, ps, 1);
+                mat.opacity = t < 0.3 ? 0.95 : 0.95 * (1 - (t - 0.3) / 0.7);
+                break;
+            }
+        }
+        if (t >= 1) {
+            effectsGroup.remove(fx.object);
+            (fx.object as THREE.Mesh).geometry.dispose();
+            mat.dispose();
+            activeCaptureEffects.splice(i, 1);
+        }
+    }
+
+    // --- Dust puffs ---
+    for (let i = activeDustPuffs.length - 1; i >= 0; i--) {
+        const dp = activeDustPuffs[i];
+        const t = Math.min((now - dp.startTime) / dp.duration, 1);
+        const mat = dp.particles.material as THREE.PointsMaterial;
+        dp.particles.scale.set(1 + t * 2, 1 + t * 3, 1 + t * 2);
+        mat.opacity = 0.7 * (1 - t);
+        if (t >= 1) {
+            effectsGroup.remove(dp.particles);
+            dp.particles.geometry.dispose();
+            mat.dispose();
+            activeDustPuffs.splice(i, 1);
+        }
+    }
+}
+
 function getBoardHash(board: (Piece | null)[][]): string {
     // OPTIMIZED: Use array + join instead of string concatenation
     const parts: string[] = [];
@@ -4402,6 +4759,14 @@ function updatePieces(force: boolean = false): void {
     }
     _prevBoardHash = newHash;
 
+    // If an animation is running, finish it instantly before rebuild
+    _finishAnim();
+    pendingStartAnim = null;
+
+    // Grab pending animation before rebuilding
+    const anim = pendingMoveAnim;
+    pendingMoveAnim = null;
+
     // Trigger shadow map update since pieces changed
     if (renderer && renderer.shadowMap) {
         renderer.shadowMap.needsUpdate = true;
@@ -4418,6 +4783,13 @@ function updatePieces(force: boolean = false): void {
                 createPieceMesh(piece, row, col);
             }
         }
+    }
+
+    // Queue animation start — tickMoveAnimations will poll until piece exists
+    if (anim) {
+        console.log('[ANIM] updatePieces grabbed anim, queuing poll. piecesGroup children:', piecesGroup.children.length);
+        pendingStartAnim = anim;
+        pendingStartTime = performance.now();
     }
 }
 
@@ -4995,6 +5367,9 @@ function startRenderLoop(): void {
                 mesh.visible = mesh.position.distanceToSquared(cameraPos) < maxDistSq;
             }
         }
+
+        // Tick piece move/capture/dust animations every frame
+        tickMoveAnimations();
 
         // PERFORMANCE: In overhead/2D mode, hide environment but ALWAYS render
         // (skipping frames causes stuttering/visual artifacts)
