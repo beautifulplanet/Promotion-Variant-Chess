@@ -19,6 +19,7 @@ import { DynamicLighting } from './dynamicLighting';
 import { createEraEnvironment, updateEraEnvironment, setAssetDensityScale as setEraAssetDensityScale, setParticleDensityScale as setEraParticleDensityScale } from './eraWorlds';
 import { getPieceStyleConfig, is2DPieceStyle, PIECE_STYLE_ORDER, STYLES_3D_ORDER, STYLES_2D_ORDER, type PieceStyleConfig } from './pieceStyles';
 import { getBoardStyleConfig, BOARD_STYLE_ORDER, type BoardStyleConfig } from './boardStyles';
+import { getPieceImage } from './pieces';
 
 // =============================================================================
 // RENDERER STATE
@@ -3562,6 +3563,22 @@ function drawPharaohPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: 
 }
 
 // =============================================================================
+// LICHESS SVG STYLE — High-quality vector pieces from pieces.ts
+// =============================================================================
+
+function drawLichessPiece(ctx: CanvasRenderingContext2D, type: string, isWhite: boolean, size: number): void {
+    const img = getPieceImage(type, isWhite ? 'white' : 'black');
+    if (img && img.complete && img.naturalWidth > 0) {
+        // Draw the SVG image scaled to fill the canvas
+        const padding = size * 0.05;
+        ctx.drawImage(img, padding, padding, size - padding * 2, size - padding * 2);
+    } else {
+        // Fallback: draw classic piece if SVG not loaded yet
+        drawClassicPiece(ctx, type, isWhite, size);
+    }
+}
+
+// =============================================================================
 // ART DECO STYLE — 1920s geometric with gold accents
 // =============================================================================
 
@@ -4214,8 +4231,8 @@ function create2DPieceMaterial(piece: Piece): THREE.SpriteMaterial {
         case 'sketch':
             drawSketchPiece(ctx, piece.type, isWhite, size);
             break;
-        case 'pharaoh':
-            drawPharaohPiece(ctx, piece.type, isWhite, size);
+        case 'lichess':
+            drawLichessPiece(ctx, piece.type, isWhite, size);
             break;
         case 'art_deco':
             drawArtDecoPiece(ctx, piece.type, isWhite, size);

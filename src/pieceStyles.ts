@@ -22,7 +22,7 @@ export interface PieceStyleConfig {
     metalness?: number;
     glowEffect?: boolean;
     // 2D properties - canvas drawing style
-    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'pharaoh' | 'editorial' | 'art_deco' | 'steampunk' | 'tribal';
+    drawStyle?: 'classic' | 'modern' | 'staunton' | 'symbols' | 'newspaper' | 'outline' | 'figurine' | 'pixel' | 'gothic' | 'minimalist' | 'celtic' | 'sketch' | 'editorial' | 'art_deco' | 'steampunk' | 'tribal' | 'lichess';
     // Sprite sheet properties (for image-based 2D styles)
     spriteSheet?: string;  // Path to sprite sheet image
     spriteLayout?: 'standard';  // Layout format: 'standard' = 2 rows (white/black) x 6 cols (K,Q,R,B,N,P)
@@ -236,13 +236,12 @@ const STYLES_2D: Record<string, PieceStyleConfig> = {
         type: '2d',
         drawStyle: 'sketch',
     },
-    pharaoh2d: {
-        id: 'pharaoh2d',
-        name: 'Pharaoh',
-        description: 'Ancient Egyptian sprite set',
+    lichess2d: {
+        id: 'lichess2d',
+        name: 'Lichess SVG',
+        description: 'Clean high-quality vector pieces',
         type: '2d',
-        spriteSheet: '/assets/pieces/Pharoh Set.png',
-        spriteLayout: 'standard',
+        drawStyle: 'lichess',
     },
     artdeco2d: {
         id: 'artdeco2d',
