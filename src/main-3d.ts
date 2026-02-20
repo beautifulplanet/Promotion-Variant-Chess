@@ -452,6 +452,33 @@ if (loadBtn) {
   });
 }
 
+// PGN export button
+const exportPgnBtn = document.getElementById('export-pgn-btn');
+if (exportPgnBtn) {
+  exportPgnBtn.addEventListener('click', () => {
+    const pgn = Game.generatePGN();
+    if (!pgn) {
+      alert('No moves to export. Play a game first!');
+      return;
+    }
+    // Copy to clipboard and offer download
+    navigator.clipboard.writeText(pgn).then(() => {
+      console.log('[PGN] Copied to clipboard');
+    }).catch(() => {
+      console.log('[PGN] Clipboard write failed, offering download only');
+    });
+    // Also trigger download
+    const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chess-game-${Date.now()}.pgn`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Sound.play('move');
+  });
+}
+
 
 // Debug menu logic
 const debugMenu = document.getElementById('debug-menu');

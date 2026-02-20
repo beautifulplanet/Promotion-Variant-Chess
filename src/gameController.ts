@@ -333,6 +333,51 @@ export function getMoveCount(): number {
 }
 
 /**
+ * Generate PGN (Portable Game Notation) for the current game
+ */
+export function generatePGN(): string {
+  const history = engine.getMoveHistory();
+  if (history.length === 0) return '';
+
+  const date = new Date();
+  const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+
+  // Determine result
+  let result = '*'; // ongoing
+  if (state.gameOver) {
+    if (engine.isCheckmate()) {
+      // If it's white's turn and checkmate, black won (and vice versa)
+      result = engine.getTurn() === 'white' ? '0-1' : '1-0';
+    } else {
+      result = '1/2-1/2';
+    }
+  }
+
+  // Build PGN headers
+  const headers = [
+    `[Event "Promotion Variant Chess"]`,
+    `[Site "https://promotion-variant-chess.vercel.app"]`,
+    `[Date "${dateStr}"]`,
+    `[White "${state.playerColor === 'white' ? 'Player' : 'Stockfish AI'}"]`,
+    `[Black "${state.playerColor === 'black' ? 'Player' : 'Stockfish AI'}"]`,
+    `[Result "${result}"]`,
+    `[WhiteElo "${state.elo}"]`,
+  ];
+
+  // Build move text: "1. e4 e5 2. Nf3 Nc6 ..."
+  let moveText = '';
+  for (let i = 0; i < history.length; i++) {
+    if (i % 2 === 0) {
+      moveText += `${Math.floor(i / 2) + 1}. `;
+    }
+    moveText += history[i] + ' ';
+  }
+  moveText += result;
+
+  return headers.join('\n') + '\n\n' + moveText.trim();
+}
+
+/**
  * Check if in check
  */
 export function isInCheck(): boolean {
