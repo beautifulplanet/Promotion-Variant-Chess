@@ -4537,7 +4537,7 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
     const isKnight = anim.movingPieceType === 'N';
     const dist = Math.sqrt((to.x - from.x) ** 2 + (to.z - from.z) ** 2);
     const arcHeight = isKnight ? 1.8 + dist * 0.3 : 0.4 + dist * 0.12;
-    const duration = isKnight ? 400 : 280;
+    const duration = isKnight ? 700 : 500;
 
     if (anim.isCapture) _spawnCapture(anim.toRow, anim.toCol);
 
@@ -4583,7 +4583,7 @@ function _spawnCapture(row: number, col: number): void {
     effectsGroup.add(mesh);
     activeCaptureEffects.push({
         object: mesh, startTime: performance.now(),
-        duration: effectType === 'spiral' ? 500 : 350,
+        duration: effectType === 'spiral' ? 800 : 600,
         effectType, basePos: { x: pos.x, y: 0.7, z: pos.z },
     });
 }
@@ -4605,7 +4605,7 @@ function _spawnDust(x: number, z: number): void {
     const pts = new THREE.Points(geo, mat);
     pts.position.set(x, 0.15, z);
     effectsGroup.add(pts);
-    activeDustPuffs.push({ particles: pts, startTime: performance.now(), duration: 300 });
+    activeDustPuffs.push({ particles: pts, startTime: performance.now(), duration: 500 });
 }
 
 function _easeOutBack(t: number): number {
@@ -4671,7 +4671,7 @@ function tickMoveAnimations(): void {
                     if (rook) rook.position.x = a.rookToX;
                 }
                 _spawnDust(a.toX, a.toZ);
-                landingBounce = { row: a.toRow, col: a.toCol, startTime: now, duration: 120 };
+                landingBounce = { row: a.toRow, col: a.toCol, startTime: now, duration: 220 };
                 activeMoveAnim = null;
             }
         }
