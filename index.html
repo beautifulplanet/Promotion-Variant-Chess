@@ -762,6 +762,51 @@
       white-space: nowrap;
     }
 
+    /* ═══════════ STYLE PREVIEW TOAST ═══════════ */
+    #style-preview-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      z-index: 2800;
+      background: var(--sidebar-bg, #f5f0e6);
+      border: 2px solid var(--sidebar-border, #d5cfc0);
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: none;
+    }
+    #style-preview-toast.visible {
+      display: flex;
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #style-preview-toast.fade-out {
+      opacity: 0;
+      transform: translateX(-50%) translateY(10px);
+    }
+    #style-preview-toast .toast-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--sidebar-text, #2c2418);
+    }
+    #style-preview-toast .toast-desc {
+      font-family: 'Old Standard TT', serif;
+      font-size: 12px;
+      color: var(--sidebar-text-muted, #8b7e6a);
+    }
+    #style-preview-toast canvas {
+      border-radius: 6px;
+      background: rgba(0,0,0,0.05);
+    }
+
     /* ─── Loading Screen ─── */
     #loading-screen {
       position: absolute;
@@ -2016,6 +2061,13 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- STYLE PREVIEW TOAST -->
+  <div id="style-preview-toast">
+    <span class="toast-name" id="toast-style-name"></span>
+    <span class="toast-desc" id="toast-style-desc"></span>
+    <div id="toast-preview-container"></div>
   </div>
 
   <!-- KEYBOARD SHORTCUTS MODAL -->

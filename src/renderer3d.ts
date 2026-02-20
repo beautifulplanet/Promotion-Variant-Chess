@@ -1455,6 +1455,68 @@ export function cycle2DPieceStyle(): void {
 }
 
 /**
+ * Generate a preview canvas showing sample pieces for a given 2D style.
+ * Returns an HTMLCanvasElement showing K, Q, N in white and black.
+ */
+export function generate2DStylePreview(styleId: string): HTMLCanvasElement {
+    const config = getPieceStyleConfig(styleId);
+    const drawStyle = config.drawStyle || 'classic';
+    const cellSize = 48;
+    const cols = 3; // K, Q, N
+    const rows = 2; // white row, black row
+    const padding = 4;
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * cellSize + padding * 2;
+    canvas.height = rows * cellSize + padding * 2;
+    const ctx = canvas.getContext('2d')!;
+
+    // Transparent background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const pieces = ['k', 'q', 'n'];
+
+    for (let row = 0; row < rows; row++) {
+        const isWhite = row === 0;
+        for (let col = 0; col < cols; col++) {
+            const pieceType = pieces[col];
+            const x = padding + col * cellSize;
+            const y = padding + row * cellSize;
+
+            // Draw into a temp canvas at full size, then scale down
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = tmpCanvas.height = 256;
+            const tmpCtx = tmpCanvas.getContext('2d')!;
+            tmpCtx.clearRect(0, 0, 256, 256);
+
+            switch (drawStyle) {
+                case 'classic': drawClassicPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'modern': drawModernPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'staunton': drawStauntonPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'newspaper': drawNewspaperPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'editorial': drawEditorialPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'outline': drawOutlinePiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'figurine': drawFigurinePiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'pixel': drawPixelPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'gothic': drawGothicPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'minimalist': drawMinimalistPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'celtic': drawCelticPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'sketch': drawSketchPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'lichess': drawLichessPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'art_deco': drawArtDecoPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'steampunk': drawSteampunkPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'tribal': drawTribalPiece(tmpCtx, pieceType, isWhite, 256); break;
+                case 'symbols': default: drawSymbolPiece(tmpCtx, pieceType, isWhite, 256); break;
+            }
+
+            // Scale down to cell
+            ctx.drawImage(tmpCanvas, 0, 0, 256, 256, x, y, cellSize, cellSize);
+        }
+    }
+
+    return canvas;
+}
+
+/**
  * Cycle to next board style
  */
 export function cycleBoardStyle(): void {

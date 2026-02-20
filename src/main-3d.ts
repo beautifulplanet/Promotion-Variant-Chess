@@ -26,6 +26,7 @@ import * as Overlay from './overlayRenderer';
 import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
 import { initEngine, getEngineType } from './engineProvider';
+import { getPieceStyleConfig } from './pieceStyles';
 import type { PieceType } from './types';
 
 // =============================================================================
@@ -317,12 +318,44 @@ if (style3dBtn) {
   });
 }
 
+// --- Style preview toast ---
+let stylePreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showStylePreview(styleId: string): void {
+  const toast = document.getElementById('style-preview-toast');
+  const nameEl = document.getElementById('toast-style-name');
+  const descEl = document.getElementById('toast-style-desc');
+  const container = document.getElementById('toast-preview-container');
+  if (!toast || !nameEl || !descEl || !container) return;
+
+  const config = getPieceStyleConfig(styleId);
+  nameEl.textContent = config.name;
+  descEl.textContent = config.description;
+
+  // Generate preview canvas
+  container.innerHTML = '';
+  const previewCanvas = Renderer.generate2DStylePreview(styleId);
+  container.appendChild(previewCanvas);
+
+  // Show toast
+  toast.classList.remove('fade-out');
+  toast.classList.add('visible');
+
+  // Auto-hide after 2s
+  if (stylePreviewTimer) clearTimeout(stylePreviewTimer);
+  stylePreviewTimer = setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.classList.remove('visible', 'fade-out'), 300);
+  }, 2000);
+}
+
 if (style2dBtn) {
   style2dBtn.addEventListener('click', () => {
     Renderer.cycle2DPieceStyle();
     const newStyle = Renderer.get2DPieceStyle();
     style2dBtn.textContent = `🖼️ ${newStyle}`;
     Game.updateStylePreferences(undefined, newStyle, undefined);
+    showStylePreview(Renderer.get2DPieceStyle());
   });
 }
 
