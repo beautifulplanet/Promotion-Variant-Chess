@@ -5327,7 +5327,13 @@ function createPawnMesh(group: THREE.Group, material: THREE.Material, rimMateria
 // PERFORMANCE: Track previous highlight state to avoid unnecessary updates
 let _prevSelectedSquare: { row: number; col: number } | null = null;
 let _prevLegalMoveCount: number = 0;
+let _prevInCheck: boolean = false;
 const _legalMoveSet: Set<number> = new Set(); // PERF: O(1) legal move lookup
+
+// Check highlight state
+let _checkKingSquare: { row: number; col: number } | null = null;
+const CHECK_COLOR = 0xcc2222;       // Deep red for check
+const CHECK_GLOW_COLOR = 0xff4444;  // Brighter red for pulse peak
 
 function updateSquareHighlights(): void {
     // PERFORMANCE: Skip if nothing changed
@@ -5335,13 +5341,28 @@ function updateSquareHighlights(): void {
         (cachedSelectedSquare?.row === _prevSelectedSquare?.row) &&
         (cachedSelectedSquare?.col === _prevSelectedSquare?.col);
     const sameMoveCount = cachedLegalMoves.length === _prevLegalMoveCount;
+    const sameCheck = cachedInCheck === _prevInCheck;
 
-    if (sameSelection && sameMoveCount) {
+    if (sameSelection && sameMoveCount && sameCheck) {
         return;
     }
 
     _prevSelectedSquare = cachedSelectedSquare ? { ...cachedSelectedSquare } : null;
     _prevLegalMoveCount = cachedLegalMoves.length;
+    _prevInCheck = cachedInCheck;
+
+    // Find the king in check
+    _checkKingSquare = null;
+    if (cachedInCheck) {
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = cachedBoard[r]?.[c];
+                if (piece && piece.type === 'K' && piece.color === cachedTurn) {
+                    _checkKingSquare = { row: r, col: c };
+                }
+            }
+        }
+    }
 
     // PERFORMANCE: Pre-compute legal move set for O(1) lookup
     _legalMoveSet.clear();
@@ -5367,6 +5388,11 @@ function updateSquareHighlights(): void {
 
         if (_legalMoveSet.has((row << 3) | col)) {
             color = COLORS_3D.legalMoveHighlight;
+        }
+
+        // Check highlight — king square turns red
+        if (_checkKingSquare && _checkKingSquare.row === row && _checkKingSquare.col === col) {
+            color = CHECK_COLOR;
         }
 
         (child.material as THREE.MeshStandardMaterial).color.setHex(color);
@@ -5449,6 +5475,32 @@ function startRenderLoop(): void {
 
         // Tick piece move/capture/dust animations every frame
         tickMoveAnimations();
+
+        // Pulse check highlight (red glow oscillation)
+        if (_checkKingSquare) {
+            const t = (performance.now() % 800) / 800; // 800ms cycle
+            const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+            const squares = _cachedSquares || boardGroup.children.filter(
+                (child): child is THREE.Mesh =>
+                    child instanceof THREE.Mesh && child.userData?.type === 'square'
+            );
+            for (const sq of squares) {
+                if (sq.userData.row === _checkKingSquare.row && sq.userData.col === _checkKingSquare.col) {
+                    const r1 = (CHECK_COLOR >> 16 & 0xff) / 255;
+                    const g1 = (CHECK_COLOR >> 8 & 0xff) / 255;
+                    const b1 = (CHECK_COLOR & 0xff) / 255;
+                    const r2 = (CHECK_GLOW_COLOR >> 16 & 0xff) / 255;
+                    const g2 = (CHECK_GLOW_COLOR >> 8 & 0xff) / 255;
+                    const b2 = (CHECK_GLOW_COLOR & 0xff) / 255;
+                    (sq.material as THREE.MeshStandardMaterial).color.setRGB(
+                        r1 + (r2 - r1) * pulse,
+                        g1 + (g2 - g1) * pulse,
+                        b1 + (b2 - b1) * pulse
+                    );
+                    break;
+                }
+            }
+        }
 
         // PERFORMANCE: In overhead/2D mode, hide environment but ALWAYS render
         // (skipping frames causes stuttering/visual artifacts)
