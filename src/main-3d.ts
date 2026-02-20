@@ -585,6 +585,10 @@ applyDebugToggles();
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (event) => {
+  // Don't trigger if user is typing in an input/textarea
+  const tag = (event.target as HTMLElement)?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
   switch (event.key.toLowerCase()) {
     case 'v':
       // Reset camera to overhead play view (V = View reset)
@@ -592,6 +596,9 @@ document.addEventListener('keydown', (event) => {
       break;
     case 'c':
       Renderer.setViewMode('play');
+      break;
+    case 'f':
+      doFlip();
       break;
     case 'n':
       Game.newGame();
@@ -1573,6 +1580,39 @@ if (htpBtn && htpOverlay) {
 
 // Tutorial button (disabled — coming soon)
 // No click handler needed — button is disabled in HTML
+
+// --- Keyboard Shortcuts overlay ---
+const shortcutsBtn = document.getElementById('shortcuts-btn');
+const shortcutsOverlay = document.getElementById('shortcuts-overlay');
+const shortcutsCloseBtn = document.getElementById('shortcuts-close-btn');
+
+if (shortcutsBtn && shortcutsOverlay) {
+  shortcutsBtn.addEventListener('click', () => {
+    shortcutsOverlay.classList.add('open');
+  });
+  shortcutsCloseBtn?.addEventListener('click', () => {
+    shortcutsOverlay.classList.remove('open');
+  });
+  shortcutsOverlay.addEventListener('click', (e) => {
+    if (e.target === shortcutsOverlay) {
+      shortcutsOverlay.classList.remove('open');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && shortcutsOverlay.classList.contains('open')) {
+      shortcutsOverlay.classList.remove('open');
+    }
+  });
+}
+
+// '?' key opens shortcuts overlay
+document.addEventListener('keydown', (e) => {
+  if (e.key === '?' && shortcutsOverlay) {
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    shortcutsOverlay.classList.add('open');
+  }
+});
 
 const undoBtn = document.getElementById('undo-btn');
 const sidebarUndoBtn = document.getElementById('sidebar-undo-btn');

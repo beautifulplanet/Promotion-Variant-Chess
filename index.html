@@ -681,6 +681,87 @@
       text-align: center;
     }
 
+    /* ═══════════ KEYBOARD SHORTCUTS OVERLAY ═══════════ */
+    #shortcuts-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 3200;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      animation: overlay-fade-in 0.2s ease;
+    }
+    #shortcuts-overlay.open { display: flex; }
+    #shortcuts-panel {
+      background: var(--sidebar-bg, #f5f0e6);
+      border: 2px solid var(--sidebar-border);
+      border-radius: 10px;
+      width: 90vw;
+      max-width: 420px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.35);
+      animation: panel-slide-up 0.25s ease;
+      padding: 0;
+    }
+    #shortcuts-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--sidebar-border);
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
+      border-radius: 8px 8px 0 0;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    #shortcuts-panel-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+    }
+    .shortcuts-body {
+      padding: 16px 20px;
+      font-family: 'Old Standard TT', serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--sidebar-text);
+    }
+    .shortcuts-body h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 15px;
+      margin: 16px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--sidebar-border);
+    }
+    .shortcuts-body h3:first-child { margin-top: 0; }
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+    }
+    .shortcut-row .shortcut-desc {
+      flex: 1;
+    }
+    .shortcut-key {
+      display: inline-block;
+      background: var(--sidebar-text, #2c2418);
+      color: var(--sidebar-bg, #f5f0e6);
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 4px;
+      min-width: 28px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
     /* ─── Loading Screen ─── */
     #loading-screen {
       position: absolute;
@@ -1832,6 +1913,7 @@
             <button id="sound-btn" class="btn-muted">&#x1F50A; Sound</button>
             <button id="theme-btn" class="btn-muted">&#x1F3A8; Theme</button>
             <button id="stats-btn" class="btn-muted">&#x1F4CA; Stats</button>
+            <button id="shortcuts-btn" class="btn-muted">&#x2328;&#xFE0F; Keys</button>
           </div>
         </div>
 
@@ -1932,6 +2014,40 @@
         <div class="htp-footer">
           &#x1F4AC; We read &amp; respond to all Google Play Store reviews same day
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS MODAL -->
+  <div id="shortcuts-overlay">
+    <div id="shortcuts-panel">
+      <div id="shortcuts-panel-header">
+        <h2>&#x2328;&#xFE0F; Keyboard Shortcuts</h2>
+        <button class="options-panel-close" id="shortcuts-close-btn" title="Close">&times;</button>
+      </div>
+      <div class="shortcuts-body">
+        <h3>&#x265A; Gameplay</h3>
+        <div class="shortcut-row"><span class="shortcut-desc">Undo last move</span><span class="shortcut-key">Ctrl+Z</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">New game</span><span class="shortcut-key">N</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Flip board perspective</span><span class="shortcut-key">F</span></div>
+
+        <h3>&#x1F3A5; Camera</h3>
+        <div class="shortcut-row"><span class="shortcut-desc">Reset camera view</span><span class="shortcut-key">V</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Orbit (desktop)</span><span class="shortcut-key">Right-drag</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Orbit (alt)</span><span class="shortcut-key">Alt+drag</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Zoom</span><span class="shortcut-key">Scroll</span></div>
+
+        <h3>&#x1F4F1; Mobile</h3>
+        <div class="shortcut-row"><span class="shortcut-desc">Orbit camera</span><span class="shortcut-key">Two-finger drag</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Zoom</span><span class="shortcut-key">Pinch</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Remove piece to bank</span><span class="shortcut-key">Long press</span></div>
+
+        <h3>&#x2699;&#xFE0F; Setup Mode</h3>
+        <div class="shortcut-row"><span class="shortcut-desc">Remove piece to bank</span><span class="shortcut-key">Right-click</span></div>
+
+        <h3>&#x1F527; Debug</h3>
+        <div class="shortcut-row"><span class="shortcut-desc">Toggle debug menu</span><span class="shortcut-key">Shift+D</span></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Show this panel</span><span class="shortcut-key">?</span></div>
       </div>
     </div>
   </div>
