@@ -4535,6 +4535,32 @@ interface CaptureEffect {
 }
 let activeCaptureEffects: CaptureEffect[] = [];
 
+// Screen shake system for captures
+let shakeIntensity = 0;
+let shakeDecay = 0;
+const SHAKE_DURATION = 200;    // ms
+const SHAKE_INTENSITY = 0.04;  // max camera offset
+
+function triggerScreenShake(intensity: number = SHAKE_INTENSITY): void {
+    shakeIntensity = intensity;
+    shakeDecay = performance.now();
+}
+
+function getShakeOffset(): { x: number; y: number } {
+    if (shakeIntensity <= 0.001) return { x: 0, y: 0 };
+    const elapsed = performance.now() - shakeDecay;
+    const t = Math.min(elapsed / SHAKE_DURATION, 1);
+    const remaining = shakeIntensity * (1 - t * t); // Ease-out decay
+    if (remaining <= 0.001) {
+        shakeIntensity = 0;
+        return { x: 0, y: 0 };
+    }
+    return {
+        x: (Math.random() - 0.5) * 2 * remaining,
+        y: (Math.random() - 0.5) * 2 * remaining,
+    };
+}
+
 interface DustPuff {
     particles: THREE.Points;
     startTime: number;
@@ -4630,6 +4656,7 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
 
 function _spawnCapture(row: number, col: number): void {
     if (!effectsGroup) return;
+    triggerScreenShake();
     const pos = _sqWorld(row, col);
     const types: CaptureEffect['effectType'][] = ['poof', 'squish', 'spiral', 'pop'];
     const effectType = types[Math.floor(Math.random() * types.length)];
@@ -5508,8 +5535,17 @@ function startRenderLoop(): void {
             // Hide environment completely when looking overhead
             environmentGroup.visible = false;
 
+            // Apply screen shake
+            const shake = getShakeOffset();
+            camera.position.x += shake.x;
+            camera.position.y += shake.y;
+
             // Always render in 2D mode - no frame skipping to avoid stuttering
             renderer.render(scene, camera);
+
+            // Restore camera
+            camera.position.x -= shake.x;
+            camera.position.y -= shake.y;
             return;
         }
 
@@ -5539,8 +5575,17 @@ function startRenderLoop(): void {
             updateEraEnvironment(environmentGroup, deltaTime * motionScale, ribbonSpeed);
         }
 
+        // Apply screen shake
+        const shake3D = getShakeOffset();
+        camera.position.x += shake3D.x;
+        camera.position.y += shake3D.y;
+
         // Render scene
         renderer.render(scene, camera);
+
+        // Restore camera
+        camera.position.x -= shake3D.x;
+        camera.position.y -= shake3D.y;
     }
 
     animate(0);
