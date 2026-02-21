@@ -878,6 +878,75 @@
       display: block;
     }
 
+    /* ═══════════ CLASSIC MODE PLAYER BARS (hidden by default) ═══════════ */
+    .classic-player-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #bababa;
+      background: #262522;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .cpb-avatar {
+      font-size: 22px;
+      line-height: 1;
+    }
+    .cpb-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .cpb-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f0f0f0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cpb-captured {
+      font-size: 13px;
+      letter-spacing: -1px;
+      color: #b0b0b0;
+      min-height: 16px;
+    }
+    .cpb-clock {
+      font-family: 'Roboto Mono', 'Consolas', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #1a1917;
+      color: #f0f0f0;
+      min-width: 56px;
+      text-align: center;
+    }
+    .cpb-clock.low-time { color: #e05555; background: #3a1515; }
+
+    .classic-moves {
+      display: none;
+      width: 100%;
+      background: #262522;
+      color: #bababa;
+      font-family: -apple-system, sans-serif;
+      font-size: 12px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      white-space: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-height: 46px;
+      line-height: 1.6;
+    }
+    .classic-moves .cm-num { color: #8b8987; margin-right: 2px; }
+    .classic-moves .cm-move { color: #e0e0e0; margin-right: 6px; cursor: default; }
+    .classic-moves .cm-move.active { color: #81b64c; font-weight: 700; }
+
     /* BOTTOM BAR (unused — stats in toolbar now) */
     #sidebar {
       display: none;
@@ -1715,10 +1784,10 @@
     }
 
     /* ==========================================================================
-       CLASSIC MODE — Clean chess UI (chess.com / lichess feel)
+       CLASSIC MODE — chess.com / Lichess-style clean UI
        ========================================================================== */
 
-    /* --- Base classic overrides (all screen sizes) --- */
+    /* --- Base: dark chess.com palette, hide newspaper chrome --- */
     body.classic-mode {
       background: #302e2b !important;
       background-image: none !important;
@@ -1726,72 +1795,62 @@
       color: #bababa;
     }
 
-    body.classic-mode .newspaper-masthead {
-      background: #262522;
-      border-bottom: 1px solid #3d3b37;
-      padding: 4px 12px 3px;
-    }
-    body.classic-mode .masthead-title {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 18px !important;
-      font-weight: 700;
-      letter-spacing: 0;
-      text-transform: none;
-      color: #f0f0f0;
-    }
-    body.classic-mode .masthead-subtitle,
-    body.classic-mode .masthead-badge {
-      display: none;
-    }
-    body.classic-mode .masthead-rule-top { display: none; }
-    body.classic-mode .masthead-meta {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 12px;
-      color: #8b8987;
-      border-top: none;
-      padding-top: 2px;
-      margin-top: 0;
-    }
-    body.classic-mode .masthead-era { color: #81b64c; }
-    body.classic-mode .meta-sep { color: #4d4b47; }
+    /* Hide newspaper elements entirely */
+    body.classic-mode .newspaper-masthead { display: none !important; }
+    body.classic-mode .article-column { display: none !important; }
+    body.classic-mode .masthead-rule-top { display: none !important; }
 
-    /* Article columns on desktop → condensed, clean */
-    body.classic-mode .article-column {
-      background: #262522;
-      border-color: #3d3b37 !important;
-      padding: 8px 12px;
-    }
-    body.classic-mode .article {
-      border-bottom-color: #3d3b37;
-      padding: 8px 4px;
-    }
-    body.classic-mode .article-headline {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 13px;
-      font-weight: 600;
-      color: #e0e0e0;
-    }
-    body.classic-mode .article-snippet {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 12px;
-      color: #8b8987;
-      line-height: 1.4;
-    }
-
-    /* Newspaper body → dark game area */
+    /* Newspaper body → simple flexbox container */
     body.classic-mode .newspaper-body {
       background: #302e2b;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 0;
     }
 
-    /* Board area */
+    /* Center section → the chess.com game column */
+    body.classic-mode #center-section {
+      flex: 0 1 auto;
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0;
+      gap: 0;
+    }
+
+    /* Show player bars + move list */
+    body.classic-mode .classic-player-bar { display: flex; }
+    body.classic-mode .classic-moves { display: block; }
+
+    /* Top player bar → slight rounded top */
+    body.classic-mode #classic-player-top {
+      border-radius: 4px 4px 0 0;
+      border-bottom: 1px solid #1a1917;
+    }
+    /* Bottom player bar → slight rounded bottom */
+    body.classic-mode #classic-player-bottom {
+      border-radius: 0;
+      border-top: 1px solid #1a1917;
+    }
+
+    /* Board area → no border, tight against player bars */
     body.classic-mode #canvas-wrapper {
-      border: 1px solid #3d3b37;
-      border-radius: 4px;
+      border: none;
+      border-radius: 0;
+      background: #1a1917;
     }
 
-    /* Board overlay buttons → clean modern */
+    /* Board overlay buttons → clean compact row below moves */
     body.classic-mode .board-overlay-btns {
-      background: linear-gradient(to bottom, rgba(38,37,34,0.95) 0%, rgba(38,37,34,0.7) 70%, transparent 100%);
+      background: #262522;
+      border-radius: 0 0 4px 4px;
+      padding: 6px 8px;
+      justify-content: center;
+      border-top: 1px solid #1a1917;
     }
     body.classic-mode .bo-btn {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
@@ -1816,67 +1875,71 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
       color: #81b64c;
     }
-    body.classic-mode .sidebar-section {
-      border-bottom-color: #3d3b37;
-    }
+    body.classic-mode .sidebar-section { border-bottom-color: #3d3b37; }
     body.classic-mode .btn-primary {
-      background: #81b64c !important;
-      color: #fff !important;
-      font-family: -apple-system, sans-serif !important;
-      border-radius: 4px;
+      background: #81b64c !important; color: #fff !important;
+      font-family: -apple-system, sans-serif !important; border-radius: 4px;
     }
     body.classic-mode .btn-secondary {
-      background: #4d4b47 !important;
-      color: #e0e0e0 !important;
-      font-family: -apple-system, sans-serif !important;
-      border-radius: 4px;
+      background: #4d4b47 !important; color: #e0e0e0 !important;
+      font-family: -apple-system, sans-serif !important; border-radius: 4px;
     }
     body.classic-mode .btn-muted {
-      background: #3d3b37 !important;
-      color: #bababa !important;
-      font-family: -apple-system, sans-serif !important;
-      border-radius: 4px;
+      background: #3d3b37 !important; color: #bababa !important;
+      font-family: -apple-system, sans-serif !important; border-radius: 4px;
     }
 
-    /* Classic mode: desktop → 50/50 split (articles smaller, board bigger) */
+    /* Open tables panel dark */
+    body.classic-mode .open-tables-panel {
+      background: #262522;
+      border-top-color: #3d3b37;
+      font-family: -apple-system, sans-serif;
+      color: #bababa;
+    }
+
+    /* Board toast → lighter in classic so it pops */
+    body.classic-mode .board-toast {
+      background: rgba(129,182,76,0.92);
+      color: #fff;
+    }
+
+    /* Loading screen dark */
+    body.classic-mode #loading-screen {
+      background: #302e2b;
+      color: #e0e0e0;
+    }
+
+    /* === Desktop: board centered with some breathing room === */
     @media (min-width: 769px) {
-      body.classic-mode .article-column {
-        flex: 0 0 180px !important;
-        min-width: 100px !important;
-        max-width: 200px !important;
-      }
       body.classic-mode #center-section {
-        flex: 1 1 auto;
-      }
-    }
-    @media (min-width: 1100px) {
-      body.classic-mode .article-column {
-        flex: 0 0 220px !important;
-        max-width: 240px !important;
+        max-width: 600px;
+        margin-top: 12px;
       }
     }
 
-    /* Classic mode: mobile → full board, hide articles and shrink masthead */
+    /* === Mobile: tight full-width, safe-area aware === */
     @media (max-width: 768px) {
-      body.classic-mode .newspaper-masthead {
-        padding: 2px 8px 2px;
-      }
-      body.classic-mode .masthead-title {
-        font-size: 15px !important;
-      }
-      body.classic-mode .article-column {
-        display: none !important;
-      }
       body.classic-mode .newspaper-body {
-        flex-wrap: nowrap;
+        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        padding-top: env(safe-area-inset-top);
       }
       body.classic-mode #center-section {
-        flex: 1 0 100%;
+        max-width: 100%;
       }
       body.classic-mode #canvas-wrapper {
-        border-width: 0;
         border-radius: 0;
       }
+      body.classic-mode #classic-player-top { border-radius: 0; }
+      body.classic-mode .board-overlay-btns { border-radius: 0; }
+      body.classic-mode .classic-player-bar { padding: 4px 8px; }
+      body.classic-mode .cpb-clock { font-size: 16px; padding: 3px 8px; }
+    }
+
+    /* Hamburger menu: dark in classic */
+    body.classic-mode #hamburger-btn {
+      background: rgba(38,37,34,0.9);
+      color: #e0e0e0;
+      border-color: #3d3b37;
     }
 
     /* Graphics quality indicator pill */
@@ -1950,6 +2013,17 @@
 
     <!-- CENTER: BOARD -->
     <div id="center-section">
+
+      <!-- CLASSIC MODE: player bars (hidden by default, shown in classic mode) -->
+      <div id="classic-player-top" class="classic-player-bar">
+        <div class="cpb-avatar">♚</div>
+        <div class="cpb-info">
+          <span class="cpb-name" id="cpb-top-name">Opponent</span>
+          <span class="cpb-captured" id="cpb-top-captured"></span>
+        </div>
+        <div class="cpb-clock" id="cpb-top-clock">0:00</div>
+      </div>
+
       <div id="canvas-wrapper" style="position: relative;">
         <div id="loading-screen">
           <h2>Chess Wars Chronicle</h2>
@@ -1978,6 +2052,20 @@
         <!-- MULTIPLAYER PIECE BANK -->
         <div id="mp-piece-bank" class="mp-piece-bank"></div>
       </div>
+
+      <!-- CLASSIC MODE: bottom player bar -->
+      <div id="classic-player-bottom" class="classic-player-bar">
+        <div class="cpb-avatar">♔</div>
+        <div class="cpb-info">
+          <span class="cpb-name" id="cpb-bottom-name">You</span>
+          <span class="cpb-captured" id="cpb-bottom-captured"></span>
+        </div>
+        <div class="cpb-clock" id="cpb-bottom-clock">0:00</div>
+      </div>
+
+      <!-- CLASSIC MODE: compact inline move list -->
+      <div id="classic-moves" class="classic-moves"></div>
+
       <!-- EASY ACCESS BUTTONS (positioned over the board via center-section) -->
       <div class="board-overlay-btns">
         <button id="start-game-btn" class="bo-btn primary">▶ New</button>

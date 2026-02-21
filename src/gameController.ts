@@ -326,6 +326,43 @@ export function getBoard(): (Piece | null)[][] {
 }
 
 /**
+ * Get SAN move history strings (e.g. ["e4","e5","Nf3","Nc6"])
+ */
+export function getMoveHistoryStrings(): string[] {
+  return engine.getMoveHistory();
+}
+
+/**
+ * Compute captured pieces by comparing current board to starting material.
+ * Returns { white: string[], black: string[] } where each string is a Unicode piece symbol.
+ */
+export function getCapturedPieces(): { white: string[]; black: string[] } {
+  const STARTING: Record<string, number> = { P: 8, R: 2, N: 2, B: 2, Q: 1, K: 1 };
+  const board = engine.getBoard();
+  const current: Record<string, Record<string, number>> = {
+    white: { P: 0, R: 0, N: 0, B: 0, Q: 0, K: 0 },
+    black: { P: 0, R: 0, N: 0, B: 0, Q: 0, K: 0 },
+  };
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell) current[cell.color][cell.type] = (current[cell.color][cell.type] || 0) + 1;
+    }
+  }
+  const SYMBOLS_W: Record<string, string> = { P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔' };
+  const SYMBOLS_B: Record<string, string> = { P: '♟', R: '♜', N: '♞', B: '♝', Q: '♛', K: '♚' };
+  // "captured by white" = black pieces missing from the board
+  const capturedByWhite: string[] = [];
+  const capturedByBlack: string[] = [];
+  for (const piece of ['Q', 'R', 'B', 'N', 'P']) {
+    const missingBlack = Math.max(0, (STARTING[piece] || 0) - (current.black[piece] || 0));
+    for (let i = 0; i < missingBlack; i++) capturedByWhite.push(SYMBOLS_B[piece]);
+    const missingWhite = Math.max(0, (STARTING[piece] || 0) - (current.white[piece] || 0));
+    for (let i = 0; i < missingWhite; i++) capturedByBlack.push(SYMBOLS_W[piece]);
+  }
+  return { white: capturedByWhite, black: capturedByBlack };
+}
+
+/**
  * Get number of moves made in current game
  */
 export function getMoveCount(): number {

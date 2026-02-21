@@ -34,6 +34,15 @@ import { initEngine, getEngineType } from './engineProvider';
 import { getPieceStyleConfig } from './pieceStyles';
 import type { PieceType } from './types';
 
+// Classic mode DOM elements
+const cpbTopName = document.getElementById('cpb-top-name');
+const cpbTopCaptured = document.getElementById('cpb-top-captured');
+const cpbTopClock = document.getElementById('cpb-top-clock');
+const cpbBottomName = document.getElementById('cpb-bottom-name');
+const cpbBottomCaptured = document.getElementById('cpb-bottom-captured');
+const cpbBottomClock = document.getElementById('cpb-bottom-clock');
+const classicMovesElem = document.getElementById('classic-moves');
+
 // =============================================================================
 // DOM SETUP
 // =============================================================================
@@ -274,6 +283,51 @@ function updateSidebar(state: Game.GameState): void {
     showBoardToast(moveQualityToast, `${qualityDisplay!.emoji} ${qualityDisplay!.label}`, 'quality', 3500);
   } else if (!qualityKey) {
     lastShownQuality = null;
+  }
+
+  // ===== Classic mode: player bars + compact move list =====
+  if (ClassicMode.isClassicMode()) {
+    const playerColor = state.playerColor || 'white';
+    const isFlipped = playerColor === 'black';
+
+    // Names
+    if (cpbTopName) cpbTopName.textContent = isFlipped ? 'You' : 'Stockfish';
+    if (cpbBottomName) cpbBottomName.textContent = isFlipped ? 'Stockfish' : 'You';
+    // Avatar king symbols
+    const topAvatar = document.querySelector('#classic-player-top .cpb-avatar') as HTMLElement | null;
+    const botAvatar = document.querySelector('#classic-player-bottom .cpb-avatar') as HTMLElement | null;
+    if (topAvatar) topAvatar.textContent = isFlipped ? '♔' : '♚';
+    if (botAvatar) botAvatar.textContent = isFlipped ? '♚' : '♔';
+
+    // Captured pieces
+    const captured = Game.getCapturedPieces();
+    if (cpbTopCaptured) cpbTopCaptured.textContent = isFlipped ? captured.black.join('') : captured.white.join('');
+    if (cpbBottomCaptured) cpbBottomCaptured.textContent = isFlipped ? captured.white.join('') : captured.black.join('');
+
+    // Clocks (read from existing timer elements)
+    const wTime = document.getElementById('white-time')?.textContent || '0:00';
+    const bTime = document.getElementById('black-time')?.textContent || '0:00';
+    if (cpbTopClock) cpbTopClock.textContent = isFlipped ? wTime : bTime;
+    if (cpbBottomClock) cpbBottomClock.textContent = isFlipped ? bTime : wTime;
+
+    // Compact move list
+    if (classicMovesElem) {
+      const moves = Game.getMoveHistoryStrings();
+      let html = '';
+      for (let i = 0; i < moves.length; i += 2) {
+        const moveNum = Math.floor(i / 2) + 1;
+        const isLastWhite = i === moves.length - 1;
+        const isLastBlack = i + 1 === moves.length - 1;
+        html += `<span class="cm-num">${moveNum}.</span>`;
+        html += `<span class="cm-move${isLastWhite ? ' active' : ''}">${moves[i]}</span>`;
+        if (moves[i + 1]) {
+          html += `<span class="cm-move${isLastBlack ? ' active' : ''}">${moves[i + 1]}</span>`;
+        }
+      }
+      classicMovesElem.innerHTML = html;
+      // Auto-scroll to end
+      classicMovesElem.scrollLeft = classicMovesElem.scrollWidth;
+    }
   }
 
   // Update FPS counter
