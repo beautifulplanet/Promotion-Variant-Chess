@@ -27,6 +27,8 @@ import { getPieceImage } from './pieces';
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
+let orthoCamera: THREE.OrthographicCamera | null = null;
+let flatBoardMode = false;
 let renderer: THREE.WebGLRenderer;
 let canvas: HTMLCanvasElement;
 let basePixelRatio = 1;
@@ -360,6 +362,9 @@ function doResize(): void {
     renderer.setPixelRatio(dpr);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+
+    // Also update ortho camera if flat mode is active
+    if (flatBoardMode) updateOrthoCameraSize();
 
     // Invalidate caches
     _cachedSquares = null;
@@ -1266,6 +1271,118 @@ export function setTravelSpeedScale(scale: number): void {
 }
 
 // =============================================================================
+// FLAT BOARD MODE — orthographic top-down, no 3D world (chess.com style)
+// =============================================================================
+
+function getActiveCamera(): THREE.Camera {
+    return (flatBoardMode && orthoCamera) ? orthoCamera : camera;
+}
+
+function updateOrthoCameraSize(): void {
+    if (!orthoCamera || !canvas) return;
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    // Show the 8x8 board with a little margin
+    const boardHalf = 4.6; // board is 8 units, so half = 4, plus margin
+    if (aspect >= 1) {
+        orthoCamera.left = -boardHalf * aspect;
+        orthoCamera.right = boardHalf * aspect;
+        orthoCamera.top = boardHalf;
+        orthoCamera.bottom = -boardHalf;
+    } else {
+        orthoCamera.left = -boardHalf;
+        orthoCamera.right = boardHalf;
+        orthoCamera.top = boardHalf / aspect;
+        orthoCamera.bottom = -boardHalf / aspect;
+    }
+    orthoCamera.updateProjectionMatrix();
+}
+
+export function setFlatBoardMode(enabled: boolean): void {
+    flatBoardMode = enabled;
+
+    if (enabled) {
+        // Create ortho camera if needed
+        if (!orthoCamera) {
+            orthoCamera = new THREE.OrthographicCamera(-4, 4, 4, -4, 0.1, 100);
+            orthoCamera.position.set(0, 20, 0);
+            orthoCamera.lookAt(0, 0, 0);
+        }
+        updateOrthoCameraSize();
+
+        // Hide all 3D world objects
+        if (environmentGroup) environmentGroup.visible = false;
+        if (proceduralSkybox) proceduralSkybox.getMesh().visible = false;
+        if (uiGroup) uiGroup.visible = false;
+        if (effectsGroup) effectsGroup.visible = false;
+
+        // Solid dark background — no skybox, no fog
+        scene.background = new THREE.Color(0x302e2b);
+        scene.fog = null;
+
+        // Disable tone mapping for flat clean colors
+        if (renderer) {
+            renderer.toneMapping = THREE.NoToneMapping;
+            renderer.toneMappingExposure = 1.0;
+        }
+
+        // Remove ribbon extensions from board (the "infinite path" meshes)
+        if (boardGroup) {
+            const toRemove: THREE.Object3D[] = [];
+            boardGroup.children.forEach(child => {
+                if (child.userData?.isRibbon || child.userData?.type === 'ribbon'
+                    || child.userData?.type === 'forwardPath' || child.userData?.type === 'backwardPath') {
+                    toRemove.push(child);
+                }
+            });
+            // Also hide base and frame (3D raised board edge)
+            boardGroup.children.forEach(child => {
+                // Base is the first BoxGeometry added, frame is second
+                // The squares have userData.type === 'square', so hide everything else except squares
+                if (!child.userData?.type || child.userData.type !== 'square') {
+                    child.visible = false;
+                }
+            });
+        }
+
+        // Force 2D piece mode
+        is2DMode = true;
+
+        console.log('[Renderer3D] Flat board mode ON');
+    } else {
+        // Restore 3D world
+        if (environmentGroup) environmentGroup.visible = envEnabled;
+        if (proceduralSkybox) proceduralSkybox.getMesh().visible = skyboxEnabled;
+        if (uiGroup) uiGroup.visible = true;
+        if (effectsGroup) effectsGroup.visible = true;
+
+        // Restore tone mapping
+        if (renderer) {
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.1;
+        }
+
+        // Show board base/frame again
+        if (boardGroup) {
+            boardGroup.children.forEach(child => {
+                child.visible = true;
+            });
+        }
+
+        // Clear scene background (let skybox take over)
+        scene.background = null;
+
+        console.log('[Renderer3D] Flat board mode OFF');
+    }
+
+    // Force board rebuild to clean up
+    _cachedSquares = null;
+}
+
+export function isFlatBoardMode(): boolean {
+    return flatBoardMode;
+}
+
+// =============================================================================
 // PUBLIC API
 // =============================================================================
 
@@ -1735,7 +1852,7 @@ export function screenToBoard(screenX: number, screenY: number): { row: number; 
     _mouseVec.x = ((screenX - rect.left) / rect.width) * 2 - 1;
     _mouseVec.y = -((screenY - rect.top) / rect.height) * 2 + 1;
 
-    _raycaster.setFromCamera(_mouseVec, camera);
+    _raycaster.setFromCamera(_mouseVec, getActiveCamera());
 
     // Cache board squares - invalidate when board is recreated
     if (!_cachedSquares) {
@@ -5585,7 +5702,7 @@ function startRenderLoop(): void {
             camera.position.y += shake.y;
 
             // Always render in 2D mode - no frame skipping to avoid stuttering
-            renderer.render(scene, camera);
+            renderer.render(scene, getActiveCamera());
 
             // Restore camera
             camera.position.x -= shake.x;
@@ -5627,7 +5744,7 @@ function startRenderLoop(): void {
         // Render scene — wrapped in try-catch to prevent uncaught Three.js
         // errors from crashing the renderer process under stress
         try {
-            renderer.render(scene, camera);
+            renderer.render(scene, getActiveCamera());
         } catch (err) {
             console.error('[Renderer3D] Render error:', err);
         }

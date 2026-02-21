@@ -1,14 +1,11 @@
 /**
- * Classic Mode — Clean chess UI toggle + Graphics Quality presets
+ * Classic Mode — chess.com / Lichess-style clean chess UI
  * 
- * Classic Mode: strips the newspaper theme down to a clean, standard chess UI
- *   - Mobile: full-screen board, no articles, no masthead, minimal chrome
- *   - Desktop: 50/50 split (articles condensed | board expanded), clean sans-serif
+ * Activates: flat orthographic board, 2D pieces, player bars, dark theme,
+ * no newspaper chrome, no 3D environment/skybox/particles.
  * 
- * Graphics Quality: Low / Med / High presets that control renderer settings
- *   - Low: no shadows, no particles, no skybox, low DPR, no env, no AA
- *   - Med: particles + skybox, medium DPR, no shadows
- *   - High: everything on (default)
+ * Graphics Quality: Low / Med / High presets for the newspaper (3D) mode.
+ * Classic mode always forces flat + low-GFX automatically.
  */
 
 import * as Renderer from './renderer3d';
@@ -41,6 +38,8 @@ export function isClassicMode(): boolean {
     return classicEnabled;
 }
 
+let previousQuality: GraphicsQuality = 'high';
+
 export function setClassicMode(enabled: boolean): void {
     classicEnabled = enabled;
     document.body.classList.toggle('classic-mode', enabled);
@@ -55,7 +54,28 @@ export function setClassicMode(enabled: boolean): void {
         metaTheme.setAttribute('content', enabled ? '#2b2b2b' : '#faf6ed');
     }
 
-    console.log(`[ClassicMode] ${enabled ? 'ON' : 'OFF'}`);
+    // Toggle flat orthographic board (the main visual difference)
+    Renderer.setFlatBoardMode(enabled);
+
+    if (enabled) {
+        // Remember quality so we can restore when leaving classic mode
+        previousQuality = currentQuality;
+
+        // Force low GFX (no shadows, particles, skybox, etc.)
+        Renderer.setShadowsEnabled(false);
+        Renderer.setParticlesEnabled(false);
+        Renderer.setSkyboxEnabled(false);
+        Renderer.setEnvironmentEnabled(false);
+        Renderer.setEnvironmentAnimationEnabled(false);
+        Renderer.setWormholeEnabled(false);
+        Renderer.setMotionScale(0);
+        Renderer.setRenderScale(1.0); // Full DPR for crisp 2D
+    } else {
+        // Restore previous GFX quality
+        setGraphicsQuality(previousQuality);
+    }
+
+    console.log(`[ClassicMode] ${enabled ? 'ON — flat board + low GFX' : 'OFF — 3D restored'}`);
 }
 
 export function toggleClassicMode(): boolean {
