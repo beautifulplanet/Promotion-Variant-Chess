@@ -514,7 +514,20 @@ export function getLastMove(): { from: { row: number; col: number }; to: { row: 
  * Handle a click on a board square
  * Returns true if a move was made
  */
+// BUGFIX: Reentrance guard — prevent stacked clicks while a click is being processed
+let _processingClick = false;
+
 export function handleSquareClick(row: number, col: number): boolean {
+  if (_processingClick) return false;
+  _processingClick = true;
+  try {
+    return _handleSquareClickInner(row, col);
+  } finally {
+    _processingClick = false;
+  }
+}
+
+function _handleSquareClickInner(row: number, col: number): boolean {
   if (state.gameOver) return false;
   if (!state.gameStarted) {
     // Auto-start the game on first move

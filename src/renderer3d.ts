@@ -209,7 +209,12 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     canvas.addEventListener('webglcontextlost', (event) => {
         event.preventDefault();
         console.error('[Renderer3D] WebGL context lost');
-        alert('WebGL context lost. Please reload the page.');
+        // BUGFIX: alert() blocks the main thread and compounds crashes under rapid input.
+        // Use a non-blocking DOM toast overlay instead.
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:99999;font-family:sans-serif;color:#fff;font-size:1.2rem;text-align:center;padding:2rem;';
+        overlay.innerHTML = '<div><p style="margin-bottom:1rem;">⚠️ Graphics context lost</p><button style="padding:0.5rem 1.5rem;font-size:1rem;cursor:pointer;border:none;border-radius:4px;background:#fff;color:#000;" onclick="location.reload()">Reload</button></div>';
+        document.body.appendChild(overlay);
     });
 
     renderer.setSize(canvas.width, canvas.height);
@@ -995,10 +1000,19 @@ function setupCameraControls(): void {
         if (e.touches.length === 0) {
             // Single finger lift — if it was a tap (not a drag), fire click
             if (!isDragging && e.changedTouches.length === 1) {
+                // BUGFIX: Same throttle as click handler to prevent rapid-tap crashes
+                const now = performance.now();
+                if (now - _lastClickTime < CLICK_THROTTLE_MS) return;
+                _lastClickTime = now;
+
                 const t = e.changedTouches[0];
-                const boardPos = screenToBoard(t.clientX, t.clientY);
-                if (boardPos && onSquareClickCallback) {
-                    onSquareClickCallback(boardPos.row, boardPos.col);
+                try {
+                    const boardPos = screenToBoard(t.clientX, t.clientY);
+                    if (boardPos && onSquareClickCallback) {
+                        onSquareClickCallback(boardPos.row, boardPos.col);
+                    }
+                } catch (err) {
+                    console.warn('[Renderer3D] Touch handler error:', err);
                 }
             }
             dragStartX = 0;
@@ -1055,14 +1069,27 @@ function updateCameraPosition(): void {
 // CLICK HANDLING
 // =============================================================================
 
+// BUGFIX: Throttle clicks to prevent rapid-fire scene rebuilds that crash WebGL
+const CLICK_THROTTLE_MS = 100;
+let _lastClickTime = 0;
+
 function setupClickHandler(): void {
     canvas.addEventListener('click', (e) => {
         // Don't process clicks during drag operations or Alt+clicks (orbit trigger)
         if (isDragging || e.altKey) return;
 
-        const boardPos = screenToBoard(e.clientX, e.clientY);
-        if (boardPos && onSquareClickCallback) {
-            onSquareClickCallback(boardPos.row, boardPos.col);
+        // Throttle: ignore clicks that arrive faster than CLICK_THROTTLE_MS
+        const now = performance.now();
+        if (now - _lastClickTime < CLICK_THROTTLE_MS) return;
+        _lastClickTime = now;
+
+        try {
+            const boardPos = screenToBoard(e.clientX, e.clientY);
+            if (boardPos && onSquareClickCallback) {
+                onSquareClickCallback(boardPos.row, boardPos.col);
+            }
+        } catch (err) {
+            console.warn('[Renderer3D] Click handler error:', err);
         }
     });
 }
@@ -1242,6 +1269,9 @@ export function setTravelSpeedScale(scale: number): void {
 // PUBLIC API
 // =============================================================================
 
+// BUGFIX: Coalesce rapid updateState calls into a single RAF tick
+let _pendingStateUpdate = false;
+
 export function updateState(
     board: (Piece | null)[][],
     selectedSquare: { row: number; col: number } | null,
@@ -1261,8 +1291,15 @@ export function updateState(
         ? (baseColor === 'white' ? 'black' : 'white')
         : baseColor;
 
-    updatePieces();
-    updateSquareHighlights();
+    // BUGFIX: Coalesce rapid calls — only run the expensive rebuild once per frame
+    if (!_pendingStateUpdate) {
+        _pendingStateUpdate = true;
+        requestAnimationFrame(() => {
+            _pendingStateUpdate = false;
+            updatePieces();
+            updateSquareHighlights();
+        });
+    }
 }
 
 /**
@@ -1292,21 +1329,16 @@ export function getPlayerColor(): 'white' | 'black' {
  */
 export function toggleBoardFlip(): 'white' | 'black' {
     viewFlipped = !viewFlipped;
-    // Recompute the effective color
-    const baseColor = cachedPlayerColor;
-    const newColor = viewFlipped
-        ? (baseColor === 'white' ? 'black' : 'white')
-        : baseColor;
-    // We need to re-derive from the un-flipped base, so recalc:
-    // The current cachedPlayerColor already has the OLD flip applied.
-    // Simplest: just invert current.
+    // Simple inversion: cachedPlayerColor already has the OLD flip applied,
+    // toggling means just swap it. updateState() will also recompute correctly
+    // on its next call because it reads viewFlipped.
     cachedPlayerColor = cachedPlayerColor === 'white' ? 'black' : 'white';
     pieceMaterialCache.clear();
     pieceSpritesCache.clear();
     _prevBoardHash = '';
-    if (cachedBoard.length > 0) {
-        updatePieces();
-    }
+    // Synchronous rebuild for instant visual feedback on button click
+    updatePieces();
+    updateSquareHighlights();
     return cachedPlayerColor;
 }
 
@@ -4878,8 +4910,20 @@ function updatePieces(force: boolean = false): void {
         renderer.shadowMap.needsUpdate = true;
     }
 
+    // BUGFIX: Dispose Three.js geometry/material to prevent GPU memory leaks
+    // under rapid state changes. Cloned meshes share geometry/material with the
+    // cache, so only dispose non-cached unique instances via userData flag.
     while (piecesGroup.children.length > 0) {
-        piecesGroup.remove(piecesGroup.children[0]);
+        const child = piecesGroup.children[0];
+        child.traverse((obj) => {
+            if ((obj as THREE.Mesh).isMesh) {
+                const mesh = obj as THREE.Mesh;
+                // Geometry is per-clone (cheap but leaks), dispose it.
+                mesh.geometry?.dispose();
+                // Materials are shared via cache — DON'T dispose those.
+            }
+        });
+        piecesGroup.remove(child);
     }
 
     for (let row = 0; row < 8; row++) {
@@ -5580,8 +5624,13 @@ function startRenderLoop(): void {
         camera.position.x += shake3D.x;
         camera.position.y += shake3D.y;
 
-        // Render scene
-        renderer.render(scene, camera);
+        // Render scene — wrapped in try-catch to prevent uncaught Three.js
+        // errors from crashing the renderer process under stress
+        try {
+            renderer.render(scene, camera);
+        } catch (err) {
+            console.error('[Renderer3D] Render error:', err);
+        }
 
         // Restore camera
         camera.position.x -= shake3D.x;

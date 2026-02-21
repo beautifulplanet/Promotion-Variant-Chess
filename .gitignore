@@ -66,3 +66,7 @@ server/prisma/dev.db-journal
 # Load test results (generated output)
 load-tests/results/
 NARRATION_SCRIPT.md
+
+# Playwright test artifacts
+playwright-report/
+test-results/
