@@ -17,6 +17,10 @@ import * as Game from './gameController';
 import * as Renderer from './renderer3d';
 import { getLevelForElo, getLevelProgress } from './levelSystem';
 import { TIMING, COLORS } from './constants';
+
+// Expose game API for automated playtest agent (e2e tests)
+(window as any).__GAME__ = Game;
+(window as any).__RENDERER__ = Renderer;
 import type { GamePerformanceData } from './gameReactiveArticles';
 import * as MoveListUI from './moveListUI';
 import * as Sound from './soundSystem';
