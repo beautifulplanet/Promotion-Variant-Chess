@@ -35,12 +35,12 @@ export interface SaveData {
 
 // Track move quality statistics
 export interface MoveQualityStats {
-  goodMoves: number;       // Moves rated as "good"
-  bestMoves: number;       // Moves that matched engine's best
-  inaccuracies: number;    // Minor mistakes
-  mistakes: number;        // Significant errors
-  blunders: number;        // Major errors
-  totalMovesAnalyzed: number;  // Total moves with quality analysis
+  greatMoves: number;      // Basically the best move (< 10 cp loss)
+  goodMoves: number;       // Solid play (< 40 cp loss)
+  decentMoves: number;     // Fine, no big deal (< 100 cp loss)
+  poorMoves: number;       // Leaked advantage (< 200 cp loss)
+  blunders: number;        // Big mistake (>= 200 cp loss)
+  totalMovesAnalyzed: number;
 }
 
 // Simple inventory tracking how many of each piece type player has stored

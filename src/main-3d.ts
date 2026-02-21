@@ -29,7 +29,7 @@ import * as Theme from './themeSystem';
 import * as ClassicMode from './classicMode';
 import * as Overlay from './overlayRenderer';
 import { getCurrentOpeningName } from './openingBook';
-import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
+import { getLastMoveQuality, getMoveQualityDisplay } from './moveQualityAnalyzer';
 import { initEngine, getEngineType } from './engineProvider';
 import { getPieceStyleConfig } from './pieceStyles';
 import type { PieceType } from './types';
@@ -252,11 +252,8 @@ function updateSidebar(state: Game.GameState): void {
   const moveQualitySection = document.getElementById('move-quality-section');
   const moveQualityEmoji = document.getElementById('move-quality-emoji');
   const moveQualityLabel = document.getElementById('move-quality-label');
-  const bestMoveHint = document.getElementById('best-move-hint');
-  const bestMoveText = document.getElementById('best-move-text');
   const lastMoveQuality = getLastMoveQuality();
   const qualityDisplay = getMoveQualityDisplay(lastMoveQuality);
-  const lastBestMove = getLastBestMove();
   
   if (moveQualitySection && moveQualityEmoji && moveQualityLabel) {
     if (qualityDisplay) {
@@ -264,14 +261,6 @@ function updateSidebar(state: Game.GameState): void {
       moveQualityEmoji.textContent = qualityDisplay.emoji;
       moveQualityLabel.textContent = qualityDisplay.label;
       moveQualityLabel.style.color = qualityDisplay.color;
-      
-      // Show best move hint if player didn't find the best move
-      if (bestMoveHint && bestMoveText && lastBestMove) {
-        bestMoveHint.style.display = 'block';
-        bestMoveText.textContent = moveToAlgebraic(lastBestMove);
-      } else if (bestMoveHint) {
-        bestMoveHint.style.display = 'none';
-      }
     } else {
       moveQualitySection.style.display = 'none';
     }
@@ -310,23 +299,24 @@ function updateSidebar(state: Game.GameState): void {
     if (cpbTopClock) cpbTopClock.textContent = isFlipped ? wTime : bTime;
     if (cpbBottomClock) cpbBottomClock.textContent = isFlipped ? bTime : wTime;
 
-    // Compact move list
+    // Move list (grid: num | white-move | black-move)
     if (classicMovesElem) {
       const moves = Game.getMoveHistoryStrings();
-      let html = '';
+      let html = '<div class="classic-moves-inner">';
       for (let i = 0; i < moves.length; i += 2) {
         const moveNum = Math.floor(i / 2) + 1;
         const isLastWhite = i === moves.length - 1;
         const isLastBlack = i + 1 === moves.length - 1;
+        html += `<div class="cm-row">`;
         html += `<span class="cm-num">${moveNum}.</span>`;
-        html += `<span class="cm-move${isLastWhite ? ' active' : ''}">${moves[i]}</span>`;
-        if (moves[i + 1]) {
-          html += `<span class="cm-move${isLastBlack ? ' active' : ''}">${moves[i + 1]}</span>`;
-        }
+        html += `<span class="cm-w${isLastWhite ? ' active' : ''}">${moves[i]}</span>`;
+        html += `<span class="cm-b${isLastBlack ? ' active' : ''}">${moves[i + 1] || ''}</span>`;
+        html += `</div>`;
       }
+      html += '</div>';
       classicMovesElem.innerHTML = html;
-      // Auto-scroll to end
-      classicMovesElem.scrollLeft = classicMovesElem.scrollWidth;
+      // Auto-scroll to bottom of move list
+      classicMovesElem.scrollTop = classicMovesElem.scrollHeight;
     }
   }
 
@@ -776,12 +766,10 @@ function updateStartButton(): void {
   const state = Game.getState();
 
   if (state.gameStarted && !state.gameOver) {
-    // Game in progress — hide New, show Resign
     startGameBtn.style.display = 'none';
     if (resignBtn) resignBtn.style.display = 'inline-block';
     if (watchAiBtn) watchAiBtn.style.display = 'none';
   } else {
-    // No game or game over — show New, hide Resign
     startGameBtn.style.display = 'inline-block';
     if (resignBtn) resignBtn.style.display = 'none';
     if (state.gameOver) {
@@ -791,6 +779,9 @@ function updateStartButton(): void {
     }
     if (watchAiBtn) watchAiBtn.style.display = 'inline-block';
   }
+
+  // Sync classic action bar resign visibility
+  updateCabResignVisibility();
 }
 
 if (startGameBtn) {
@@ -1966,6 +1957,63 @@ if (boClassicBtn) boClassicBtn.addEventListener('click', handleClassicToggle);
 if (classicModeBtn) classicModeBtn.addEventListener('click', handleClassicToggle);
 if (boGfxBtn) boGfxBtn.addEventListener('click', handleGfxCycle);
 if (gfxQualityBtn) gfxQualityBtn.addEventListener('click', handleGfxCycle);
+
+// ── Classic Action Bar buttons ──────────────────────────────────────────────
+// These mirror the overlay buttons but are touch-friendly icons in a bottom bar
+const cabNewBtn = document.getElementById('cab-new-btn');
+const cabResignBtn = document.getElementById('cab-resign-btn');
+const cabUndoBtn = document.getElementById('cab-undo-btn');
+const cabFlipBtn = document.getElementById('cab-flip-btn');
+const cabSettingsBtn = document.getElementById('cab-settings-btn');
+const cabExitBtn = document.getElementById('cab-exit-btn');
+
+cabNewBtn?.addEventListener('click', () => {
+  const state = Game.getState();
+  if (state.gameOver) {
+    Game.newGame();
+    MoveListUI.resetGameTimer();
+    loadRandomArticles();
+  } else if (!state.gameStarted) {
+    Game.startGame();
+    MoveListUI.startGameTimer();
+  }
+  syncRendererState();
+  updateStartButton();
+});
+
+cabResignBtn?.addEventListener('click', () => {
+  const state = Game.getState();
+  if (state.gameStarted && !state.gameOver) {
+    if (confirm('Resign this game?')) {
+      Game.newGame();
+      MoveListUI.resetGameTimer();
+      loadRandomArticles();
+      syncRendererState();
+      updateStartButton();
+    }
+  }
+});
+
+cabUndoBtn?.addEventListener('click', () => {
+  performUndo();
+});
+
+cabFlipBtn?.addEventListener('click', () => doFlip());
+
+cabSettingsBtn?.addEventListener('click', () => {
+  const overlay = document.getElementById('options-overlay');
+  overlay?.classList.add('open');
+});
+
+cabExitBtn?.addEventListener('click', handleClassicToggle);
+
+// Sync cab resign button visibility with game state
+function updateCabResignVisibility(): void {
+  const btn = document.getElementById('cab-resign-btn');
+  if (!btn) return;
+  const state = Game.getState();
+  btn.style.display = (state.gameStarted && !state.gameOver) ? 'flex' : 'none';
+}
 
 // Initialize button labels from saved state
 updateClassicButtons();

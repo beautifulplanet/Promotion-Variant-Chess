@@ -34,10 +34,10 @@ export interface GamePerformanceData {
   moveCount: number;
   drawType?: string;
   moveQuality?: {
+    greatMoves: number;
     goodMoves: number;
-    bestMoves: number;
-    inaccuracies: number;
-    mistakes: number;
+    decentMoves: number;
+    poorMoves: number;
     blunders: number;
     totalMovesAnalyzed: number;
   };
@@ -58,7 +58,7 @@ export function determinePerformanceTier(data: GamePerformanceData): GamePerform
     if (moveQuality && moveQuality.totalMovesAnalyzed > 0) {
       const total = moveQuality.totalMovesAnalyzed;
       const blunderRate = moveQuality.blunders / total;
-      const goodRate = (moveQuality.bestMoves + moveQuality.goodMoves) / total;
+      const goodRate = (moveQuality.greatMoves + moveQuality.goodMoves) / total;
 
       if (goodRate > 0.7 && blunderRate < 0.05) return 'brilliant_win';
       if (goodRate > 0.5 && blunderRate < 0.1) return 'solid_win';
@@ -76,7 +76,7 @@ export function determinePerformanceTier(data: GamePerformanceData): GamePerform
   if (moveQuality && moveQuality.totalMovesAnalyzed > 0) {
     const total = moveQuality.totalMovesAnalyzed;
     const blunderRate = moveQuality.blunders / total;
-    const goodRate = (moveQuality.bestMoves + moveQuality.goodMoves) / total;
+    const goodRate = (moveQuality.greatMoves + moveQuality.goodMoves) / total;
 
     if (goodRate > 0.5 && blunderRate > 0.1) return 'threw_it_loss';
     if (blunderRate > 0.25) return 'blunder_loss';

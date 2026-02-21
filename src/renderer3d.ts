@@ -868,6 +868,9 @@ function setupCameraControls(): void {
     // Alt + left-click drag = orbit camera (trackpad / 3D-app convention)
     // Left-click (no Alt) = piece selection (handled by click handler)
     canvas.addEventListener('mousedown', (e) => {
+        // Block all orbit/pan controls while in flat board mode
+        if (flatBoardMode) return;
+
         const isOrbitTrigger = e.button === 2              // right-click
                             || e.button === 1              // middle-click
                             || (e.button === 0 && e.altKey); // Alt+left-click
@@ -882,6 +885,7 @@ function setupCameraControls(): void {
     });
 
     canvas.addEventListener('mousemove', (e) => {
+        if (flatBoardMode) return;
         if ((dragStartX !== 0 || dragStartY !== 0)) {
             const dx = e.clientX - dragStartX;
             const dy = e.clientY - dragStartY;
@@ -927,9 +931,10 @@ function setupCameraControls(): void {
         if (e.button === 1) e.preventDefault();
     });
 
-    // Scroll wheel = zoom (always available)
+    // Scroll wheel = zoom (disabled in flat board mode)
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
+        if (flatBoardMode) return;
         orbitRadius = Math.max(8, Math.min(40, orbitRadius + e.deltaY * 0.02));
         if (currentViewMode !== 'pan') {
             currentViewMode = 'pan';
@@ -952,10 +957,11 @@ function setupCameraControls(): void {
             lastMouseY = t.clientY;
             isDragging = false;
         } else if (e.touches.length === 2) {
-            // Two-finger: start orbit + pinch
+            // Two-finger: in flat mode just ignore (no orbit/pinch)
+            if (flatBoardMode) return;
+            // Start orbit + pinch
             e.preventDefault();
             pinchStartDist = getTouchDistance(e.touches);
-            // Track midpoint for orbit
             lastMouseX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             lastMouseY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             isDragging = true;
@@ -965,7 +971,6 @@ function setupCameraControls(): void {
     canvas.addEventListener('touchmove', (e) => {
         if (e.touches.length === 1) {
             // Single finger: track drag distance but DON'T orbit
-            // This is for distinguishing taps from accidental drags
             const t = e.touches[0];
             const dx = t.clientX - dragStartX;
             const dy = t.clientY - dragStartY;
@@ -973,7 +978,8 @@ function setupCameraControls(): void {
                 isDragging = true;
             }
         } else if (e.touches.length === 2) {
-            // Two-finger: orbit + pinch-to-zoom
+            // Two-finger: blocked in flat board mode
+            if (flatBoardMode) return;
             e.preventDefault();
 
             // Orbit via midpoint movement
@@ -1040,6 +1046,9 @@ function getTouchDistance(touches: TouchList): number {
 }
 
 function updateCameraPosition(): void {
+    // Flat board mode uses ortho camera — skip all perspective/orbit logic
+    if (flatBoardMode) return;
+
     if (currentViewMode === 'pan') {
         camera.position.x = orbitTarget.x + orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta);
         camera.position.y = orbitTarget.y + orbitRadius * Math.cos(orbitPhi);
