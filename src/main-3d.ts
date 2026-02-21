@@ -1955,6 +1955,12 @@ function handleClassicToggle(): void {
   Overlay.setVisible(!isClassic);
   updateClassicButtons();
   Sound.play('move');
+
+  // Reset scroll position when entering classic mode (articles are below the fold)
+  if (isClassic) {
+    const nb = document.querySelector('.newspaper-body');
+    if (nb) nb.scrollTop = 0;
+  }
 }
 
 function handleGfxCycle(): void {

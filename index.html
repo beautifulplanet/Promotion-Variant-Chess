@@ -1861,6 +1861,9 @@
       }
     }
 
+    /* ═══════════ CLASSIC-ONLY ELEMENTS (hidden in normal mode) ═══════════ */
+    #classic-newspaper-header { display: none; }
+
     /* ==========================================================================
        CLASSIC MODE — chess.com / Lichess-style clean UI
        ========================================================================== */
@@ -1871,38 +1874,113 @@
       background-image: none !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
       color: #bababa;
-      overflow: hidden; /* prevent page scroll — everything fits in viewport */
+      overflow: hidden; /* body doesn't scroll; newspaper-body is the scroll container */
     }
 
-    /* Hide newspaper elements entirely */
+    /* Hide newspaper masthead (we have our own dark version inside newspaper-body) */
     body.classic-mode .newspaper-masthead { display: none !important; }
-    body.classic-mode .article-column { display: none !important; }
     body.classic-mode .masthead-rule-top { display: none !important; }
 
-    /* Newspaper body → full-viewport flexbox container */
+    /* ── Article columns: UN-HIDE, dark-themed, full-width, stacked below board ── */
+    body.classic-mode .article-column {
+      display: flex !important;
+      flex-direction: column;
+      width: 100% !important;
+      max-width: 680px !important;
+      flex: 0 0 auto !important;
+      margin: 0 auto;
+      padding: 8px 16px;
+      border: none !important;
+      background: #262522;
+    }
+    body.classic-mode .article-column.left { order: 1; }
+    body.classic-mode .article-column.right { order: 2; }
+
+    /* ── Dark-themed articles ── */
+    body.classic-mode .article {
+      padding: 10px 4px;
+      border-bottom: 1px solid #3d3b37;
+    }
+    body.classic-mode .article:last-child { border-bottom: none; }
+    body.classic-mode .article-headline {
+      font-family: 'Playfair Display', serif !important;
+      font-size: 15px;
+      font-weight: 700;
+      color: #e8e0d0;
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+    body.classic-mode .article-snippet {
+      font-family: 'Old Standard TT', serif !important;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #9a9488;
+    }
+
+    /* ── Newspaper body → vertical scroll container ── */
     body.classic-mode .newspaper-body {
       background: #302e2b;
       display: flex;
-      justify-content: center;
+      flex-direction: column;    /* stack: game area → header → articles */
       align-items: stretch;
       height: 100vh;
-      height: 100dvh; /* dynamic viewport height for mobile */
+      height: 100dvh;
       padding: 0;
-      overflow: hidden;
+      overflow-y: auto;          /* scrollable! articles below the fold */
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
     }
 
-    /* Center section → chess.com single-column layout, fills viewport */
+    /* ── Center section = game area, fills viewport, always first ── */
     body.classic-mode #center-section {
-      flex: 1 1 auto;
+      order: -1;
+      flex: 0 0 auto;
       width: 100%;
       max-width: 680px;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
       align-items: stretch;
       padding: 0;
       gap: 0;
-      height: 100%;
+      height: 100vh;
+      height: 100dvh;
       overflow: hidden;
+    }
+
+    /* ── Classic Newspaper Header (dark "Chess Wars Chronicle" banner) ── */
+    body.classic-mode #classic-newspaper-header {
+      display: block;
+      order: 0;  /* after center-section (-1), before article columns (1, 2) */
+      width: 100%;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 24px 16px 16px;
+      text-align: center;
+      background: #262522;
+      border-top: 3px double #4d4b47;
+    }
+    body.classic-mode .cnh-rule {
+      height: 1px;
+      background: linear-gradient(to right, transparent, #4d4b47, transparent);
+      margin: 6px 0;
+    }
+    body.classic-mode .cnh-title {
+      font-family: 'Playfair Display', serif !important;
+      font-size: 22px;
+      font-weight: 900;
+      color: #e8e0d0;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin: 4px 0;
+    }
+    body.classic-mode .cnh-subtitle {
+      font-family: 'Old Standard TT', serif !important;
+      font-size: 13px;
+      font-style: italic;
+      color: #8a7e6e;
+      letter-spacing: 0.5px;
     }
 
     /* Show player bars + move list + action bar */
@@ -1947,12 +2025,24 @@
       min-height: 48px;
       border-top: 1px solid #1a1917;
       overflow-y: auto;
+      overscroll-behavior: contain; /* prevent scroll chaining to parent */
     }
 
-    /* Action bar → fixed-height bottom toolbar */
+    /* ── Scroll hint: subtle indicator below action bar buttons ── */
     body.classic-mode .classic-action-bar {
       flex: 0 0 auto;
+      flex-wrap: wrap;
       border-top: 1px solid #3d3b37;
+    }
+    body.classic-mode .classic-action-bar::after {
+      content: '▼  Game Commentary Below  ▼';
+      flex-basis: 100%;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #5a584f;
+      padding: 2px 0 4px;
     }
 
     /* Options panel → dark */
@@ -2005,13 +2095,16 @@
     @media (min-width: 769px) {
       body.classic-mode #center-section {
         max-width: 600px;
-        margin: 0 auto;
-        height: 100vh;
-        height: 100dvh;
       }
       body.classic-mode .classic-moves {
         min-height: 80px;
         font-size: 14px;
+      }
+      body.classic-mode .article-column {
+        max-width: 600px !important;
+      }
+      body.classic-mode #classic-newspaper-header {
+        max-width: 600px;
       }
     }
 
@@ -2021,9 +2114,12 @@
         height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         padding-top: env(safe-area-inset-top, 0px);
-        padding-bottom: env(safe-area-inset-bottom, 0px);
       }
-      body.classic-mode #center-section { max-width: 100%; }
+      body.classic-mode #center-section {
+        max-width: 100%;
+        height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      }
       body.classic-mode .classic-player-bar { padding: 4px 8px; }
       body.classic-mode .cpb-name { font-size: 13px; }
       body.classic-mode .cpb-clock { font-size: 16px; padding: 3px 8px; }
@@ -2037,6 +2133,14 @@
         padding: 6px 2px;
       }
       body.classic-mode .cab-btn .cab-icon { font-size: 24px; }
+      /* Articles full-width on mobile */
+      body.classic-mode .article-column {
+        max-width: 100% !important;
+        padding: 8px 12px;
+      }
+      body.classic-mode #classic-newspaper-header {
+        max-width: 100%;
+      }
     }
 
     /* Hamburger menu: dark in classic */
@@ -2226,6 +2330,14 @@
           <button id="ot-cancel-btn" style="width:100%; padding:8px; font-size:12px; font-weight:bold; border:1px solid var(--sidebar-border,#ccc); border-radius:4px; background:var(--btn-secondary,#555); color:var(--btn-secondary-text,#fff); cursor:pointer;">✖ Cancel Table</button>
         </div>
       </div>
+    </div>
+
+    <!-- CLASSIC MODE: dark newspaper header + scroll indicator (shown when scrolling below board) -->
+    <div id="classic-newspaper-header">
+      <div class="cnh-rule"></div>
+      <h2 class="cnh-title">Chess Wars Chronicle</h2>
+      <div class="cnh-subtitle">Game Commentary &amp; Dispatches</div>
+      <div class="cnh-rule"></div>
     </div>
 
     <!-- RIGHT ARTICLE COLUMN -->
