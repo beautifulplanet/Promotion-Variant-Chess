@@ -94,6 +94,9 @@ Request → Rust WASM (~1M+ NPS)
 | SQLite in production | Portfolio-scale traffic. Persistent Fly.io volume. Avoids Postgres complexity |
 | Bitboard representation | O(1) attack lookups via magic bitboards. Industry standard for chess engines |
 | 16-bit move encoding | 2 bytes per move. 256-move list fits in 512 bytes (L1 cache) |
+| Classic Mode stealth toggle | Users want to play in meetings/on mobile without attracting attention. One button → chess.com-style dark UI |
+| 3-tier GFX quality | Low/Med/High presets (shadows, particles, skybox, render scale) — mobile devices need Low, desktops get High by default |
+| 8 UI themes | CSS-variable-based theming (`themeSystem.ts`) lets users personalize without touching rendering code |
 
 ---
 

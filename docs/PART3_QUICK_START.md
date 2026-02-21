@@ -60,6 +60,7 @@ Server starts on `http://localhost:3001`.
 npm test                          # 420 frontend tests
 cd server && npm test             # 168 server tests
 cd rust-engine && cargo test      # 218 Rust engine tests
+npx playwright test               # 13 E2E playtest specs
 ```
 
 ---

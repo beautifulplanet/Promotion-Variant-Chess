@@ -202,19 +202,19 @@ cd server && npm test
 # Rust engine (218 tests, ~2s)
 cd rust-engine && cargo test
 
-# E2E browser tests (5 tests)
+# E2E browser tests (13 tests)
 npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 806 unit/integration tests + 5 E2E tests**
+**Total: 806 unit/integration tests + 13 E2E tests**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
 | Server | 168 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
-| E2E | 5 | App load, canvas interaction, console errors, article rendering, game move |
+| E2E | 13 | App load, canvas interaction, console errors, article rendering, game move, board orientation, piece colours, promotion zone, square colours, game-over screen, undo state, turn indicator, capture diff |
 
 ---
 
@@ -424,7 +424,7 @@ Bridge (`rustEngine.ts`): blob URL dynamic import (Vite-compatible), try/catch e
 
 ## B10. Rendering Pipeline
 
-Three.js WebGL renderer (4,400+ lines in `renderer3d.ts`) with a deep visual customization system:
+Three.js WebGL renderer (5,000+ lines in `renderer3d.ts`) with a deep visual customization system:
 
 **Board & Piece Visuals:**
 - **24 piece styles** — 7 3D geometry sets (Staunton, Lewis, Modern, Crystal, Neon, Marble, Wood) + 17 2D canvas-drawn styles (Classic, Staunton 2D, Modern, Symbols, Newspaper, Editorial, Outline, Figurine, Pixel Art, Gothic, Minimalist, Celtic, Sketch, Pharaoh sprite, Art Deco, Steampunk, Tribal)
@@ -925,7 +925,7 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Engine | cargo test | 218 |
 | Frontend | Vitest | 420 |
 | Server | Vitest | 168 |
-| E2E | Playwright | 5 |
+| E2E | Playwright | 13 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
 | Stress | k6 | 500 RPS / 250 WS |
@@ -1021,8 +1021,8 @@ k6 run load-tests/stress-test.js
 ```
 ├── src/                       # Frontend TypeScript (40+ files)
 │   ├── main-3d.ts             # Entry point, DOM wiring
-│   ├── gameController.ts      # Core game logic (1,831 lines)
-│   ├── renderer3d.ts          # Three.js 3D rendering (4,400+ lines)
+│   ├── gameController.ts      # Core game logic (2,260+ lines)
+│   ├── renderer3d.ts          # Three.js 3D rendering (5,000+ lines)
 │   ├── pieceStyles.ts         # 24 piece style definitions (7 3D + 17 2D)
 │   ├── boardStyles.ts         # 12 board styles with theme-aware highlights
 │   ├── eraSystem.ts           # ELO → era progression (20 eras)
@@ -1037,6 +1037,8 @@ k6 run load-tests/stress-test.js
 │   ├── overlayRenderer.ts     # Overlay bar UI controls
 │   ├── moveListUI.ts          # Move history panel
 │   ├── moveQualityAnalyzer.ts # Move quality evaluation
+│   ├── classicMode.ts         # Classic 2D toggle + GFX quality presets
+│   ├── themeSystem.ts         # 8-theme newspaper styling system
 │   ├── multiplayerClient.ts   # Socket.io client wrapper
 │   ├── multiplayerUI.ts       # Multiplayer + guest play UI
 │   ├── eras/                  # 10 era-specific world definitions
@@ -1076,7 +1078,7 @@ k6 run load-tests/stress-test.js
 │   └── stress-test.js         # Breaking point: 500 RPS, 250 WS connections
 │
 ├── tests/                     # Frontend test suite (420 tests)
-├── e2e/                       # Playwright E2E tests (5 tests)
+├── e2e/                       # Playwright E2E tests (13 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
 │   ├── PART1_SUMMARY.md       # Standalone Part 1
@@ -1087,9 +1089,11 @@ k6 run load-tests/stress-test.js
 │   ├── LOAD_TEST_PLAN.md      # k6 methodology, SLOs, capacity planning
 │   ├── PRODUCTION_RESILIENCE.md # Defense-in-depth, failure modes, SLOs
 │   ├── ARCHITECTURE_FAQ.md    # "Why X over Y?" for every decision
+│   ├── TESTING.md             # E2E playtest agent documentation
+│   ├── ANDROID_RELEASE.md     # Android release process
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
-└── index.html                 # Single-page app entry (1,840 lines)
+└── index.html                 # Single-page app entry (2,400+ lines)
 ```
 
 ---
