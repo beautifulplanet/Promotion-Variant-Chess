@@ -2184,30 +2184,31 @@
     body.explore-mode .explore-back-btn {
       display: block !important;
       position: fixed;
-      top: max(12px, env(safe-area-inset-top, 12px));
+      top: max(16px, env(safe-area-inset-top, 16px));
       left: 50%;
       transform: translateX(-50%);
-      z-index: 1000;
-      background: rgba(38, 37, 34, 0.85);
-      color: #e8e0d0;
-      border: 1px solid #4d4b47;
-      border-radius: 8px;
-      padding: 10px 24px;
+      z-index: 10000;
+      background: rgba(30, 29, 26, 0.92);
+      color: #81b64c;
+      border: 2px solid #81b64c;
+      border-radius: 10px;
+      padding: 12px 28px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 16px;
+      font-weight: 700;
       cursor: pointer;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       transition: background 0.2s, transform 0.2s;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      letter-spacing: 0.3px;
     }
     body.explore-mode .explore-back-btn:hover {
-      background: rgba(50, 49, 45, 0.95);
-      transform: translateX(-50%) scale(1.02);
+      background: rgba(40, 39, 35, 0.98);
+      transform: translateX(-50%) scale(1.03);
     }
     body.explore-mode .explore-back-btn:active {
-      transform: translateX(-50%) scale(0.98);
+      transform: translateX(-50%) scale(0.97);
     }
 
     /* Explore hint text on the button */
@@ -2248,6 +2249,9 @@
 </head>
 
 <body>
+  <!-- EXPLORE MODE: floating "Back to Game" button (outside all containers so position:fixed works) -->
+  <button id="explore-back-btn" class="explore-back-btn">← Back to Game</button>
+
   <!-- HAMBURGER MENU (mobile only — opens options) -->
   <button id="hamburger-btn" aria-label="Toggle menu">☰</button>
 
@@ -2389,9 +2393,6 @@
         <button class="cab-btn" id="cab-settings-btn"><span class="cab-icon">⚙</span><span class="cab-label">Settings</span></button>
         <button class="cab-btn" id="cab-exit-btn"><span class="cab-icon">✕</span><span class="cab-label">Classic</span></button>
       </div>
-
-      <!-- EXPLORE MODE: floating "Back to Game" button -->
-      <button id="explore-back-btn" class="explore-back-btn">← Back to Game</button>
 
       <!-- OPEN TABLES -->
       <div id="open-tables-panel" class="open-tables-panel" style="display:none;">
