@@ -26,6 +26,7 @@ import * as MoveListUI from './moveListUI';
 import * as Sound from './soundSystem';
 import * as Stats from './statsSystem';
 import * as Theme from './themeSystem';
+import * as ClassicMode from './classicMode';
 import * as Overlay from './overlayRenderer';
 import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay, getLastBestMove, moveToAlgebraic } from './moveQualityAnalyzer';
@@ -1555,6 +1556,9 @@ if (debugParticleDensity) {
 // Initialize theme system
 Theme.init();
 
+// Initialize classic mode & graphics quality (restores from localStorage)
+ClassicMode.init();
+
 // Initialize Rust WASM engine in background (non-blocking)
 // Falls back to chess.js if WASM is unavailable
 initEngine().then(type => {
@@ -1831,3 +1835,45 @@ Lowest: ${stats.lowestElo}
 window.addEventListener('beforeunload', () => {
   Stats.endSession();
 });
+
+// ── Classic Mode + Graphics Quality toggle buttons ─────────────────────────
+const boClassicBtn = document.getElementById('bo-classic-btn');
+const classicModeBtn = document.getElementById('classic-mode-btn');
+const boGfxBtn = document.getElementById('bo-gfx-btn');
+const gfxQualityBtn = document.getElementById('gfx-quality-btn');
+
+function updateClassicButtons(): void {
+  const on = ClassicMode.isClassicMode();
+  const label = on ? '♟ Normal' : '♟ Classic';
+  if (boClassicBtn) boClassicBtn.textContent = label;
+  if (classicModeBtn) classicModeBtn.textContent = label;
+}
+
+function updateGfxButtons(): void {
+  const q = ClassicMode.getGraphicsQuality();
+  const label = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
+  if (boGfxBtn) boGfxBtn.textContent = label;
+  if (gfxQualityBtn) gfxQualityBtn.textContent = label;
+}
+
+function handleClassicToggle(): void {
+  ClassicMode.toggleClassicMode();
+  updateClassicButtons();
+  Sound.play('move');
+}
+
+function handleGfxCycle(): void {
+  const q = ClassicMode.cycleGraphicsQuality();
+  updateGfxButtons();
+  Sound.play('move');
+  console.log('[GFX] Quality:', q);
+}
+
+if (boClassicBtn) boClassicBtn.addEventListener('click', handleClassicToggle);
+if (classicModeBtn) classicModeBtn.addEventListener('click', handleClassicToggle);
+if (boGfxBtn) boGfxBtn.addEventListener('click', handleGfxCycle);
+if (gfxQualityBtn) gfxQualityBtn.addEventListener('click', handleGfxCycle);
+
+// Initialize button labels from saved state
+updateClassicButtons();
+updateGfxButtons();

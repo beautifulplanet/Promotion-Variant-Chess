@@ -1685,6 +1685,187 @@
         right: max(4px, env(safe-area-inset-right));
       }
     }
+
+    /* ==========================================================================
+       CLASSIC MODE — Clean chess UI (chess.com / lichess feel)
+       ========================================================================== */
+
+    /* --- Base classic overrides (all screen sizes) --- */
+    body.classic-mode {
+      background: #302e2b !important;
+      background-image: none !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      color: #bababa;
+    }
+
+    body.classic-mode .newspaper-masthead {
+      background: #262522;
+      border-bottom: 1px solid #3d3b37;
+      padding: 4px 12px 3px;
+    }
+    body.classic-mode .masthead-title {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 18px !important;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #f0f0f0;
+    }
+    body.classic-mode .masthead-subtitle,
+    body.classic-mode .masthead-badge {
+      display: none;
+    }
+    body.classic-mode .masthead-rule-top { display: none; }
+    body.classic-mode .masthead-meta {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 12px;
+      color: #8b8987;
+      border-top: none;
+      padding-top: 2px;
+      margin-top: 0;
+    }
+    body.classic-mode .masthead-era { color: #81b64c; }
+    body.classic-mode .meta-sep { color: #4d4b47; }
+
+    /* Article columns on desktop → condensed, clean */
+    body.classic-mode .article-column {
+      background: #262522;
+      border-color: #3d3b37 !important;
+      padding: 8px 12px;
+    }
+    body.classic-mode .article {
+      border-bottom-color: #3d3b37;
+      padding: 8px 4px;
+    }
+    body.classic-mode .article-headline {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+    body.classic-mode .article-snippet {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 12px;
+      color: #8b8987;
+      line-height: 1.4;
+    }
+
+    /* Newspaper body → dark game area */
+    body.classic-mode .newspaper-body {
+      background: #302e2b;
+    }
+
+    /* Board area */
+    body.classic-mode #canvas-wrapper {
+      border: 1px solid #3d3b37;
+      border-radius: 4px;
+    }
+
+    /* Board overlay buttons → clean modern */
+    body.classic-mode .board-overlay-btns {
+      background: linear-gradient(to bottom, rgba(38,37,34,0.95) 0%, rgba(38,37,34,0.7) 70%, transparent 100%);
+    }
+    body.classic-mode .bo-btn {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+      color: rgba(255,255,255,0.8);
+    }
+    body.classic-mode .bo-btn.primary { color: #81b64c; }
+    body.classic-mode .bo-btn.danger { color: #e05555; }
+
+    /* Options panel → dark */
+    body.classic-mode #options-panel {
+      background: #262522;
+      border-color: #3d3b37;
+      color: #bababa;
+    }
+    body.classic-mode #options-panel h2,
+    body.classic-mode #options-panel h3,
+    body.classic-mode .sidebar-section h3 {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      color: #81b64c;
+    }
+    body.classic-mode .sidebar-section {
+      border-bottom-color: #3d3b37;
+    }
+    body.classic-mode .btn-primary {
+      background: #81b64c !important;
+      color: #fff !important;
+      font-family: -apple-system, sans-serif !important;
+      border-radius: 4px;
+    }
+    body.classic-mode .btn-secondary {
+      background: #4d4b47 !important;
+      color: #e0e0e0 !important;
+      font-family: -apple-system, sans-serif !important;
+      border-radius: 4px;
+    }
+    body.classic-mode .btn-muted {
+      background: #3d3b37 !important;
+      color: #bababa !important;
+      font-family: -apple-system, sans-serif !important;
+      border-radius: 4px;
+    }
+
+    /* Classic mode: desktop → 50/50 split (articles smaller, board bigger) */
+    @media (min-width: 769px) {
+      body.classic-mode .article-column {
+        flex: 0 0 180px !important;
+        min-width: 100px !important;
+        max-width: 200px !important;
+      }
+      body.classic-mode #center-section {
+        flex: 1 1 auto;
+      }
+    }
+    @media (min-width: 1100px) {
+      body.classic-mode .article-column {
+        flex: 0 0 220px !important;
+        max-width: 240px !important;
+      }
+    }
+
+    /* Classic mode: mobile → full board, hide articles and shrink masthead */
+    @media (max-width: 768px) {
+      body.classic-mode .newspaper-masthead {
+        padding: 2px 8px 2px;
+      }
+      body.classic-mode .masthead-title {
+        font-size: 15px !important;
+      }
+      body.classic-mode .article-column {
+        display: none !important;
+      }
+      body.classic-mode .newspaper-body {
+        flex-wrap: nowrap;
+      }
+      body.classic-mode #center-section {
+        flex: 1 0 100%;
+      }
+      body.classic-mode #canvas-wrapper {
+        border-width: 0;
+        border-radius: 0;
+      }
+    }
+
+    /* Graphics quality indicator pill */
+    .gfx-quality-pill {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .gfx-quality-pill[data-q="low"] { background: #e05555; color: #fff; }
+    .gfx-quality-pill[data-q="med"] { background: #d4a24e; color: #1a1a1a; }
+    .gfx-quality-pill[data-q="high"] { background: #81b64c; color: #fff; }
   </style>
 </head>
 
@@ -1780,6 +1961,10 @@
         <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
         <span class="bo-sep">·</span>
         <button id="how-to-play-btn" class="bo-btn">❓ How to Play</button>
+        <span class="bo-sep">·</span>
+        <button id="bo-classic-btn" class="bo-btn">♟ Classic</button>
+        <span class="bo-sep">·</span>
+        <button id="bo-gfx-btn" class="bo-btn">⚡ GFX: High</button>
       </div>
       <!-- OPEN TABLES -->
       <div id="open-tables-panel" class="open-tables-panel" style="display:none;">
@@ -1960,6 +2145,10 @@
             <button id="theme-btn" class="btn-muted">&#x1F3A8; Theme</button>
             <button id="stats-btn" class="btn-muted">&#x1F4CA; Stats</button>
             <button id="shortcuts-btn" class="btn-muted">&#x2328;&#xFE0F; Keys</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <button id="classic-mode-btn" class="btn-muted">♟ Classic</button>
+            <button id="gfx-quality-btn" class="btn-muted">⚡ GFX: High</button>
           </div>
         </div>
 
