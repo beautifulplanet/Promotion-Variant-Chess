@@ -316,6 +316,8 @@ function setupResize(): void {
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
     // Initial size
     doResize();
+    // Secondary resize after DOM settles (for classic mode restored from localStorage)
+    setTimeout(doResize, 200);
 }
 
 function doResize(): void {
@@ -332,18 +334,31 @@ function doResize(): void {
     let height: number;
 
     if (flatBoardMode || isClassic) {
-      // ── Flat / Classic mode: square board, no gaps ──
-      // Let CSS flexbox determine the wrapper size (aspect-ratio: 1 in CSS).
-      // Clear any JS-imposed dimensions so CSS takes over.
-      wrapper.style.width = '';
-      wrapper.style.height = '';
+      // ── Flat / Classic mode: square board that fits the viewport ──
+      const container = wrapper.parentElement; // #center-section
+      const containerWidth = container?.clientWidth || window.innerWidth;
 
-      // Read CSS-computed size after flex layout
-      const rect = wrapper.getBoundingClientRect();
-      // Board must be square — use the smaller dimension
-      const size = Math.floor(Math.min(rect.width, rect.height));
-      width = size || Math.floor(window.innerWidth);
-      height = width; // force square
+      // Measure heights of non-board siblings to calculate available board height.
+      // Elements: top player bar, bottom player bar, move list min, action bar.
+      let siblingHeight = 0;
+      if (container) {
+        for (const child of Array.from(container.children)) {
+          if (child === wrapper) continue;
+          const el = child as HTMLElement;
+          // Only measure visible elements
+          if (el.offsetHeight > 0 || getComputedStyle(el).display !== 'none') {
+            siblingHeight += el.offsetHeight || 0;
+          }
+        }
+      }
+      // Available height for board = container height minus sibling heights
+      const containerHeight = container?.clientHeight || window.innerHeight;
+      const availBoardHeight = containerHeight - siblingHeight;
+
+      // Board = biggest square that fits in available space
+      const size = Math.floor(Math.min(containerWidth, Math.max(200, availBoardHeight)));
+      width = size;
+      height = size;
     } else {
       // ── 3D mode: fill game area with cinematic aspect ──
       const gameArea = wrapper.parentElement;
@@ -370,10 +385,14 @@ function doResize(): void {
         overlayCanvas.style.height = height + 'px';
     }
 
-    // Update wrapper size (only in 3D mode — flat mode lets CSS handle it)
-    if (!flatBoardMode && !isClassic) {
-      wrapper.style.width = width + 'px';
-      wrapper.style.height = height + 'px';
+    // Update wrapper size
+    wrapper.style.width = width + 'px';
+    wrapper.style.height = height + 'px';
+    if (flatBoardMode || isClassic) {
+      // Center the board horizontally when it's narrower than the container
+      wrapper.style.margin = '0 auto';
+    } else {
+      wrapper.style.margin = '';
     }
 
     // Update Three.js renderer and camera
@@ -1404,6 +1423,9 @@ export function setFlatBoardMode(enabled: boolean): void {
 
     // Force board rebuild to clean up
     _cachedSquares = null;
+
+    // Recalculate board size for new mode (delayed so DOM updates first)
+    setTimeout(doResize, 50);
 }
 
 export function isFlatBoardMode(): boolean {

@@ -302,21 +302,25 @@ function updateSidebar(state: Game.GameState): void {
     // Move list (grid: num | white-move | black-move)
     if (classicMovesElem) {
       const moves = Game.getMoveHistoryStrings();
-      let html = '<div class="classic-moves-inner">';
-      for (let i = 0; i < moves.length; i += 2) {
-        const moveNum = Math.floor(i / 2) + 1;
-        const isLastWhite = i === moves.length - 1;
-        const isLastBlack = i + 1 === moves.length - 1;
-        html += `<div class="cm-row">`;
-        html += `<span class="cm-num">${moveNum}.</span>`;
-        html += `<span class="cm-w${isLastWhite ? ' active' : ''}">${moves[i]}</span>`;
-        html += `<span class="cm-b${isLastBlack ? ' active' : ''}">${moves[i + 1] || ''}</span>`;
-        html += `</div>`;
+      if (moves.length === 0) {
+        classicMovesElem.innerHTML = '<div class="cm-empty">Starting Position</div>';
+      } else {
+        let html = '<div class="classic-moves-inner">';
+        for (let i = 0; i < moves.length; i += 2) {
+          const moveNum = Math.floor(i / 2) + 1;
+          const isLastWhite = i === moves.length - 1;
+          const isLastBlack = i + 1 === moves.length - 1;
+          html += `<div class="cm-row">`;
+          html += `<span class="cm-num">${moveNum}.</span>`;
+          html += `<span class="cm-w${isLastWhite ? ' active' : ''}">${moves[i]}</span>`;
+          html += `<span class="cm-b${isLastBlack ? ' active' : ''}">${moves[i + 1] || ''}</span>`;
+          html += `</div>`;
+        }
+        html += '</div>';
+        classicMovesElem.innerHTML = html;
+        // Auto-scroll to bottom of move list
+        classicMovesElem.scrollTop = classicMovesElem.scrollHeight;
       }
-      html += '</div>';
-      classicMovesElem.innerHTML = html;
-      // Auto-scroll to bottom of move list
-      classicMovesElem.scrollTop = classicMovesElem.scrollHeight;
     }
   }
 
@@ -1642,6 +1646,10 @@ Theme.init();
 
 // Initialize classic mode & graphics quality (restores from localStorage)
 ClassicMode.init();
+// If classic mode was restored, hide the canvas overlay HUD
+if (ClassicMode.isClassicMode()) {
+  Overlay.setVisible(false);
+}
 
 // Initialize Rust WASM engine in background (non-blocking)
 // Falls back to chess.js if WASM is unavailable
@@ -1942,6 +1950,9 @@ function updateGfxButtons(): void {
 
 function handleClassicToggle(): void {
   ClassicMode.toggleClassicMode();
+  const isClassic = ClassicMode.isClassicMode();
+  // Hide/show the canvas overlay move list (the old HUD)
+  Overlay.setVisible(!isClassic);
   updateClassicButtons();
   Sound.play('move');
 }

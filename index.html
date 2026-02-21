@@ -974,6 +974,13 @@
     .classic-moves .cm-b:hover { background: #3d3b37 !important; }
     .classic-moves .cm-w.active,
     .classic-moves .cm-b.active { color: #81b64c; font-weight: 700; background: rgba(129,182,76,0.12) !important; }
+    .classic-moves .cm-empty {
+      padding: 12px 16px;
+      color: #6b6966;
+      font-size: 13px;
+      font-style: italic;
+      text-align: center;
+    }
 
     /* Classic action bar (hidden by default) */
     .classic-action-bar {
@@ -1005,11 +1012,14 @@
       transition: color 0.15s, background 0.15s;
       border-radius: 4px;
     }
-    .cab-btn:active { background: rgba(255,255,255,0.08); }
+    .cab-btn:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .cab-btn:active { background: rgba(255,255,255,0.12); }
     .cab-btn .cab-icon { font-size: 22px; line-height: 1; }
     .cab-btn .cab-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
     .cab-btn.cab-primary { color: #81b64c; }
+    .cab-btn.cab-primary:hover { color: #9cd362; }
     .cab-btn.cab-danger { color: #e05555; }
+    .cab-btn.cab-danger:hover { color: #f06666; }
 
     /* Old single-line move classes — keep for backward compat */
     .classic-moves .cm-move { color: #e0e0e0; margin-right: 6px; cursor: default; }
@@ -1883,11 +1893,12 @@
 
     /* Center section → chess.com single-column layout, fills viewport */
     body.classic-mode #center-section {
-      flex: 0 1 auto;
+      flex: 1 1 auto;
       width: 100%;
       max-width: 680px;
       display: flex;
       flex-direction: column;
+      align-items: stretch;
       padding: 0;
       gap: 0;
       height: 100%;
@@ -1918,23 +1929,24 @@
       flex: 0 0 auto;
       border: none;
       border-radius: 0;
-      background: #1a1917;
-      aspect-ratio: 1;
-      width: 100%;
-      max-width: 100%;
+      background: #302e2b;
       overflow: hidden;
+      /* Width/height set by JS doResize() for perfect square fit */
     }
     body.classic-mode #canvas-wrapper canvas {
       display: block;
-      width: 100% !important;
-      height: 100% !important;
+    }
+    /* Hide the overlay canvas (old move list HUD) in classic mode */
+    body.classic-mode #overlay-canvas {
+      display: none !important;
     }
 
     /* Move list → grows to fill remaining space between board and action bar */
     body.classic-mode .classic-moves {
-      flex: 1 1 80px;
+      flex: 1 1 0px;
       min-height: 48px;
       border-top: 1px solid #1a1917;
+      overflow-y: auto;
     }
 
     /* Action bar → fixed-height bottom toolbar */
@@ -1992,13 +2004,13 @@
     /* === Desktop: centered with breathing room, taller move list === */
     @media (min-width: 769px) {
       body.classic-mode #center-section {
-        max-width: 560px;
-        margin: 8px auto 0;
-        height: calc(100vh - 8px);
-        height: calc(100dvh - 8px);
+        max-width: 600px;
+        margin: 0 auto;
+        height: 100vh;
+        height: 100dvh;
       }
       body.classic-mode .classic-moves {
-        min-height: 100px;
+        min-height: 80px;
         font-size: 14px;
       }
     }
