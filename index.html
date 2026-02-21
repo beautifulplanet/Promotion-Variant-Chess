@@ -1913,15 +1913,21 @@
       border-top: 1px solid #1a1917;
     }
 
-    /* Board area → stretchy square, tight against player bars */
+    /* Board area → square, flush against player bars, no gaps */
     body.classic-mode #canvas-wrapper {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
       border: none;
       border-radius: 0;
       background: #1a1917;
       aspect-ratio: 1;
       width: 100%;
-      max-height: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    body.classic-mode #canvas-wrapper canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
     }
 
     /* Move list → grows to fill remaining space between board and action bar */

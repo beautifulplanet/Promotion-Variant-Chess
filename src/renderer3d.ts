@@ -324,19 +324,36 @@ function doResize(): void {
     const wrapper = canvas.parentElement;
     if (!wrapper) return;
 
-    // Get available space — wrapper fills the game area via flex
-    const gameArea = wrapper.parentElement;
-    const availWidth = gameArea?.clientWidth || window.innerWidth;
-    const availHeight = gameArea?.clientHeight || window.innerHeight;
-
-    // On mobile, use nearly full viewport; on desktop, fill game area
     const isMobile = window.innerWidth < 768;
-    const width = Math.floor(isMobile ? availWidth - 6 : availWidth - 6);
-    // Keep aspect ratio ~2:1 for the chess board but fill height
-    const height = Math.floor(isMobile ? width * 0.6 : availHeight - 6);
+    const isClassic = document.body.classList.contains('classic-mode');
+    const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
+
+    let width: number;
+    let height: number;
+
+    if (flatBoardMode || isClassic) {
+      // ── Flat / Classic mode: square board, no gaps ──
+      // Let CSS flexbox determine the wrapper size (aspect-ratio: 1 in CSS).
+      // Clear any JS-imposed dimensions so CSS takes over.
+      wrapper.style.width = '';
+      wrapper.style.height = '';
+
+      // Read CSS-computed size after flex layout
+      const rect = wrapper.getBoundingClientRect();
+      // Board must be square — use the smaller dimension
+      const size = Math.floor(Math.min(rect.width, rect.height));
+      width = size || Math.floor(window.innerWidth);
+      height = width; // force square
+    } else {
+      // ── 3D mode: fill game area with cinematic aspect ──
+      const gameArea = wrapper.parentElement;
+      const availWidth = gameArea?.clientWidth || window.innerWidth;
+      const availHeight = gameArea?.clientHeight || window.innerHeight;
+      width = Math.floor(availWidth);
+      height = Math.floor(isMobile ? width * 0.6 : availHeight);
+    }
 
     // Update canvas HTML attributes (drawing buffer)
-    const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
 
@@ -353,9 +370,11 @@ function doResize(): void {
         overlayCanvas.style.height = height + 'px';
     }
 
-    // Update wrapper size
-    wrapper.style.width = width + 'px';
-    wrapper.style.height = height + 'px';
+    // Update wrapper size (only in 3D mode — flat mode lets CSS handle it)
+    if (!flatBoardMode && !isClassic) {
+      wrapper.style.width = width + 'px';
+      wrapper.style.height = height + 'px';
+    }
 
     // Update Three.js renderer and camera
     renderer.setSize(width, height);

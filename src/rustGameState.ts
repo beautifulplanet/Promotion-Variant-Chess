@@ -160,6 +160,9 @@ export class RustGameState {
   private boardCache: (Piece | null)[][] | null = null;
   private boardDirty = true;
 
+  // SAN move history — parallel to Rust's UCI history, for human-readable notation
+  private sanHistory: string[] = [];
+
   constructor() {
     if (WasmGameStateClass) {
       this.gs = new WasmGameStateClass();
@@ -187,6 +190,7 @@ export class RustGameState {
       this.gs.reset();
     }
     this.boardDirty = true;
+    this.sanHistory = [];
     return ok;
   }
 
@@ -214,6 +218,7 @@ export class RustGameState {
       console.error('[RustGameState] Failed to load custom board FEN:', fen);
     }
     this.boardDirty = true;
+    this.sanHistory = [];
   }
 
   /**
@@ -223,6 +228,7 @@ export class RustGameState {
     if (!this.gs) return;
     this.gs.reset();
     this.boardDirty = true;
+    this.sanHistory = [];
   }
 
   /**
@@ -233,6 +239,7 @@ export class RustGameState {
     const ok = this.gs.load_fen(fen);
     if (ok) {
       this.boardDirty = true;
+      this.sanHistory = [];
       console.log('[RustGameState] Loaded FEN:', fen);
     } else {
       console.error('[RustGameState] Failed to load FEN:', fen);
@@ -381,6 +388,98 @@ export class RustGameState {
   }
 
   /**
+   * Build SAN (Standard Algebraic Notation) for a move, given pre-move state.
+   * Must be called BEFORE making the move on the WASM engine (needs legal_moves).
+   */
+  private buildSAN(
+    piece: Piece,
+    from: { row: number; col: number },
+    to: { row: number; col: number },
+    captured: Piece | null,
+    promotion: PieceType | undefined,
+    flags: string
+  ): string {
+    // Castling
+    if (flags === 'k') return 'O-O';
+    if (flags === 'q') return 'O-O-O';
+
+    const toAlg = rowColToAlgebraic(to.row, to.col);
+    const fromAlg = rowColToAlgebraic(from.row, from.col);
+    let san = '';
+
+    if (piece.type === 'P') {
+      // Pawn move
+      if (captured || flags === 'e') {
+        san = fromAlg[0] + 'x' + toAlg;
+      } else {
+        san = toAlg;
+      }
+      if (promotion) {
+        san += '=' + promotion.toUpperCase();
+      }
+    } else {
+      // Piece letter (N, B, R, Q, K)
+      san = piece.type;
+
+      // Disambiguation — check if another piece of same type can reach same square
+      san += this.getDisambiguation(piece, from, toAlg);
+
+      if (captured) san += 'x';
+      san += toAlg;
+    }
+
+    return san;
+  }
+
+  /**
+   * Get disambiguation string for a piece move.
+   * Checks legal moves to see if another piece of the same type can move to the same square.
+   */
+  private getDisambiguation(
+    piece: Piece,
+    from: { row: number; col: number },
+    toAlg: string
+  ): string {
+    if (!this.gs) return '';
+    const fromAlg = rowColToAlgebraic(from.row, from.col);
+
+    try {
+      const legalMoves: string[] = this.gs.legal_moves();
+      const board = this.getBoard();
+      const ambiguous: string[] = []; // fromSq of other same-type pieces moving to same dest
+
+      for (const uci of legalMoves) {
+        const fSq = uci.substring(0, 2);
+        const tSq = uci.substring(2, 4);
+        if (tSq !== toAlg || fSq === fromAlg) continue;
+
+        // Check if piece at fSq is same type & color
+        const fCol = fSq.charCodeAt(0) - 97;
+        const fRow = 8 - parseInt(fSq[1]);
+        const other = board[fRow]?.[fCol];
+        if (other && other.type === piece.type && other.color === piece.color) {
+          ambiguous.push(fSq);
+        }
+      }
+
+      if (ambiguous.length === 0) return '';
+
+      // File unique?
+      const sameFile = ambiguous.some(sq => sq[0] === fromAlg[0]);
+      if (!sameFile) return fromAlg[0];
+
+      // Rank unique?
+      const sameRank = ambiguous.some(sq => sq[1] === fromAlg[1]);
+      if (!sameRank) return fromAlg[1];
+
+      // Need full square
+      return fromAlg;
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * Make a move. Returns a move result object (compatible with chess.js ChessMove shape)
    * or null if illegal.
    */
@@ -398,19 +497,7 @@ export class RustGameState {
 
     const captured = board[to.row]?.[to.col];
 
-    const uci = toUci(from.row, from.col, to.row, to.col,
-      promotion ? promotion.toLowerCase() as 'q' | 'r' | 'b' | 'n' : undefined);
-
-    const ok = this.gs.make_move_uci(uci);
-    if (!ok) return null;
-
-    this.boardDirty = true;
-
-    // Build a result object compatible with what callers expect from chess.js ChessMove
-    const fromSq = rowColToAlgebraic(from.row, from.col);
-    const toSq = rowColToAlgebraic(to.row, to.col);
-
-    // Determine flags
+    // Determine flags BEFORE making the move (need board state for en passant detection)
     let flags = '';
     const isCapture = !!captured;
     const isPawnDiagonal = piece.type === 'P' && from.col !== to.col;
@@ -427,6 +514,27 @@ export class RustGameState {
       flags = 'n';   // quiet move
     }
 
+    // Build SAN BEFORE making the move (needs legal_moves for disambiguation)
+    let san = this.buildSAN(piece, from, to, captured, promotion, flags);
+
+    const uci = toUci(from.row, from.col, to.row, to.col,
+      promotion ? promotion.toLowerCase() as 'q' | 'r' | 'b' | 'n' : undefined);
+
+    const ok = this.gs.make_move_uci(uci);
+    if (!ok) return null;
+
+    this.boardDirty = true;
+
+    // Append check/checkmate indicators AFTER the move is made
+    if (this.gs.is_checkmate()) san += '#';
+    else if (this.gs.is_in_check()) san += '+';
+
+    this.sanHistory.push(san);
+
+    // Build a result object compatible with what callers expect from chess.js ChessMove
+    const fromSq = rowColToAlgebraic(from.row, from.col);
+    const toSq = rowColToAlgebraic(to.row, to.col);
+
     return {
       color: piece.color === 'white' ? 'w' : 'b',
       from: fromSq,
@@ -435,7 +543,7 @@ export class RustGameState {
       captured: captured ? captured.type.toLowerCase() : undefined,
       promotion: promotion ? promotion.toLowerCase() : undefined,
       flags,
-      san: uci,   // We use UCI instead of SAN — callers don't parse this
+      san,
       lan: uci,
     } as MoveResult;
   }
@@ -448,23 +556,18 @@ export class RustGameState {
     const undone = this.gs.undo();
     if (undone) {
       this.boardDirty = true;
+      this.sanHistory.pop();
       return true;
     }
     return false;
   }
 
   /**
-   * Get move history as string array (UCI strings).
-   * Compatible with chess.js history() — callers use .length for counting.
+   * Get move history as SAN string array (e.g. ["e4", "e5", "Nf3", "Nc6"]).
+   * Computed alongside each makeMove call for proper notation.
    */
   getMoveHistory(): string[] {
-    if (!this.gs) return [];
-    try {
-      const json = this.gs.history();
-      return JSON.parse(json) as string[];
-    } catch {
-      return [];
-    }
+    return this.sanHistory.slice();
   }
 
   // ── Game state queries ──────────────────────────────────────────────────
