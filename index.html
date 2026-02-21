@@ -1148,6 +1148,34 @@
       }
     }
 
+    /* BOARD TOAST OVERLAY */
+    .board-toast {
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 5px 14px;
+      border-radius: 6px;
+      color: #fff;
+      background: rgba(30, 30, 30, 0.82);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      white-space: nowrap;
+      animation: toastFadeIn 0.25s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
+    .board-toast.fade-out {
+      animation: toastFadeOut 0.4s ease forwards;
+    }
+    @keyframes toastFadeIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastFadeOut {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+
     /* SETUP MODE OVERLAY */
     #setup-overlay {
       position: fixed;
@@ -1938,6 +1966,15 @@
         <canvas id="game-canvas" width="700" height="450"></canvas>
         <canvas id="overlay-canvas" width="700" height="450"
           style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+
+        <!-- BOARD TOAST OVERLAYS (opening name + move quality) -->
+        <div id="board-toast-container"
+          style="position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:80;
+                 display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none;">
+          <div id="opening-toast" class="board-toast" style="display:none;"></div>
+          <div id="move-quality-toast" class="board-toast" style="display:none;"></div>
+        </div>
+
         <!-- MULTIPLAYER PIECE BANK -->
         <div id="mp-piece-bank" class="mp-piece-bank"></div>
       </div>

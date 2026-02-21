@@ -59,6 +59,30 @@ const levelNotificationElem = document.getElementById('level-notification') as H
 const worldNameElem = document.getElementById('world-name');
 const fpsElem = document.getElementById('fps');
 
+// Board overlay toast elements
+const openingToast = document.getElementById('opening-toast') as HTMLElement | null;
+const moveQualityToast = document.getElementById('move-quality-toast') as HTMLElement | null;
+let lastShownOpening: string | null = null;
+let lastShownQuality: string | null = null;
+let openingToastTimer: ReturnType<typeof setTimeout> | null = null;
+let qualityToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showBoardToast(elem: HTMLElement | null, text: string, timerRef: 'opening' | 'quality', durationMs = 4000): void {
+  if (!elem) return;
+  elem.classList.remove('fade-out');
+  elem.style.display = 'block';
+  elem.textContent = text;
+  // Clear existing timer
+  if (timerRef === 'opening' && openingToastTimer) clearTimeout(openingToastTimer);
+  if (timerRef === 'quality' && qualityToastTimer) clearTimeout(qualityToastTimer);
+  const tid = setTimeout(() => {
+    elem.classList.add('fade-out');
+    setTimeout(() => { elem.style.display = 'none'; elem.classList.remove('fade-out'); }, 400);
+  }, durationMs);
+  if (timerRef === 'opening') openingToastTimer = tid;
+  else qualityToastTimer = tid;
+}
+
 // Control buttons
 const viewModeBtn = document.getElementById('view-mode-btn');
 const style3dBtn = document.getElementById('style-3d-btn');
@@ -207,6 +231,13 @@ function updateSidebar(state: Game.GameState): void {
       openingSection.style.display = 'none';
     }
   }
+  // Board toast for opening name (fires once per new opening detected)
+  if (openingName && openingName !== lastShownOpening) {
+    lastShownOpening = openingName;
+    showBoardToast(openingToast, `📖 ${openingName}`, 'opening', 5000);
+  } else if (!openingName) {
+    lastShownOpening = null;
+  }
 
   // Update move quality indicator
   const moveQualitySection = document.getElementById('move-quality-section');
@@ -235,6 +266,14 @@ function updateSidebar(state: Game.GameState): void {
     } else {
       moveQualitySection.style.display = 'none';
     }
+  }
+  // Board toast for move quality (fires once per new quality result)
+  const qualityKey = qualityDisplay ? `${qualityDisplay.emoji}${qualityDisplay.label}` : null;
+  if (qualityKey && qualityKey !== lastShownQuality) {
+    lastShownQuality = qualityKey;
+    showBoardToast(moveQualityToast, `${qualityDisplay!.emoji} ${qualityDisplay!.label}`, 'quality', 3500);
+  } else if (!qualityKey) {
+    lastShownQuality = null;
   }
 
   // Update FPS counter

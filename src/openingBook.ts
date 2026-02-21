@@ -357,16 +357,35 @@ export const OPENING_BOOK: Record<string, OpeningMove[]> = {
 };
 
 /**
+ * Normalize FEN for book lookup: keep position + side + castling only.
+ * Strips en passant, halfmove clock, and fullmove counter so keys don't
+ * need to account for e.g. "e3" vs "-" after a double pawn push.
+ */
+function normalizeBookFen(fen: string): string {
+    const parts = fen.split(' ');
+    // position + side + castling (first 3 fields)
+    return parts.slice(0, 3).join(' ');
+}
+
+// Build a normalized lookup map on first access for O(1) lookups
+let _normalizedBook: Map<string, OpeningMove[]> | null = null;
+function getNormalizedBook(): Map<string, OpeningMove[]> {
+    if (!_normalizedBook) {
+        _normalizedBook = new Map();
+        for (const [fen, moves] of Object.entries(OPENING_BOOK)) {
+            _normalizedBook.set(normalizeBookFen(fen), moves);
+        }
+    }
+    return _normalizedBook;
+}
+
+/**
  * Get a book move for the current FEN
  */
 export function getBookMove(fen: string): OpeningMove | null {
-    // Simplify FEN to just position + side to move + castling + en passant
-    // This avoids move number mismatches
-    // Standard FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
-    // We match EXACT strings from keys above for now.
-    // Ideally we should strip the move counters.
-
-    const possibleMoves = OPENING_BOOK[fen];
+    // Normalize FEN: strip en passant + move counters so book always matches
+    const key = normalizeBookFen(fen);
+    const possibleMoves = getNormalizedBook().get(key);
     if (!possibleMoves || possibleMoves.length === 0) return null;
 
     // Weighted random selection
@@ -393,7 +412,8 @@ let currentOpeningName: string | null = null;
  * Call this after each move to check if we've entered a named opening
  */
 export function updateOpeningName(fen: string): void {
-    const possibleMoves = OPENING_BOOK[fen];
+    const key = normalizeBookFen(fen);
+    const possibleMoves = getNormalizedBook().get(key);
     if (!possibleMoves) return;
 
     // Check if any move from this position has a named opening

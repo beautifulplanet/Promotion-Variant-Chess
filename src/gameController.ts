@@ -743,6 +743,9 @@ export function startGame(): void {
   // Re-setup board to apply any changes made in setup mode
   setupBoardWithPromotions();
 
+  // Show opening name for starting position
+  updateOpeningName(engine.getFEN());
+
   console.log('[Game] Game started! Player is', state.playerColor, 'Engine turn:', engine.turn());
 
   // If player is black, AI moves first
