@@ -347,7 +347,7 @@ export function generatePGN(): string {
   if (state.gameOver) {
     if (engine.isCheckmate()) {
       // If it's white's turn and checkmate, black won (and vice versa)
-      result = engine.getTurn() === 'white' ? '0-1' : '1-0';
+      result = engine.turn() === 'white' ? '0-1' : '1-0';
     } else {
       result = '1/2-1/2';
     }
