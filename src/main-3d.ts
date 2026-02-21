@@ -1981,8 +1981,10 @@ const cabNewBtn = document.getElementById('cab-new-btn');
 const cabResignBtn = document.getElementById('cab-resign-btn');
 const cabUndoBtn = document.getElementById('cab-undo-btn');
 const cabFlipBtn = document.getElementById('cab-flip-btn');
+const cabExploreBtn = document.getElementById('cab-explore-btn');
 const cabSettingsBtn = document.getElementById('cab-settings-btn');
 const cabExitBtn = document.getElementById('cab-exit-btn');
+const exploreBackBtn = document.getElementById('explore-back-btn');
 
 cabNewBtn?.addEventListener('click', () => {
   const state = Game.getState();
@@ -2016,6 +2018,16 @@ cabUndoBtn?.addEventListener('click', () => {
 });
 
 cabFlipBtn?.addEventListener('click', () => doFlip());
+
+cabExploreBtn?.addEventListener('click', () => {
+  ClassicMode.enterExploreMode();
+  Sound.play('move');
+});
+
+exploreBackBtn?.addEventListener('click', () => {
+  ClassicMode.exitExploreMode();
+  Sound.play('move');
+});
 
 cabSettingsBtn?.addEventListener('click', () => {
   const overlay = document.getElementById('options-overlay');

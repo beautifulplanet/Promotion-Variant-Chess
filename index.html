@@ -1863,6 +1863,7 @@
 
     /* ═══════════ CLASSIC-ONLY ELEMENTS (hidden in normal mode) ═══════════ */
     #classic-newspaper-header { display: none; }
+    .explore-back-btn { display: none; }
 
     /* ==========================================================================
        CLASSIC MODE — chess.com / Lichess-style clean UI
@@ -2150,6 +2151,84 @@
       border-color: #3d3b37;
     }
 
+    /* ==========================================================================
+       EXPLORE MODE — 3D scenery view from classic mode
+       ========================================================================== */
+
+    /* In explore mode: hide all UI chrome, canvas fills viewport */
+    body.explore-mode .classic-player-bar { display: none !important; }
+    body.explore-mode .classic-moves { display: none !important; }
+    body.explore-mode .classic-action-bar { display: none !important; }
+    body.explore-mode #classic-newspaper-header { display: none !important; }
+    body.explore-mode .article-column { display: none !important; }
+    body.explore-mode .newspaper-body {
+      overflow: hidden !important;  /* no scrolling in explore mode */
+    }
+
+    /* Board fills the entire viewport in explore mode */
+    body.explore-mode #center-section {
+      height: 100vh !important;
+      height: 100dvh !important;
+      max-width: 100% !important;
+    }
+    body.explore-mode #canvas-wrapper {
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: none !important;
+      aspect-ratio: auto !important;
+      border: none !important;
+    }
+
+    /* Floating "Back to Game" button */
+    body.explore-mode .explore-back-btn {
+      display: block !important;
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top, 12px));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(38, 37, 34, 0.85);
+      color: #e8e0d0;
+      border: 1px solid #4d4b47;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: background 0.2s, transform 0.2s;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    body.explore-mode .explore-back-btn:hover {
+      background: rgba(50, 49, 45, 0.95);
+      transform: translateX(-50%) scale(1.02);
+    }
+    body.explore-mode .explore-back-btn:active {
+      transform: translateX(-50%) scale(0.98);
+    }
+
+    /* Explore hint text on the button */
+    body.explore-mode #canvas-wrapper::after {
+      content: 'Drag to look around • Pinch to zoom';
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: -apple-system, sans-serif;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 4px 12px;
+      border-radius: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
     /* Graphics quality indicator pill */
     .gfx-quality-pill {
       display: inline-block;
@@ -2306,9 +2385,13 @@
         <button class="cab-btn cab-danger" id="cab-resign-btn" style="display:none;"><span class="cab-icon">⚑</span><span class="cab-label">Resign</span></button>
         <button class="cab-btn" id="cab-undo-btn"><span class="cab-icon">↩</span><span class="cab-label">Undo</span></button>
         <button class="cab-btn" id="cab-flip-btn"><span class="cab-icon">🔄</span><span class="cab-label">Flip</span></button>
+        <button class="cab-btn" id="cab-explore-btn"><span class="cab-icon">🌌</span><span class="cab-label">Explore</span></button>
         <button class="cab-btn" id="cab-settings-btn"><span class="cab-icon">⚙</span><span class="cab-label">Settings</span></button>
         <button class="cab-btn" id="cab-exit-btn"><span class="cab-icon">✕</span><span class="cab-label">Classic</span></button>
       </div>
+
+      <!-- EXPLORE MODE: floating "Back to Game" button -->
+      <button id="explore-back-btn" class="explore-back-btn">← Back to Game</button>
 
       <!-- OPEN TABLES -->
       <div id="open-tables-panel" class="open-tables-panel" style="display:none;">

@@ -330,10 +330,12 @@ function doResize(): void {
     const isClassic = document.body.classList.contains('classic-mode');
     const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
 
+    const isExploring = document.body.classList.contains('explore-mode');
+
     let width: number;
     let height: number;
 
-    if (flatBoardMode || isClassic) {
+    if ((flatBoardMode || isClassic) && !isExploring) {
       // ── Flat / Classic mode: square board that fits the viewport ──
       const container = wrapper.parentElement; // #center-section
       const containerWidth = container?.clientWidth || window.innerWidth;
@@ -388,7 +390,7 @@ function doResize(): void {
     // Update wrapper size
     wrapper.style.width = width + 'px';
     wrapper.style.height = height + 'px';
-    if (flatBoardMode || isClassic) {
+    if ((flatBoardMode || isClassic) && !isExploring) {
       // Center the board horizontally when it's narrower than the container
       wrapper.style.margin = '0 auto';
     } else {
@@ -1007,13 +1009,28 @@ function setupCameraControls(): void {
     }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
+        const isExploring = document.body.classList.contains('explore-mode');
         if (e.touches.length === 1) {
-            // Single finger: track drag distance but DON'T orbit
             const t = e.touches[0];
             const dx = t.clientX - dragStartX;
             const dy = t.clientY - dragStartY;
             if (!isDragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
                 isDragging = true;
+            }
+            // In explore mode: single-finger drag = orbit camera
+            if (isDragging && isExploring) {
+                e.preventDefault();
+                const deltaX = t.clientX - lastMouseX;
+                const deltaY = t.clientY - lastMouseY;
+                orbitTheta -= deltaX * 0.01;
+                orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitPhi - deltaY * 0.01));
+                lastMouseX = t.clientX;
+                lastMouseY = t.clientY;
+                if (currentViewMode !== 'pan') {
+                    currentViewMode = 'pan';
+                    if (renderer) renderer.toneMappingExposure = 0.6;
+                }
+                updateCameraPosition();
             }
         } else if (e.touches.length === 2) {
             // Two-finger: blocked in flat board mode
@@ -1048,7 +1065,9 @@ function setupCameraControls(): void {
     canvas.addEventListener('touchend', (e) => {
         if (e.touches.length === 0) {
             // Single finger lift — if it was a tap (not a drag), fire click
-            if (!isDragging && e.changedTouches.length === 1) {
+            // Block clicks in explore mode (viewing scenery, not playing)
+            const isExploring = document.body.classList.contains('explore-mode');
+            if (!isDragging && !isExploring && e.changedTouches.length === 1) {
                 // BUGFIX: Same throttle as click handler to prevent rapid-tap crashes
                 const now = performance.now();
                 if (now - _lastClickTime < CLICK_THROTTLE_MS) return;
@@ -1129,6 +1148,8 @@ function setupClickHandler(): void {
     canvas.addEventListener('click', (e) => {
         // Don't process clicks during drag operations or Alt+clicks (orbit trigger)
         if (isDragging || e.altKey) return;
+        // Block clicks in explore mode (viewing scenery, not playing)
+        if (document.body.classList.contains('explore-mode')) return;
 
         // Throttle: ignore clicks that arrive faster than CLICK_THROTTLE_MS
         const now = performance.now();

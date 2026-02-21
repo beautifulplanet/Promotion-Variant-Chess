@@ -29,6 +29,7 @@ const GFX_KEY = 'chess-graphics-quality';
 
 let classicEnabled = false;
 let currentQuality: GraphicsQuality = 'high';
+let exploringScene = false;
 
 // =============================================================================
 // CLASSIC MODE
@@ -41,6 +42,12 @@ export function isClassicMode(): boolean {
 let previousQuality: GraphicsQuality = 'high';
 
 export function setClassicMode(enabled: boolean): void {
+    // Exit explore mode if leaving classic mode
+    if (!enabled && exploringScene) {
+        exploringScene = false;
+        document.body.classList.remove('explore-mode');
+    }
+
     classicEnabled = enabled;
     document.body.classList.toggle('classic-mode', enabled);
     localStorage.setItem(CLASSIC_KEY, enabled ? '1' : '0');
@@ -81,6 +88,53 @@ export function setClassicMode(enabled: boolean): void {
 export function toggleClassicMode(): boolean {
     setClassicMode(!classicEnabled);
     return classicEnabled;
+}
+
+// =============================================================================
+// EXPLORE MODE — view 3D scenery from classic mode
+// =============================================================================
+
+export function isExploreMode(): boolean {
+    return exploringScene;
+}
+
+export function enterExploreMode(): void {
+    if (!classicEnabled || exploringScene) return;
+    exploringScene = true;
+    document.body.classList.add('explore-mode');
+
+    // Temporarily restore 3D rendering (exit flat mode)
+    Renderer.setFlatBoardMode(false);
+
+    // Enable full 3D effects
+    Renderer.setSkyboxEnabled(true);
+    Renderer.setParticlesEnabled(true);
+    Renderer.setEnvironmentEnabled(true);
+    Renderer.setEnvironmentAnimationEnabled(true);
+    Renderer.setWormholeEnabled(true);
+    Renderer.setMotionScale(1.0);
+    Renderer.setRenderScale(1.0);
+
+    console.log('[ClassicMode] Explore mode ON — 3D scenery visible');
+}
+
+export function exitExploreMode(): void {
+    if (!exploringScene) return;
+    exploringScene = false;
+    document.body.classList.remove('explore-mode');
+
+    // Restore flat board mode + classic low-GFX
+    Renderer.setFlatBoardMode(true);
+    Renderer.setShadowsEnabled(false);
+    Renderer.setParticlesEnabled(false);
+    Renderer.setSkyboxEnabled(false);
+    Renderer.setEnvironmentEnabled(false);
+    Renderer.setEnvironmentAnimationEnabled(false);
+    Renderer.setWormholeEnabled(false);
+    Renderer.setMotionScale(0);
+    Renderer.setRenderScale(1.0);
+
+    console.log('[ClassicMode] Explore mode OFF — flat board restored');
 }
 
 // =============================================================================
