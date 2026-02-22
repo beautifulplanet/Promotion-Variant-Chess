@@ -2245,10 +2245,347 @@
     .gfx-quality-pill[data-q="low"] { background: #e05555; color: #fff; }
     .gfx-quality-pill[data-q="med"] { background: #d4a24e; color: #1a1a1a; }
     .gfx-quality-pill[data-q="high"] { background: #81b64c; color: #fff; }
+
+    /* ═══════════ WELCOME DASHBOARD ═══════════ */
+    #welcome-dashboard {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: var(--bg-color, #faf6ed);
+      background-image:
+        repeating-linear-gradient(to right, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px),
+        repeating-linear-gradient(to bottom, transparent, transparent 1px, rgba(0,0,0,0.015) 1px, rgba(0,0,0,0.015) 2px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+    #welcome-dashboard.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Dashboard masthead */
+    .wd-masthead {
+      width: 100%;
+      max-width: 640px;
+      text-align: center;
+      padding: 28px 20px 14px;
+    }
+    .wd-rule {
+      border: none;
+      border-top: 1px solid var(--border-color, #c0b090);
+      margin: 0;
+    }
+    .wd-rule-double {
+      border: none;
+      border-top: 4px double var(--border-color, #c0b090);
+      margin: 8px 0;
+    }
+    .wd-title {
+      font-family: 'Playfair Display', 'Georgia', serif;
+      font-size: clamp(30px, 6vw, 52px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--text-color, #2a2a2a);
+      line-height: 1.1;
+      margin: 10px 0 4px;
+    }
+    .wd-subtitle {
+      font-family: 'Old Standard TT', serif;
+      font-size: 13px;
+      font-style: italic;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      letter-spacing: 1.5px;
+      margin-bottom: 4px;
+    }
+    .wd-beta {
+      display: inline-block;
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background: var(--sidebar-accent, #8b4513);
+      color: var(--bg-color, #faf6ed);
+      padding: 2px 10px;
+      border-radius: 3px;
+      margin-top: 2px;
+    }
+    .wd-date {
+      font-family: 'Old Standard TT', serif;
+      font-size: 11px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      margin-top: 6px;
+    }
+
+    /* Dashboard content area */
+    .wd-content {
+      width: 100%;
+      max-width: 640px;
+      padding: 0 20px 32px;
+    }
+
+    /* Stats ribbon */
+    .wd-stats {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-color, #c0b090);
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .wd-stat {
+      text-align: center;
+    }
+    .wd-stat-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--text-color, #2a2a2a);
+    }
+    .wd-stat-label {
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+    }
+
+    /* Hero play button */
+    .wd-hero-btn {
+      display: block;
+      width: 100%;
+      padding: 18px 24px;
+      margin-bottom: 14px;
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--btn-primary, #5a7a4a);
+      color: var(--btn-primary-text, #faf6ed);
+      border: 2px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: filter 0.2s, transform 0.1s;
+    }
+    .wd-hero-btn:hover {
+      filter: brightness(1.12);
+    }
+    .wd-hero-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Section headers */
+    .wd-section-header {
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      border-bottom: 1px solid var(--border-color, #c0b090);
+      padding-bottom: 4px;
+      margin: 18px 0 10px;
+    }
+
+    /* Button grid */
+    .wd-btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .wd-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 16px 10px;
+      background: var(--surface-alt, #f0ebe0);
+      border: 1px solid var(--border-color, #c0b090);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      text-align: center;
+    }
+    .wd-btn:hover {
+      background: var(--scrollbar-track, #e8dcc8);
+      border-color: var(--sidebar-accent, #8b4513);
+    }
+    .wd-btn:active {
+      filter: brightness(0.95);
+    }
+    .wd-btn-icon {
+      font-size: 24px;
+      line-height: 1;
+    }
+    .wd-btn-label {
+      font-family: 'Playfair Display', serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-color, #2a2a2a);
+    }
+    .wd-btn-desc {
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      line-height: 1.3;
+    }
+
+    /* Preference row (inline toggles) */
+    .wd-pref-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .wd-pref-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 8px;
+      background: var(--surface-alt, #f0ebe0);
+      border: 1px solid var(--border-color, #c0b090);
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Old Standard TT', serif;
+      font-size: 12px;
+      color: var(--text-color, #2a2a2a);
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .wd-pref-btn:hover {
+      background: var(--scrollbar-track, #e8dcc8);
+      border-color: var(--sidebar-accent, #8b4513);
+    }
+    .wd-pref-btn.active {
+      border-color: var(--sidebar-accent, #8b4513);
+      background: var(--scrollbar-track, #e8dcc8);
+      font-weight: 700;
+    }
+
+    /* Footer */
+    .wd-footer {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color, #c0b090);
+    }
+    .wd-footer-text {
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      font-style: italic;
+    }
+    .wd-account-hint {
+      display: inline-block;
+      font-family: 'Old Standard TT', serif;
+      font-size: 10px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      border: 1px dashed var(--border-color, #c0b090);
+      padding: 4px 12px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    /* Mobile tweaks */
+    @media (max-width: 500px) {
+      .wd-masthead { padding: 18px 14px 10px; }
+      .wd-content { padding: 0 14px 24px; }
+      .wd-hero-btn { font-size: 17px; padding: 16px 20px; }
+      .wd-btn { padding: 14px 8px; }
+      .wd-btn-icon { font-size: 22px; }
+      .wd-stats { gap: 14px; }
+    }
   </style>
 </head>
 
 <body>
+  <!-- ═══════════ WELCOME DASHBOARD (shown before game) ═══════════ -->
+  <div id="welcome-dashboard">
+    <div class="wd-masthead">
+      <hr class="wd-rule">
+      <h1 class="wd-title">Chess Wars Chronicle</h1>
+      <div class="wd-subtitle">All the Tactics That&rsquo;s Fit to Print</div>
+      <span class="wd-beta">Beta</span>
+      <hr class="wd-rule-double">
+      <div class="wd-date" id="wd-date"></div>
+    </div>
+
+    <div class="wd-content">
+      <!-- Stats ribbon -->
+      <div class="wd-stats">
+        <div class="wd-stat">
+          <div class="wd-stat-value" id="wd-elo">400</div>
+          <div class="wd-stat-label">Rating</div>
+        </div>
+        <div class="wd-stat">
+          <div class="wd-stat-value" id="wd-wins">0</div>
+          <div class="wd-stat-label">Wins</div>
+        </div>
+        <div class="wd-stat">
+          <div class="wd-stat-value" id="wd-streak">0</div>
+          <div class="wd-stat-label">Streak</div>
+        </div>
+        <div class="wd-stat">
+          <div class="wd-stat-value" id="wd-level">1</div>
+          <div class="wd-stat-label">Level</div>
+        </div>
+      </div>
+
+      <!-- Hero play button -->
+      <button class="wd-hero-btn" id="wd-play-btn">▶ &nbsp;Play vs AI</button>
+
+      <!-- Game modes -->
+      <div class="wd-section-header">Game Modes</div>
+      <div class="wd-btn-grid">
+        <button class="wd-btn" id="wd-setup-btn">
+          <span class="wd-btn-icon">⚙️</span>
+          <span class="wd-btn-label">Setup Board</span>
+          <span class="wd-btn-desc">Arrange your army &amp; deploy bonus pieces</span>
+        </button>
+        <button class="wd-btn" id="wd-online-btn">
+          <span class="wd-btn-icon">🌐</span>
+          <span class="wd-btn-label">Play Online</span>
+          <span class="wd-btn-desc">Create or join a table</span>
+        </button>
+        <button class="wd-btn" id="wd-load-btn">
+          <span class="wd-btn-icon">📂</span>
+          <span class="wd-btn-label">Load Game</span>
+          <span class="wd-btn-desc">Resume from a save file</span>
+        </button>
+        <button class="wd-btn" id="wd-howto-btn">
+          <span class="wd-btn-icon">❓</span>
+          <span class="wd-btn-label">How to Play</span>
+          <span class="wd-btn-desc">Rules, tips &amp; controls</span>
+        </button>
+      </div>
+
+      <!-- Preferences -->
+      <div class="wd-section-header">Preferences</div>
+      <div class="wd-pref-row">
+        <button class="wd-pref-btn" id="wd-classic-btn">♟ Classic Mode</button>
+        <button class="wd-pref-btn" id="wd-gfx-btn">⚡ GFX: High</button>
+        <button class="wd-pref-btn" id="wd-theme-btn">🎨 Theme</button>
+      </div>
+
+      <!-- Footer -->
+      <div class="wd-footer">
+        <div class="wd-account-hint">👤 Accounts &amp; profiles — coming soon</div>
+        <div class="wd-footer-text" style="margin-top:8px;">v0.1.0-beta &nbsp;·&nbsp; Made with ♟ and ☕</div>
+      </div>
+    </div>
+  </div>
+
   <!-- EXPLORE MODE: floating "Back to Game" button (outside all containers so position:fixed works) -->
   <button id="explore-back-btn" class="explore-back-btn">← Back to Game</button>
 
