@@ -1,5 +1,6 @@
 # Local planning (private, never push)
 .planning/
+LOCAL_*.md
 
 # Dependencies
 node_modules/
