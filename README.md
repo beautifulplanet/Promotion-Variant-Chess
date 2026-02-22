@@ -2,11 +2,45 @@
 
 **A full-stack 3D chess game where you journey through twenty ages of human history — from the age of dinosaurs to transcendent cosmic realms — powered by a custom Rust chess engine compiled to WebAssembly.**
 
-🎮 **[▶ PLAY NOW](https://promotion-variant-chess.vercel.app)** 🎮
-🔌 **[Multiplayer Server](https://chess-server-falling-lake-2071.fly.dev)** 🔌
-📈 **[Health Check](https://chess-server-falling-lake-2071.fly.dev/health)** · 📊 **[Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics)**
+### Impact
 
-> *806 unit tests + 13 E2E Playwright tests. 3 languages. 1 WebAssembly binary. Zero frameworks. Production-hardened with k6 load testing, rate limiting, and a 1-million-AI tournament runner.*
+- **Playable right now** — [open this link](https://promotion-variant-chess.vercel.app) and you're in a 3D chess game. No install, no account, no loading screen.
+- **Chess engine runs entirely in your browser** — custom Rust engine compiled to WebAssembly (~5M positions/sec). Zero server cost for AI. Scales to infinite players.
+- **Real-time multiplayer with persistence** — Socket.io WebSocket server, JWT auth, guest play, ELO matchmaking, game rooms, reconnection handling, Prisma/SQLite storage.
+- **819 tests across 3 languages, production-hardened** — Vitest + cargo test + Playwright E2E + 3 k6 load test suites. Rate limiting, Helmet.js security headers, graceful shutdown, crash recovery.
+
+**Stack:** TypeScript · Three.js · Rust · WebAssembly · Node.js · Express · Socket.io · Prisma · SQLite · Zod · Playwright · Vitest · k6 · Docker · Fly.io · Vercel
+
+### Evidence
+
+| Claim | Proof |
+|---|---|
+| Playable game | 🎮 [**Play Now**](https://promotion-variant-chess.vercel.app) |
+| Server is running | 📈 [Health Check](https://chess-server-falling-lake-2071.fly.dev/health) · 📊 [Prometheus Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics) |
+| 420 frontend unit tests | `npm test` |
+| 218 Rust engine tests | `cd rust-engine && cargo test` |
+| 168 server tests | `cd server && npm test` |
+| 13 E2E browser tests | `npx playwright test` |
+| k6 load testing | `k6 run load-tests/http-load-test.js` — [methodology ↓](#d14-what-are-your-load-testing-methodology-and-slos) |
+| Perft correctness | Depth 5 = 4,865,609 nodes ✅ — `cargo test perft` |
+| Security hardening | [Security Posture ↓](#security-posture--threat-model) |
+
+### Quality Bar
+
+- **Perft-validated move generation** — engine matches all standard node counts through depth 5 (`cargo test perft`)
+- **E2E Playwright tests that play real games** — automated agent makes legal moves, verifies board state, checks for crashes (`npx playwright test`)
+- **Prometheus metrics + health check** — 16 custom metrics, live `/health` and `/metrics` endpoints, k6 SLO validation
+- **Offline / PWA support** — installable on mobile, service worker caching, Android hybrid via Capacitor
+- **Zod protocol validation** — every WebSocket message is schema-validated with version enforcement (`v: 1`)
+
+### Ownership & Quality
+
+I'm the sole maintainer and take responsibility for correctness, security, and performance. I use AI-assisted tooling where helpful, but I review every change, write tests, and validate behavior with E2E and benchmarks.
+
+- **Role:** Solo owner — design, implementation, testing, deployment
+- **Standard:** No change lands without tests passing, E2E green, TypeScript strict mode clean
+- **AI policy:** AI-assisted code is allowed. I review, refactor, and verify. I can explain and extend every component.
+- **Proof hooks:** `window.__GAME__` and `window.__RENDERER__` are exposed for E2E test automation — Playwright tests use these to make real moves and inspect board state
 
 <!-- Screenshot placeholder: Replace with actual screenshot -->
 <!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
@@ -15,23 +49,46 @@
 
 ## How to Read This README
 
-This document serves **four audiences**. Jump to what you need:
+### If you're evaluating the candidate
 
-| You are... | Start here | Time |
+| What you want | Where to find it | Time |
 |---|---|---|
-| **Hiring manager** wanting the highlights | [Part 1: Summary](#part-1-summary) | 30 seconds |
-| **Senior engineer** evaluating the architecture | [Part 2: Tech Stack & Architecture](#part-2-tech-stack--architecture) | 1 minute |
-| **Developer** wanting to run it locally | [Part 3: Quick Start](#part-3-quick-start) | 2 minutes |
-| **Learner** wanting to understand everything | [Part 4: Full Tutorial](#part-4-full-tutorial--deep-dive) | 30+ minutes |
+| See the game running | 🎮 [Play Now](https://promotion-variant-chess.vercel.app) | 10 sec |
+| Stack + resume bullets | [Impact ↑](#impact) + [Stack ↑](#the-chess-chronicle-️) | 30 sec |
+| Proof (tests, metrics, links) | [Evidence ↑](#evidence) | 1 min |
+| Talking points for interview | [Why It's Interesting ↓](#why-its-interesting-for-interviewers) | 1 min |
+| Interview drill questions | [Interview Drill ↓](#interview-drill-sheet) | 2 min |
 
-Each part is also available as a **standalone document** if you only want one section:
+### If you're reviewing engineering
 
-| Part | In this README | Standalone doc |
+| What you want | Where to find it | Time |
 |---|---|---|
-| Summary | [Jump ↓](#part-1-summary) | [docs/PART1_SUMMARY.md](docs/PART1_SUMMARY.md) |
-| Tech Stack | [Jump ↓](#part-2-tech-stack--architecture) | [docs/PART2_TECH_STACK.md](docs/PART2_TECH_STACK.md) |
-| Quick Start | [Jump ↓](#part-3-quick-start) | [docs/PART3_QUICK_START.md](docs/PART3_QUICK_START.md) |
-| Full Tutorial | [Jump ↓](#part-4-full-tutorial--deep-dive) | [docs/PART4_FULL_TUTORIAL.md](docs/PART4_FULL_TUTORIAL.md) |
+| Architecture + data boundaries | [Architecture ↓](#architecture) | 1 min |
+| Engine internals (bitboards, search) | [Section B ↓](#b3-bitboard-representation) / [Section C ↓](#c1-board-representation-from-first-principles) | 5–30 min |
+| Multiplayer protocol (Zod schemas) | [B11 ↓](#b11-multiplayer-architecture) + [Protocol ↓](#multiplayer-protocol-reference) | 3 min |
+| Security posture + threat model | [Security Posture ↓](#security-posture--threat-model) | 2 min |
+| Performance numbers (reproducible) | [Performance ↓](#performance-numbers) | 2 min |
+| System invariants | [Invariants ↓](#system-invariants) | 1 min |
+| Testing strategy | [D10 ↓](#d10-how-do-you-test-a-3d-game) | 2 min |
+| Load testing + SLOs | [D14 ↓](#d14-what-are-your-load-testing-methodology-and-slos) | 3 min |
+| Deploy + operations | [A7 ↓](#a7-deploy-to-production) / [Section F ↓](#f1-bottleneck-analysis-by-user-scale) | 5 min |
+
+### If you want to run it
+
+| What you want | Where to find it | Time |
+|---|---|---|
+| Clone + play in 2 minutes | [Quick Start ↓](#part-3-quick-start) | 2 min |
+| Full IKEA-style setup guide | [Section A ↓](#a1-system-requirements) | 10 min |
+| Rebuild WASM engine from source | [A6 ↓](#a6-rebuild-the-rust-engine-from-source) | 5 min |
+
+Each part is also available as a **standalone document**:
+
+| Part | Standalone |
+|---|---|
+| Summary | [docs/PART1_SUMMARY.md](docs/PART1_SUMMARY.md) |
+| Tech Stack | [docs/PART2_TECH_STACK.md](docs/PART2_TECH_STACK.md) |
+| Quick Start | [docs/PART3_QUICK_START.md](docs/PART3_QUICK_START.md) |
+| Full Tutorial | [docs/PART4_FULL_TUTORIAL.md](docs/PART4_FULL_TUTORIAL.md) |
 
 ---
 
@@ -107,37 +164,50 @@ A chess game that combines:
 | Testing | Vitest + cargo test + Playwright | Unit, integration, E2E across all 3 languages |
 | Deploy | Vercel (frontend), Docker + Fly.io (server) | Edge CDN for static, persistent VM for WebSocket server |
 
-### Architecture
+### Architecture (with data boundaries)
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                     Browser                          │
-│                                                      │
-│  ┌──────────┐   ┌────────────┐   ┌──────────────┐   │
-│  │ Three.js │   │   Game     │   │  Socket.io   │   │
-│  │ Renderer │◄──┤ Controller ├──►│   Client     │   │
-│  └──────────┘   └─────┬──────┘   └──────┬───────┘   │
-│                       │                  │           │
-│               ┌───────▼────────┐         │           │
-│               │  Engine Bridge │         │           │
-│               │  (TypeScript)  │         │           │
-│               └───────┬────────┘         │           │
-│                       │                  │           │
-│               ┌───────▼────────┐         │           │
-│               │  Rust Engine   │         │           │
-│               │    (WASM)      │         │           │
-│               └────────────────┘         │           │
-└──────────────────────────────────────────┼───────────┘
-                                           │ WebSocket
-                                  ┌────────▼─────────┐
-                                  │   Chess Server    │
-                                  │  Express + WS     │
-                                  ├──────────────────-┤
-                                  │ Matchmaker  │ ELO │
-                                  │ Game Rooms  │ Auth│
-                                  ├──────────────────-┤
-                                  │   Prisma + SQLite  │
-                                  └────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                          Browser                              │
+│                                                               │
+│  ┌──────────┐   ┌─────────────┐   ┌───────────────┐          │
+│  │ Three.js │   │    Game      │   │  Socket.io    │          │
+│  │ Renderer │◄──┤  Controller  ├──►│    Client     │          │
+│  └──────────┘   └──────┬──────┘   └───────┬───────┘          │
+│     scene graph,        │                  │                  │
+│     piece meshes,       │                  │ JSON messages:   │
+│     highlights          │                  │ {type, v:1, ...} │
+│               ┌─────────▼─────────┐        │                  │
+│               │   Engine Bridge    │        │ · create_table   │
+│               │   (TypeScript)     │        │ · join_table     │
+│               └─────────┬─────────┘        │ · make_move      │
+│                         │                  │ · resign         │
+│                  FEN string + depth        │ · reconnect      │
+│                  ────────▼────────         │                  │
+│               ┌───────────────────┐        │                  │
+│               │   Rust Engine     │        │                  │
+│               │     (WASM)        │        │                  │
+│               └───────────────────┘        │                  │
+│                  SAN move string ▲         │                  │
+└───────────────────────────────────────────┼──────────────────┘
+                                            │ WebSocket (wss://)
+                                            │ JWT in handshake
+                                   ┌────────▼──────────┐
+                                   │   Chess Server     │
+                                   │  Express + WS      │
+                                   ├────────────────────┤
+                                   │ Zod validation     │ ← all inbound
+                                   │ Rate limiting      │ ← per-IP + per-socket
+                                   │ Helmet.js headers  │ ← all responses
+                                   ├────────────────────┤
+                                   │ TableManager       │ open tables model
+                                   │ GameRoom           │ chess.js validation
+                                   │ ELO calculator     │ K=32 standard
+                                   ├────────────────────┤
+                                   │   Prisma + SQLite  │
+                                   │   users, games,    │
+                                   │   ELO history      │
+                                   └────────────────────┘
 ```
 
 ### AI Fallback Chain
@@ -161,6 +231,154 @@ Request → Rust WASM (~1M+ NPS)
 | SQLite in production | Portfolio-scale traffic. Persistent Fly.io volume. Avoids Postgres complexity |
 | Bitboard representation | O(1) attack lookups via magic bitboards. Industry standard for chess engines |
 | 16-bit move encoding | 2 bytes per move. 256-move list fits in 512 bytes (L1 cache) |
+
+### Security Posture & Threat Model
+
+| Boundary | Threat | Mitigation | Status |
+|---|---|---|---|
+| HTTP API | Brute force / DDoS | `express-rate-limit` — 100 req/min per IP | ✅ Enforced |
+| WebSocket | Message flood | Per-socket rate limit — 20 msg/sec sliding window (`resilience.ts`) | ✅ Enforced |
+| WebSocket | Connection flood | Per-IP connection cap — max 10 concurrent (`trackConnection`) | ✅ Enforced |
+| Auth | No account required | Guest tokens — play immediately, register optionally | ✅ Enforced |
+| Auth | Token theft | JWT (HS256) + bcrypt password hashing | ✅ Enforced |
+| Game moves | Illegal moves | Server-side chess.js validation — rejects and returns error | ✅ Enforced |
+| Game moves | Wrong turn | Server checks `playerColor === currentTurn` before accepting | ✅ Enforced |
+| Protocol | Malformed messages | Zod schema validation on every inbound WebSocket message | ✅ Enforced |
+| Protocol | Version mismatch | `v: 1` literal in every schema — unknown versions rejected | ✅ Enforced |
+| Headers | XSS / clickjack / sniffing | Helmet.js — CSP, X-Frame-Options, HSTS, etc. | ✅ Enforced |
+| CORS | Origin spoofing | Allowlist: Vercel domain + localhost dev only | ✅ Enforced |
+| Rooms | Memory exhaustion | Max 500 active rooms (`canCreateRoom`) | ✅ Enforced |
+| Game moves | Engine-assisted cheating | Server validates legality only — no move-quality analysis | ⚠️ Legality only |
+| Anti-cheat | Statistical detection | Time-per-move / move-quality correlation analysis | 🔲 Planned |
+| Server | Horizontal scaling | Single Fly.io VM — no clustering yet | 🔲 Planned |
+
+> **Honesty note:** Anti-cheat beyond legality checking is not implemented. For ranked multiplayer at scale, the server would need its own engine for move-quality analysis. Current scope: portfolio project with honest, real security hardening for every boundary that IS protected.
+
+### Performance Numbers
+
+All numbers are reproducible. Commands included.
+
+**Engine (Rust → WASM)**
+
+| Benchmark | Desktop (Chrome) | Mobile (Pixel 7) | How to reproduce |
+|---|---|---|---|
+| Perft depth 5 (starting pos) | 4,865,609 nodes ✅ | — | `cargo test perft` |
+| Move generation throughput | ~5M positions/sec | ~2M positions/sec | `benchmarks/perft.html` |
+| Depth 5 search | ~300ms | ~700ms | In-game AI response |
+| WASM binary size | ~170 KB gzipped | — | `ls -la public/wasm/` |
+| WASM cold-start init | ~50–100ms | ~150ms | First `initEngine()` call |
+| JS fallback (TypeScript minimax) | ~10K positions/sec | ~5K positions/sec | Automatic if WASM fails |
+
+**Server (Node.js + Express + Socket.io)**
+
+| Metric | SLO Target | How to reproduce |
+|---|---|---|
+| HTTP P95 latency | < 500ms | `k6 run load-tests/http-load-test.js` |
+| HTTP P99 latency | < 1,000ms | Same |
+| HTTP error rate | < 5% | Same |
+| WS connection P95 | < 2,000ms | `k6 run load-tests/websocket-load-test.js` |
+| WS message P95 | < 500ms | Same |
+| WS connection success | > 90% | Same |
+| Health check P95 | < 200ms | Same (HTTP test, health scenario) |
+| Guest auth P95 | < 800ms | Same (HTTP test, auth scenario) |
+| Stress test peak | 500 RPS + 250 concurrent WS | `k6 run load-tests/stress-test.js` |
+
+**Test Suites**
+
+| Suite | Language | Count | Command |
+|---|---|---|---|
+| Frontend unit | TypeScript (Vitest) | 420 | `npm test` |
+| Rust engine | Rust (cargo test) | 218 | `cd rust-engine && cargo test` |
+| Server | TypeScript (Vitest) | 168 | `cd server && npm test` |
+| E2E browser | TypeScript (Playwright) | 13 | `npx playwright test` |
+| k6 HTTP load | JavaScript (k6) | 6 scenarios | `k6 run load-tests/http-load-test.js` |
+| k6 WebSocket load | JavaScript (k6) | ramp to 200 VUs | `k6 run load-tests/websocket-load-test.js` |
+| k6 stress (breaking point) | JavaScript (k6) | 500 RPS / 250 WS | `k6 run load-tests/stress-test.js` |
+| **Total** | **3 languages** | **819 + 3 k6** | |
+
+### Multiplayer Protocol Reference
+
+All messages are JSON over WebSocket, validated with Zod schemas. Protocol version `v: 1`.
+
+**Client → Server**
+
+| Message | Key Fields | Validation |
+|---|---|---|
+| `create_table` | `playerName` (1–20 chars), `elo` (0–4000), `pieceBank` | Zod: string length, int range, optional bank |
+| `join_table` | `tableId`, `playerName`, `elo` | Zod: required tableId string |
+| `list_tables` | *(none)* | Zod: type + version only |
+| `leave_table` | *(none)* | Zod: type + version only |
+| `make_move` | `gameId` (UUID), `move` (2–6 chars, SAN or UCI) | Zod: UUID format, string length |
+| `resign` | `gameId` (UUID) | Zod: UUID format |
+| `offer_draw` | `gameId` (UUID) | Zod: UUID format |
+| `accept_draw` / `decline_draw` | `gameId` (UUID) | Zod: UUID format |
+| `reconnect` | `playerToken`, `gameId` (UUID) | Zod: token string, UUID |
+
+**Server → Client**
+
+| Message | Key Fields |
+|---|---|
+| `tables_list` | `tables[]` — id, host name, host ELO, created time |
+| `table_created` | `tableId` |
+| `game_found` | `gameId`, `color`, `opponent` (name + ELO), `timeControl`, `fen`, piece banks |
+| `move_ack` | `gameId`, `move` (SAN), `fen`, clock times |
+| `opponent_move` | `gameId`, `move` (UCI), `fen`, clock times |
+| `game_over` | `gameId`, `result`, `reason`, ELO change |
+| `draw_offer` / `draw_declined` | `gameId`, `from` (opponent name) |
+| `error` | `code`, `message` |
+
+**Prometheus Metrics (16 custom)**
+
+| Metric | Type | What it measures |
+|---|---|---|
+| `chess_connected_players` | Gauge | Current WebSocket connections |
+| `chess_active_games` | Gauge | Games currently in progress |
+| `chess_games_started_total` | Counter | Lifetime games started |
+| `chess_games_completed_total` | Counter | Completed games (labeled: result, reason) |
+| `chess_queue_length` | Gauge | Players waiting for match |
+| `chess_queue_wait_seconds` | Histogram | Time in queue before match found |
+| `chess_moves_total` | Counter | Total moves across all games |
+| `chess_move_processing_seconds` | Histogram | Move validation + execution time |
+| `chess_auth_total` | Counter | Auth attempts (labeled: type, result) |
+| `chess_errors_total` | Counter | Errors by code |
+| `chess_db_query_seconds` | Histogram | Database query duration (labeled: operation) |
+| `chess_shutdown_in_progress` | Gauge | 1 during graceful shutdown drain |
+| `chess_rate_limit_hits_total` | Counter | HTTP rate limit rejections |
+| `chess_ws_rate_limit_total` | Counter | WebSocket rate limit rejections |
+| `chess_process_crashes_total` | Counter | Uncaught exceptions / unhandled rejections |
+| + Node.js defaults | Various | CPU, memory, event loop lag, GC, handles |
+
+### System Invariants
+
+Guarantees the system makes — auditable in source:
+
+1. **Server is authoritative for multiplayer game state.** Clients submit moves; server validates legality via chess.js before broadcasting. Invalid moves are rejected with an error message. *(source: `GameRoom.makeMove()`)* 
+2. **AI always works.** Triple fallback chain: Rust WASM → Stockfish.js Worker → TypeScript minimax. If one engine fails to load, the next takes over silently. The user always gets a working opponent. *(source: `aiService.ts`)*
+3. **Every WebSocket message is schema-validated.** Zod discriminated union parses all inbound messages. Unknown types, wrong versions, and malformed fields are rejected before reaching game logic. *(source: `protocol.ts`, `ClientMessageSchema`)*
+4. **Game state is recoverable.** Single-player: save/load via localStorage + JSON file export. Multiplayer: player token reconnection within 30-second grace period + game persistence in SQLite. *(source: `saveSystem.ts`, `GameRoom.DISCONNECT_GRACE_MS`)*
+5. **Rendering never blocks game logic.** Game controller is synchronous; renderer updates are RAF-coalesced and decoupled. Scene transitions don't freeze the game state machine. *(source: `main-3d.ts` RAF loop)*
+6. **WebGL failure is non-fatal.** Context-loss triggers a toast notification; game logic continues; renderer attempts automatic recovery. *(source: `renderer3d.ts` context-loss handler)*
+7. **Clock integrity in multiplayer.** Server tracks wall-clock elapsed time per move. Clocks are updated server-side before broadcasting — clients display but don't control time. *(source: `GameRoom.makeMove()` clock logic)*
+8. **Graceful shutdown preserves connections.** SIGTERM/SIGINT triggers: stop accepting new connections → notify all clients → drain timeout → force disconnect. Fly.io deploys don't orphan games. *(source: `resilience.ts`)*
+
+### Interview Drill Sheet
+
+Questions a senior engineer will ask, with honest 1-sentence answers and deep-dive links:
+
+| Question | Short Answer | Deep Dive |
+|---|---|---|
+| Why Rust WASM instead of a server-side engine? | Zero latency for single-player, zero server cost for AI, scales to infinite concurrent users — server only needed for multiplayer. | [B2 ↓](#b2-the-ai-engine-fallback-chain) |
+| How do you prevent cheating in multiplayer? | Server validates every move via chess.js. Statistical move-quality detection is planned but not built — I'm honest about that. | [D2 ↓](#d2-how-do-you-detect-and-handle-cheating) |
+| What's the engine interface boundary? | FEN string + depth in → SAN move string out, via wasm-bindgen. Not UCI — custom bridge optimized for browser context. | [B9 ↓](#b9-wasm-bridge-architecture) |
+| How do you manage Three.js memory / GC pressure? | Explicit `dispose()` on every geometry, material, and texture during scene transitions. WebGL context-loss handler for recovery. No circular references. | [B10 ↓](#b10-rendering-pipeline) |
+| What are the biggest perf bottlenecks? | Magic bitboard init (~50ms cold start), Three.js scene transitions (~200ms), Stockfish Worker init (~500ms). Measured via `performance.now()` instrumentation. | [D7 ↓](#d7-what-are-the-performance-characteristics-on-mobile) |
+| How do you validate the engine is correct? | Perft test: depth 5 starting position = 4,865,609 nodes, matching published values. 218 Rust tests cover edge cases (en passant, castling, promotion, pins). | [C13 ↓](#c13-testing-and-correctness--perft) |
+| Why vanilla TS instead of React? | 80% of the app is `<canvas>`. React's virtual DOM adds overhead for canvas-driven rendering. Game state is a single chess position — no component tree needed. | [D5 ↓](#d5-why-vanilla-typescript-instead-of-reactvuesvelte) |
+| How does the multiplayer protocol handle reconnection? | Player gets a unique token at game start. On disconnect, server holds the seat for 30 seconds. Client sends `reconnect` with token + gameId to resume. | [B11 ↓](#b11-multiplayer-architecture) |
+| What would you do differently? | Solid.js for non-canvas UI panels, ECS for 3D scene management, PostgreSQL from day one, tapered eval in the engine. | [D9 ↓](#d9-what-would-you-do-differently-if-you-started-over) |
+| How do you test a 3D game with no visible output in CI? | Mock Three.js (no GPU), test game logic via exposed `window.__GAME__` API, E2E Playwright tests with real browser + canvas interaction. | [D10 ↓](#d10-how-do-you-test-a-3d-game) |
+
+> **Multiplayer status note:** The multiplayer infrastructure is built and deployed (auth, open tables, game rooms, reconnect, ELO, draw/resign, Zod protocol). It has not been stress-tested with real concurrent human players beyond k6 simulations. The WebSocket server runs on a single Fly.io VM. Treat as "works in demo, not battle-tested at scale."
 
 ---
 
