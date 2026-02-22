@@ -16,6 +16,12 @@ import { test, expect, Page } from '@playwright/test';
 
 async function waitForBoard(page: Page) {
   await page.goto('/');
+  // Dismiss welcome dashboard first
+  const dashboard = page.locator('#welcome-dashboard');
+  await expect(dashboard).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => (window as any).__dismissWelcome__?.());
+  await expect(dashboard).toBeHidden({ timeout: 5_000 });
+
   const canvas = page.locator('#game-canvas');
   await expect(canvas).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(3000);

@@ -5,10 +5,20 @@
 
 import { test, expect } from '@playwright/test';
 
+/** Dismiss the welcome dashboard so the game UI is accessible */
+async function dismissDashboard(page: import('@playwright/test').Page) {
+  await page.goto('/');
+  // Wait for the welcome dashboard to be present, then dismiss it
+  const dashboard = page.locator('#welcome-dashboard');
+  await expect(dashboard).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => (window as any).__dismissWelcome__?.());
+  await expect(dashboard).toBeHidden({ timeout: 5_000 });
+}
+
 test.describe('Chess Chronicle — Smoke Tests', () => {
 
   test('app loads with title, canvas, and sidebar', async ({ page }) => {
-    await page.goto('/');
+    await dismissDashboard(page);
 
     // Title renders
     await expect(page).toHaveTitle('The Chess Chronicle');
@@ -31,7 +41,7 @@ test.describe('Chess Chronicle — Smoke Tests', () => {
   });
 
   test('canvas responds to click (piece selection)', async ({ page }) => {
-    await page.goto('/');
+    await dismissDashboard(page);
 
     const canvas = page.locator('#game-canvas');
     await expect(canvas).toBeVisible();
@@ -56,7 +66,7 @@ test.describe('Chess Chronicle — Smoke Tests', () => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
 
-    await page.goto('/');
+    await dismissDashboard(page);
     await page.waitForTimeout(2000); // Let the app fully initialize
 
     // Filter out known non-critical warnings (e.g., service worker, font loading)
@@ -70,7 +80,7 @@ test.describe('Chess Chronicle — Smoke Tests', () => {
   });
 
   test('newspaper articles load', async ({ page }) => {
-    await page.goto('/');
+    await dismissDashboard(page);
 
     // Wait for article headlines to populate (they start as "Loading...")
     const headline = page.locator('#article-1-headline');
@@ -81,7 +91,7 @@ test.describe('Chess Chronicle — Smoke Tests', () => {
   });
 
   test('player can start a game and make a move', async ({ page }) => {
-    await page.goto('/');
+    await dismissDashboard(page);
 
     // Wait for board to fully initialize
     const canvas = page.locator('#game-canvas');
