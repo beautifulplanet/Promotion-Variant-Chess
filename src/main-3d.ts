@@ -1685,6 +1685,25 @@ if (loadingScreen) {
 }
 
 // =============================================================================
+// WELCOME DASHBOARD
+// =============================================================================
+
+const welcomeDashboard = document.getElementById('welcome-dashboard');
+
+/** Dismiss the welcome dashboard and reveal the game */
+function dismissWelcomeDashboard(): void {
+  if (!welcomeDashboard) return;
+  welcomeDashboard.classList.add('hidden');
+  welcomeDashboard.addEventListener('transitionend', () => welcomeDashboard.remove(), { once: true });
+}
+
+// Expose for e2e tests
+(window as any).__dismissWelcome__ = dismissWelcomeDashboard;
+
+// Dashboard wiring is deferred to initWelcomeDashboard() which runs at the
+// bottom of the file (after all other variables/functions are defined).
+
+// =============================================================================
 // NEW FEATURES: Undo, Sound, Theme, Stats
 // =============================================================================
 
@@ -2047,3 +2066,116 @@ function updateCabResignVisibility(): void {
 // Initialize button labels from saved state
 updateClassicButtons();
 updateGfxButtons();
+
+// =============================================================================
+// WELCOME DASHBOARD — WIRING  (placed at end so all variables are defined)
+// =============================================================================
+
+if (welcomeDashboard) {
+  // Populate stats from current game state
+  const state = Game.getState();
+  const level = getLevelForElo(state.elo);
+  const wdElo = document.getElementById('wd-elo');
+  const wdWins = document.getElementById('wd-wins');
+  const wdStreak = document.getElementById('wd-streak');
+  const wdLevel = document.getElementById('wd-level');
+  const wdDate = document.getElementById('wd-date');
+
+  if (wdElo) wdElo.textContent = String(state.elo);
+  if (wdWins) wdWins.textContent = String(state.gamesWon);
+  if (wdStreak) {
+    const streak = Stats.getCurrentStreak();
+    wdStreak.textContent = streak > 0 ? `🔥${streak}` : streak < 0 ? `${Math.abs(streak)}` : '—';
+  }
+  if (wdLevel) wdLevel.textContent = String(level.level);
+  if (wdDate) {
+    const d = new Date();
+    const opts: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    wdDate.textContent = d.toLocaleDateString('en-US', opts);
+  }
+
+  // Sync GFX / Classic button text
+  const wdGfxBtn = document.getElementById('wd-gfx-btn');
+  const wdClassicBtn = document.getElementById('wd-classic-btn');
+  if (wdGfxBtn) {
+    const q = ClassicMode.getGraphicsQuality();
+    wdGfxBtn.textContent = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
+  }
+  if (wdClassicBtn) {
+    wdClassicBtn.textContent = ClassicMode.isClassicMode() ? '♟ Normal Mode' : '♟ Classic Mode';
+  }
+
+  // ── Dashboard button handlers ──
+
+  // ▶ Play vs AI — dismiss and start the game
+  document.getElementById('wd-play-btn')?.addEventListener('click', () => {
+    dismissWelcomeDashboard();
+    const st = Game.getState();
+    if (st.gameOver) {
+      Game.newGame();
+      MoveListUI.resetGameTimer();
+      loadRandomArticles();
+    }
+    if (!st.gameStarted || st.gameOver) {
+      Game.startGame();
+      MoveListUI.startGameTimer();
+    }
+    syncRendererState();
+    updateStartButton();
+  });
+
+  // ⚙️ Setup Board
+  document.getElementById('wd-setup-btn')?.addEventListener('click', () => {
+    dismissWelcomeDashboard();
+    setTimeout(() => openSetupMode(), 100);
+  });
+
+  // 🌐 Play Online — dismiss and open MP panel
+  document.getElementById('wd-online-btn')?.addEventListener('click', () => {
+    dismissWelcomeDashboard();
+    setTimeout(() => {
+      if (optionsOverlay) optionsOverlay.classList.add('open');
+    }, 100);
+  });
+
+  // 📂 Load Game — trigger file load
+  document.getElementById('wd-load-btn')?.addEventListener('click', async () => {
+    const loaded = await Game.loadProgress();
+    if (loaded) {
+      const saveData = Game.getCurrentSaveData();
+      if (saveData.pieceStyle3D) Renderer.set3DPieceStyle(saveData.pieceStyle3D);
+      if (saveData.pieceStyle2D) Renderer.set2DPieceStyle(saveData.pieceStyle2D);
+      if (saveData.boardStyle && isValidBoardStyle(saveData.boardStyle)) Renderer.setBoardStyle(saveData.boardStyle);
+      updateAggressionDisplay();
+    }
+    syncRendererState();
+    dismissWelcomeDashboard();
+  });
+
+  // ❓ How to Play — open the how-to-play modal (do NOT dismiss dashboard)
+  document.getElementById('wd-howto-btn')?.addEventListener('click', () => {
+    if (htpOverlay) htpOverlay.classList.add('open');
+  });
+
+  // ♟ Classic Mode toggle
+  wdClassicBtn?.addEventListener('click', () => {
+    handleClassicToggle();
+    if (wdClassicBtn) wdClassicBtn.textContent = ClassicMode.isClassicMode() ? '♟ Normal Mode' : '♟ Classic Mode';
+  });
+
+  // ⚡ GFX quality cycle
+  wdGfxBtn?.addEventListener('click', () => {
+    handleGfxCycle();
+    const q = ClassicMode.getGraphicsQuality();
+    if (wdGfxBtn) wdGfxBtn.textContent = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
+  });
+
+  // 🎨 Theme cycle
+  document.getElementById('wd-theme-btn')?.addEventListener('click', () => {
+    const newTheme = Theme.cycle();
+    const btn = document.getElementById('wd-theme-btn');
+    if (btn) btn.textContent = `🎨 ${Theme.getThemeDisplayName(newTheme)}`;
+    if (themeBtn) themeBtn.textContent = `🎨 ${Theme.getThemeDisplayName(newTheme)}`;
+    Sound.play('move');
+  });
+}
