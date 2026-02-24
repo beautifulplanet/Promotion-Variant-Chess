@@ -1,9 +1,17 @@
 // =============================================================================
 // k6 Load Test — WebSocket Connections & Real-Time Gameplay
 // =============================================================================
-// Simulates concurrent players connecting via WebSocket, joining matchmaking,
-// and playing games. Tests connection capacity, message throughput, and
-// reconnection under load.
+// Simulates concurrent players connecting via Socket.io (Engine.IO v4 wire
+// protocol over raw WebSocket), creating/joining tables, and playing games.
+//
+// Protocol notes:
+//   - Server uses Socket.io, so we speak Engine.IO v4 framing:
+//       0{...}       = EIO open (server → client)
+//       2            = ping  (server → client)
+//       3            = pong  (client → server)
+//       42["event",d]= Socket.io message event
+//   - Game protocol v1: create_table → list_tables → join_table → make_move
+//     All client messages require { type, v: 1, ... }
 //
 // Usage:
 //   k6 run load-tests/websocket-load-test.js
@@ -18,7 +26,9 @@ import { Counter, Rate, Trend, Gauge } from 'k6/metrics';
 // CONFIGURATION
 // =============================================================================
 
-const WS_URL = __ENV.WS_URL || 'wss://chess-server-falling-lake-2071.fly.dev';
+const BASE_URL = __ENV.WS_URL || 'wss://chess-server-falling-lake-2071.fly.dev';
+// Socket.io connects via the /socket.io/ path with Engine.IO v4 transport
+const WS_URL = `${BASE_URL}/socket.io/?EIO=4&transport=websocket`;
 
 export const options = {
   stages: [
@@ -50,90 +60,171 @@ const wsConnectionSuccess = new Rate('ws_connection_success');
 const wsSessionsActive = new Gauge('ws_sessions_active');
 const wsMessagesReceived = new Counter('ws_messages_received');
 const wsErrors = new Counter('ws_errors');
-const wsQueueJoins = new Counter('ws_queue_joins');
+const wsTableCreates = new Counter('ws_table_creates');
 const wsGameStarts = new Counter('ws_game_starts');
+
+// =============================================================================
+// SOCKET.IO HELPERS  (Engine.IO v4 wire protocol)
+// =============================================================================
+
+/**
+ * Emit a Socket.io "message" event over raw WS.
+ * Wire format: 42["message",{payload}]
+ */
+function sioEmit(socket, eventName, payload) {
+  socket.send('42' + JSON.stringify([eventName, payload]));
+}
+
+/**
+ * Parse a raw WS frame from a Socket.io server.
+ * Returns { eioType, sioType, event, data } or null.
+ */
+function sioParseFrame(raw) {
+  if (!raw || raw.length === 0) return null;
+
+  const eioType = raw.charAt(0);
+
+  // Engine.IO open handshake
+  if (eioType === '0') {
+    try { return { eioType, data: JSON.parse(raw.slice(1)) }; }
+    catch { return { eioType }; }
+  }
+
+  // Engine.IO ping → respond with pong
+  if (eioType === '2') return { eioType: 'ping' };
+
+  // Engine.IO pong (rare — server echoes our ping)
+  if (eioType === '3') return { eioType: 'pong' };
+
+  // Socket.io event: 42["event", data]
+  if (raw.startsWith('42')) {
+    try {
+      const arr = JSON.parse(raw.slice(2));
+      return { eioType: '4', sioType: '2', event: arr[0], data: arr[1] };
+    } catch { return null; }
+  }
+
+  // Socket.io connect ack: 40 or 40{...}
+  if (raw.startsWith('40')) {
+    return { eioType: '4', sioType: '0', event: 'connect' };
+  }
+
+  return null;
+}
 
 // =============================================================================
 // TEST SCENARIO
 // =============================================================================
 
+// Odd VUs create tables; even VUs list & join.
+// This lets k6 VU pairs find each other for actual gameplay.
+
 export default function () {
   const playerName = `LoadBot_${__VU}_${__ITER}`;
+  const isHost = __VU % 2 === 1;
   const connectStart = Date.now();
 
   const res = ws.connect(WS_URL, { tags: { scenario: 'gameplay' } }, function (socket) {
-    const connectTime = Date.now() - connectStart;
-    wsConnectDuration.add(connectTime);
-    wsConnectionSuccess.add(1);
-    wsSessionsActive.add(1);
-
+    let sioReady = false;
     let gameId = null;
     let myColor = null;
     let moveCount = 0;
 
-    // Handle incoming messages
+    // Handle incoming raw WS frames
     socket.on('message', function (rawData) {
+      const frame = sioParseFrame(rawData);
+      if (!frame) return;
+
+      // Engine.IO ping → pong
+      if (frame.eioType === 'ping') {
+        socket.send('3');
+        return;
+      }
+
+      // Socket.io connect acknowledgement
+      if (frame.event === 'connect') {
+        const connectTime = Date.now() - connectStart;
+        wsConnectDuration.add(connectTime);
+        wsConnectionSuccess.add(1);
+        wsSessionsActive.add(1);
+        sioReady = true;
+        return;
+      }
+
+      // Socket.io "message" events carry our game protocol
+      if (frame.event !== 'message') return;
+
+      const data = frame.data;
+      if (!data || !data.type) return;
+
       wsMessagesReceived.add(1);
 
-      try {
-        const data = JSON.parse(rawData);
+      switch (data.type) {
+        case 'table_created':
+          console.log(`[VU${__VU}] Table created: ${data.tableId}`);
+          break;
 
-        switch (data.type) {
-          case 'game_found':
-            wsGameStarts.add(1);
-            gameId = data.gameId;
-            myColor = data.color;
-            console.log(`[VU${__VU}] Game started: ${gameId} as ${myColor}`);
+        case 'tables_list':
+          // Join the first available table
+          if (data.tables && data.tables.length > 0 && !gameId) {
+            const table = data.tables[0];
+            console.log(`[VU${__VU}] Joining table ${table.tableId}`);
+            sioEmit(socket, 'message', {
+              type: 'join_table', v: 1,
+              tableId: table.tableId,
+              playerName: playerName,
+              elo: 1200,
+            });
+          }
+          break;
 
-            // If we're white, make first move after small delay
-            if (myColor === 'white') {
-              sleep(0.5);
-              const msgStart = Date.now();
-              socket.send(JSON.stringify({
-                type: 'make_move',
-                gameId: gameId,
-                move: 'e2e4',
-              }));
-              wsMessageDuration.add(Date.now() - msgStart);
-              moveCount++;
-            }
-            break;
+        case 'game_found':
+          wsGameStarts.add(1);
+          gameId = data.gameId;
+          myColor = data.color;
+          console.log(`[VU${__VU}] Game started: ${gameId} as ${myColor}`);
 
-          case 'move_ack':
-            // Our move was accepted
-            break;
-
-          case 'opponent_move':
-            // Respond with a random-ish move after delay
+          // If white, make the first move
+          if (myColor === 'w') {
+            sleep(0.5);
+            const msgStart = Date.now();
+            sioEmit(socket, 'message', {
+              type: 'make_move', v: 1,
+              gameId: gameId,
+              move: 'e2e4',
+            });
+            wsMessageDuration.add(Date.now() - msgStart);
             moveCount++;
-            if (moveCount < 10 && gameId) {
-              sleep(Math.random() * 2 + 0.5); // 0.5-2.5s think time
-              const moves = ['d7d5', 'e7e5', 'g8f6', 'b8c6', 'd2d4', 'g1f3', 'f1c4', 'c8f5'];
-              const move = moves[moveCount % moves.length];
-              socket.send(JSON.stringify({
-                type: 'make_move',
-                gameId: gameId,
-                move: move,
-              }));
-            }
-            break;
+          }
+          break;
 
-          case 'game_over':
-            console.log(`[VU${__VU}] Game over: ${data.result}`);
-            gameId = null;
-            break;
+        case 'move_ack':
+          // Our move was accepted
+          break;
 
-          case 'queue_status':
-            console.log(`[VU${__VU}] Queue position: ${data.position}`);
-            break;
+        case 'opponent_move':
+          moveCount++;
+          if (moveCount < 10 && gameId) {
+            sleep(Math.random() * 2 + 0.5);
+            const moves = ['d7d5', 'e7e5', 'g8f6', 'b8c6', 'd2d4', 'g1f3', 'f1c4', 'c8f5'];
+            const move = moves[moveCount % moves.length];
+            sioEmit(socket, 'message', {
+              type: 'make_move', v: 1,
+              gameId: gameId,
+              move: move,
+            });
+          }
+          break;
 
-          case 'error':
-            wsErrors.add(1);
-            console.log(`[VU${__VU}] Server error: ${data.code} — ${data.message}`);
-            break;
-        }
-      } catch (e) {
-        wsErrors.add(1);
+        case 'game_over':
+          console.log(`[VU${__VU}] Game over: ${data.result}`);
+          gameId = null;
+          break;
+
+        case 'error':
+          wsErrors.add(1);
+          console.log(`[VU${__VU}] Server error: ${data.code} — ${data.message}`);
+          break;
       }
     });
 
@@ -146,22 +237,34 @@ export default function () {
       wsSessionsActive.add(-1);
     });
 
-    // Join the matchmaking queue
-    sleep(1);
-    wsQueueJoins.add(1);
-    socket.send(JSON.stringify({
-      type: 'join_queue',
-      playerName: playerName,
-      elo: 1200,
-      timeControl: { initial: 300, increment: 0 },
-    }));
+    // Wait for Socket.io handshake to complete
+    sleep(2);
+    if (!sioReady) {
+      wsErrors.add(1);
+      socket.close();
+      return;
+    }
 
-    // Stay connected for a while (simulating a game session)
-    sleep(30 + Math.random() * 30); // 30-60 seconds
+    if (isHost) {
+      // Odd VUs: create a table and wait for someone to join
+      wsTableCreates.add(1);
+      sioEmit(socket, 'message', {
+        type: 'create_table', v: 1,
+        playerName: playerName,
+        elo: 1200,
+      });
+    } else {
+      // Even VUs: wait a beat, then list tables and join one
+      sleep(2);
+      sioEmit(socket, 'message', { type: 'list_tables', v: 1 });
+    }
 
-    // Leave queue if still in it
+    // Stay connected for a game session (30-60s)
+    sleep(30 + Math.random() * 30);
+
+    // Leave table if still waiting (no game started)
     if (!gameId) {
-      socket.send(JSON.stringify({ type: 'leave_queue' }));
+      sioEmit(socket, 'message', { type: 'leave_table', v: 1 });
     }
 
     sleep(2);

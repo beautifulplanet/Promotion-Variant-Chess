@@ -13,10 +13,14 @@
  * - main-3d.ts        → Wiring
  */
 
+import { inject } from '@vercel/analytics';
 import * as Game from './gameController';
 import * as Renderer from './renderer3d';
 import { getLevelForElo, getLevelProgress } from './levelSystem';
 import { TIMING, COLORS } from './constants';
+
+// Vercel Web Analytics — lightweight page-view + Web Vitals beacon
+inject();
 
 // Expose game API for automated playtest agent (e2e tests)
 (window as any).__GAME__ = Game;
