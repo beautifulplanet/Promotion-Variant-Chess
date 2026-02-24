@@ -88,7 +88,7 @@ Verification column links to [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md).
 
 | ID | Priority | Requirement | Status | Verification |
 |---|---|---|---|---|
-| SC-01 | MUST | All HTTP responses include security headers (Helmet.js: CSP, HSTS, X-Frame-Options) | ✅ | AT-28 |
+| SC-01 | MUST | All HTTP responses include security headers (Helmet.js: HSTS, X-Frame-Options, nosniff; CSP via frontend `<meta>` tag + Vercel headers) | ✅ | AT-28 |
 | SC-02 | MUST | HTTP rate limiting is enforced (100 req/min per IP) | ✅ | AT-29 |
 | SC-03 | MUST | WebSocket message rate limiting is enforced (20 msg/sec per socket) | ✅ | AT-30 |
 | SC-04 | MUST | Per-IP WebSocket connection cap is enforced (max 10) | ✅ | AT-30 |

@@ -83,7 +83,7 @@ Each requirement in [REQUIREMENTS.md](REQUIREMENTS.md) has an AT-xx ID that poin
 
 | AT-ID | Requirement | Method | Command / Location | Pass Criteria |
 |---|---|---|---|---|
-| AT-28 | Security headers | Manual / curl | `curl -I https://[server-url]` | Helmet headers present (CSP, HSTS, X-Frame) |
+| AT-28 | Security headers | Manual / curl | `curl -I https://[server-url]` | Helmet headers present (HSTS, X-Frame-Options, nosniff). CSP via frontend `<meta>` tag + `vercel.json` headers |
 | AT-29 | HTTP rate limit | k6 | `k6 run load-tests/http-load-test.js` | 429 responses after 100 req/min |
 | AT-30 | WS rate limit + IP cap | k6 | `k6 run load-tests/websocket-load-test.js` | Connections dropped after 20 msg/sec or 10 per IP |
 | AT-31 | Zod validation | Unit (server) | `cd server && npx vitest run -t "zod\|validation\|malformed"` | Bad messages rejected |

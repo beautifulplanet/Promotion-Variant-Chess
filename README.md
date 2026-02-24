@@ -5,7 +5,7 @@
 ### Impact
 
 - **Playable right now** — [open this link](https://promotion-variant-chess.vercel.app) and you're in a 3D chess game. No install, no account, no loading screen.
-- **Chess engine runs entirely in your browser** — custom Rust engine compiled to WebAssembly (~5M positions/sec). Zero server cost for AI. Scales to infinite players.
+- **Chess engine runs entirely in your browser** — custom Rust engine compiled to WebAssembly (~5M positions/sec). Zero server cost for AI — AI games scale with zero backend load.
 - **Real-time multiplayer with persistence** — Socket.io WebSocket server, JWT auth, guest play, ELO matchmaking, game rooms, reconnection handling, Prisma/SQLite storage.
 - **854 tests across 3 languages, production-hardened** — Vitest + cargo test + Playwright E2E (4 suites) + 3 k6 load test suites. Rate limiting, Helmet.js security headers, graceful shutdown, crash recovery.
 
@@ -233,7 +233,7 @@ Request → Rust WASM (~1M+ NPS)
 
 | Decision | Rationale |
 |---|---|
-| Engine in browser, not server | Zero latency for single-player, zero server cost for AI, scales to infinite players |
+| Engine in browser, not server | Zero latency for single-player, zero server cost for AI, AI games scale with zero backend load |
 | Vanilla TS, no React | App is 80% canvas. React's virtual DOM adds overhead for `<canvas>` updates |
 | SQLite in production | Portfolio-scale traffic. Persistent Fly.io volume. Avoids Postgres complexity |
 | Bitboard representation | O(1) attack lookups via magic bitboards. Industry standard for chess engines |
@@ -252,7 +252,7 @@ Request → Rust WASM (~1M+ NPS)
 | Game moves | Wrong turn | Server checks `playerColor === currentTurn` before accepting | ✅ Enforced |
 | Protocol | Malformed messages | Zod schema validation on every inbound WebSocket message | ✅ Enforced |
 | Protocol | Version mismatch | `v: 1` literal in every schema — unknown versions rejected | ✅ Enforced |
-| Headers | XSS / clickjack / sniffing | Helmet.js — CSP, X-Frame-Options, HSTS, etc. | ✅ Enforced |
+| Headers | XSS / clickjack / sniffing | Helmet.js — HSTS, X-Frame-Options, nosniff, referrer-policy. CSP enforced via `<meta>` tag + Vercel `vercel.json` headers (not Helmet — disabled to avoid conflicts with WASM/Socket.io) | ✅ Enforced |
 | CORS | Origin spoofing | Allowlist: Vercel domain + localhost dev only | ✅ Enforced |
 | Rooms | Memory exhaustion | Max 500 active rooms (`canCreateRoom`) | ✅ Enforced |
 | Secrets | Key exposure | `JWT_SECRET` set via Fly.io secrets (never in code); `.env.example` documents required vars without real values; rotate secrets on each deploy | ✅ Enforced |
@@ -381,7 +381,7 @@ Questions a senior engineer will ask, with honest 1-sentence answers and deep-di
 
 | Question | Short Answer | Deep Dive |
 |---|---|---|
-| Why Rust WASM instead of a server-side engine? | Zero latency for single-player, zero server cost for AI, scales to infinite concurrent users — server only needed for multiplayer. | [B2 ↓](#b2-the-ai-engine-fallback-chain) |
+| Why Rust WASM instead of a server-side engine? | Zero latency for single-player, zero server cost for AI, AI games scale with zero backend load — server only needed for multiplayer. | [B2 ↓](#b2-the-ai-engine-fallback-chain) |
 | How do you prevent cheating in multiplayer? | Server validates every move via chess.js. Statistical move-quality detection is planned but not built — I'm honest about that. | [D2 ↓](#d2-how-do-you-detect-and-handle-cheating) |
 | What's the engine interface boundary? | FEN string + depth in → SAN move string out, via wasm-bindgen. Not UCI — custom bridge optimized for browser context. | [B9 ↓](#b9-wasm-bridge-architecture) |
 | How do you manage Three.js memory / GC pressure? | Explicit `dispose()` on every geometry, material, and texture during scene transitions. WebGL context-loss handler for recovery. No circular references. | [B10 ↓](#b10-rendering-pipeline) |
@@ -1590,7 +1590,7 @@ Seven layers of defense, each protecting against a specific failure class.
 
 ```
 Layer 1: Fly.io Edge          → TLS termination, DDoS protection, auto-start
-Layer 2: Helmet.js            → Security headers (HSTS, X-Frame-Options, nosniff)
+Layer 2: Helmet.js            → Security headers (HSTS, X-Frame-Options, nosniff). CSP via <meta> + vercel.json
 Layer 3: Rate Limiting        → 100 req/min HTTP, 20 msg/sec WS, 10 conn/IP
 Layer 4: Input Validation     → Zod schemas, chess.js move validation, size limits
 Layer 5: Resource Protection  → 500 room cap, stale cleanup, 16KB body limit
