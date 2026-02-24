@@ -454,9 +454,9 @@ Transparency about what I'd do differently is as important as defending what I d
 | Decision | What I'd change | Why |
 |---|---|---|
 | **1,641-line index.html** | Extract into web components or lit-html templates | File navigation becomes painful beyond ~1K lines |
-| **CSP disabled in Helmet** | Enable strict CSP with nonces | Currently `contentSecurityPolicy: false` — technically a security gap |
+| **CSP disabled in Helmet** | Enable strict CSP with nonces for server responses | Currently `contentSecurityPolicy: false` — CSP is enforced via frontend `<meta>` tag + `vercel.json` headers, not at the server layer |
 | **Google Fonts via CDN** | Self-host fonts | Eliminates third-party request, improves privacy, avoids FOUT on slow connections |
-| **No refresh tokens** | Add JWT refresh token rotation | Current tokens expire and the user must re-authenticate — fine for a game, not for a SaaS |
+| **No refresh tokens** | Add JWT refresh token rotation (httpOnly cookie) + `tokenVersion` column for server-side revocation | Current tokens are purely stateless — no logout, no revocation, no password-change invalidation. Leaked tokens are valid until expiry. Acceptable for a portfolio-scale game with 1-day token TTL; would be a hard blocker for any SaaS or financial app |
 | **SQLite in prod** | Keep it, but add Litestream replication | SQLite on a single volume has no backup. A disk failure = data loss |
 | **No OpenTelemetry** | Add OTel traces | Metrics tell you *what* is slow. Traces tell you *why*. At multi-service scale, traces are essential |
 | **No feature flags** | Add a simple flag system | A/B testing engine changes requires redeployment. In-app flags would allow runtime experimentation |

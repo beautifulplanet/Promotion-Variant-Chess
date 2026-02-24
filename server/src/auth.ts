@@ -29,7 +29,7 @@ function getJwtSecret(): string {
 }
 
 const JWT_SECRET: string = getJwtSecret();
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
 const BCRYPT_ROUNDS = 10;
 
 // =============================================================================

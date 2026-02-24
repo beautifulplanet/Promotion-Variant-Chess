@@ -54,6 +54,9 @@ const allowedOrigins = resolveCorsOrigins(process.env.CORS_ORIGIN);
 
 const app = express();
 
+// Trust first proxy (Fly.io) so express-rate-limit sees real client IPs
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: false, // CSP handled by frontend
@@ -154,9 +157,17 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-// Prometheus metrics endpoint (protected — requires METRICS_TOKEN or internal request)
+// Prometheus metrics endpoint (protected — requires METRICS_TOKEN in production)
 app.get('/metrics', async (req, res) => {
   const metricsToken = process.env.METRICS_TOKEN;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // In production, always require a token (even if not set — return 401)
+  if (isProduction && !metricsToken) {
+    res.status(401).json({ error: 'METRICS_TOKEN not configured' });
+    return;
+  }
+
   if (metricsToken) {
     const auth = req.headers.authorization;
     if (!auth || auth !== `Bearer ${metricsToken}`) {
@@ -530,7 +541,11 @@ io.on('connection', (socket) => {
   }
 
   // Per-IP connection limiting (max 10 sockets per IP)
-  const clientIp = socket.handshake.headers['x-forwarded-for'] as string || socket.handshake.address;
+  // Parse x-forwarded-for: take first IP (the real client), trim whitespace
+  const xffHeader = socket.handshake.headers['x-forwarded-for'] as string | undefined;
+  const clientIp = xffHeader
+    ? xffHeader.split(',')[0].trim()
+    : socket.handshake.address;
   if (!trackConnection(clientIp)) {
     socket.emit('message', { type: 'error', v: PROTOCOL_VERSION, code: 'TOO_MANY_CONNECTIONS', message: 'Too many connections from your IP' });
     socket.disconnect(true);
@@ -540,8 +555,9 @@ io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id} from ${clientIp}`);
   connectedPlayersGauge.inc();
 
-  // Authenticate socket via JWT in handshake query/auth
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  // Authenticate socket via JWT (auth payload only — never accept query-string tokens
+  // because query strings leak into reverse-proxy logs, browser history, and referrers)
+  const token = socket.handshake.auth?.token;
   if (token && typeof token === 'string') {
     const payload = verifyToken(token);
     if (payload) {

@@ -247,7 +247,7 @@ Request → Rust WASM (~1M+ NPS)
 | WebSocket | Message flood | Per-socket rate limit — 20 msg/sec sliding window (`resilience.ts`) | ✅ Enforced |
 | WebSocket | Connection flood | Per-IP connection cap — max 10 concurrent (`trackConnection`) | ✅ Enforced |
 | Auth | No account required | Guest tokens — play immediately, register optionally | ✅ Enforced |
-| Auth | Token theft | JWT (HS256) + bcrypt password hashing | ✅ Enforced |
+| Auth | Token theft | JWT (HS256) + bcrypt password hashing. Stateless — no server-side revocation (see trade-offs) | ⚠️ Partial |
 | Game moves | Illegal moves | Server-side chess.js validation — rejects and returns error | ✅ Enforced |
 | Game moves | Wrong turn | Server checks `playerColor === currentTurn` before accepting | ✅ Enforced |
 | Protocol | Malformed messages | Zod schema validation on every inbound WebSocket message | ✅ Enforced |
@@ -261,7 +261,7 @@ Request → Rust WASM (~1M+ NPS)
 | Anti-cheat | Statistical detection | Time-per-move / move-quality correlation analysis | 🔲 Planned |
 | Server | Horizontal scaling | Single Fly.io VM — no clustering yet | 🔲 Planned |
 
-> **Honesty note:** Anti-cheat beyond legality checking is not implemented. For ranked multiplayer at scale, the server would need its own engine for move-quality analysis. Current scope: portfolio project with honest, real security hardening for every boundary that IS protected.
+> **Honesty note:** Anti-cheat beyond legality checking is not implemented. JWT auth is purely stateless — no server-side revocation, no refresh tokens (leaked tokens are valid until 1-day expiry). For ranked multiplayer at scale, the server would need move-quality analysis and token rotation. Current scope: portfolio project with honest, real security hardening for every boundary that IS protected.
 
 ### Performance Numbers
 
