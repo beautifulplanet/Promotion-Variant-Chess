@@ -84,8 +84,8 @@ Each requirement in [REQUIREMENTS.md](REQUIREMENTS.md) has an AT-xx ID that poin
 | AT-ID | Requirement | Method | Command / Location | Pass Criteria |
 |---|---|---|---|---|
 | AT-28 | Security headers | Manual / curl | `curl -I https://[server-url]` | Helmet headers present (CSP, HSTS, X-Frame) |
-| AT-29 | HTTP rate limit | k6 | `k6 run server/k6/http-load.js` | 429 responses after 100 req/min |
-| AT-30 | WS rate limit + IP cap | k6 | `k6 run server/k6/ws-load.js` | Connections dropped after 20 msg/sec or 10 per IP |
+| AT-29 | HTTP rate limit | k6 | `k6 run load-tests/http-load-test.js` | 429 responses after 100 req/min |
+| AT-30 | WS rate limit + IP cap | k6 | `k6 run load-tests/websocket-load-test.js` | Connections dropped after 20 msg/sec or 10 per IP |
 | AT-31 | Zod validation | Unit (server) | `cd server && npx vitest run -t "zod\|validation\|malformed"` | Bad messages rejected |
 | AT-32 | Auth (bcrypt + JWT) | Unit (server) | `cd server && npx vitest run -t "auth\|password\|jwt"` | Passwords hashed, tokens validated |
 | AT-33 | CORS allowlist | Manual / curl | `curl -H "Origin: evil.com" https://[server-url]` | Request blocked |
@@ -100,10 +100,10 @@ Each requirement in [REQUIREMENTS.md](REQUIREMENTS.md) has an AT-xx ID that poin
 |---|---|---|---|---|
 | AT-36 | FPS floors | Manual | Chrome DevTools FPS meter | Low ≥ 30, all presets playable |
 | AT-37 | WASM engine speed | Unit (Rust) | `cd rust-engine && cargo bench` | Depth 5 < 1s desktop |
-| AT-38 | HTTP P95/P99 | k6 | `k6 run server/k6/http-load.js --vus=50 --duration=60s` | P95 < 500ms, P99 < 1s, errors < 5% |
-| AT-39 | WS latency | k6 | `k6 run server/k6/ws-load.js --vus=200` | P95 connection < 2s, msg P95 < 500ms |
+| AT-38 | HTTP P95/P99 | k6 | `k6 run load-tests/http-load-test.js --vus=50 --duration=60s` | P95 < 500ms, P99 < 1s, errors < 5% |
+| AT-39 | WS latency | k6 | `k6 run load-tests/websocket-load-test.js --vus=200` | P95 connection < 2s, msg P95 < 500ms |
 | AT-40 | WASM binary size | Build | `ls -la rust-engine/pkg/*.wasm` + gzip check | < 200 KB gzipped |
-| AT-41 | Stress test | k6 | `k6 run server/k6/stress.js` | Server stays up, no crash |
+| AT-41 | Stress test | k6 | `k6 run load-tests/stress-test.js` | Server stays up, no crash |
 | AT-42 | Metrics + health | Manual / curl | `curl https://[server-url]/health` + `/metrics` | 200 OK, valid Prometheus format |
 
 ---

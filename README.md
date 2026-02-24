@@ -7,7 +7,7 @@
 - **Playable right now** — [open this link](https://promotion-variant-chess.vercel.app) and you're in a 3D chess game. No install, no account, no loading screen.
 - **Chess engine runs entirely in your browser** — custom Rust engine compiled to WebAssembly (~5M positions/sec). Zero server cost for AI. Scales to infinite players.
 - **Real-time multiplayer with persistence** — Socket.io WebSocket server, JWT auth, guest play, ELO matchmaking, game rooms, reconnection handling, Prisma/SQLite storage.
-- **819 tests across 3 languages, production-hardened** — Vitest + cargo test + Playwright E2E + 3 k6 load test suites. Rate limiting, Helmet.js security headers, graceful shutdown, crash recovery.
+- **854 tests across 3 languages, production-hardened** — Vitest + cargo test + Playwright E2E (4 suites) + 3 k6 load test suites. Rate limiting, Helmet.js security headers, graceful shutdown, crash recovery.
 
 **Stack:** TypeScript · Three.js · Rust · WebAssembly · Node.js · Express · Socket.io · Prisma · SQLite · Zod · Playwright · Vitest · k6 · Docker · Fly.io · Vercel
 
@@ -16,11 +16,11 @@
 | Claim | Proof |
 |---|---|
 | Playable game | 🎮 [**Play Now**](https://promotion-variant-chess.vercel.app) |
-| Server is running | 📈 [Health Check](https://chess-server-falling-lake-2071.fly.dev/health) · 📊 [Prometheus Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics) |
+| Server is running | 📈 [Health Check](https://chess-server-falling-lake-2071.fly.dev/health) · 📊 [Prometheus Metrics](https://chess-server-falling-lake-2071.fly.dev/metrics) *(public — `METRICS_TOKEN` not set in this deployment)* |
 | 420 frontend unit tests | `npm test` |
 | 218 Rust engine tests | `cd rust-engine && cargo test` |
 | 168 server tests | `cd server && npm test` |
-| 13 E2E browser tests | `npx playwright test` |
+| 48 E2E browser tests (4 suites) | `npx playwright test` |
 | k6 load testing | `k6 run load-tests/http-load-test.js` — [methodology ↓](#d14-what-are-your-load-testing-methodology-and-slos) |
 | Perft correctness | Depth 5 = 4,865,609 nodes ✅ — `cargo test perft` |
 | Security hardening | [Security Posture ↓](#security-posture--threat-model) |
@@ -42,8 +42,14 @@ I'm the sole maintainer and take responsibility for correctness, security, and p
 - **AI policy:** AI-assisted code is allowed. I review, refactor, and verify. I can explain and extend every component.
 - **Proof hooks:** `window.__GAME__` and `window.__RENDERER__` are exposed for E2E test automation — Playwright tests use these to make real moves and inspect board state
 
-<!-- Screenshot placeholder: Replace with actual screenshot -->
-<!-- ![The Chess Chronicle](docs/images/screenshot.png) -->
+<p align="center">
+  <strong>🎮 <a href="https://promotion-variant-chess.vercel.app">Play it live</a> — loads in under 2 seconds, no install required</strong>
+</p>
+
+<p align="center">
+  <em>3D Staunton pieces · 20 historical eras · Stockfish AI · real-time multiplayer</em><br/>
+  <em>Screenshot/GIF coming soon — in the meantime, the live link above is the best demo.</em>
+</p>
 
 ---
 
@@ -103,6 +109,7 @@ A chess game that combines:
 - **3D rendering** with Three.js — 20 procedurally generated era environments with procedural skyboxes, L-system trees, Lorenz attractor particles, and dynamic lighting
 - **24 piece styles** (7 3D + 17 2D canvas-drawn including Art Deco, Steampunk, and Tribal) and **12 board visual styles** with per-style theme-aware highlights
 - **8 UI themes** (Newspaper, Obsidian, Arctic, Ember, Jade, Dusk, Ivory, Cobalt) with full CSS variable theming via `themeSystem.ts`
+- **Welcome Dashboard** — newspaper-themed landing screen with game mode buttons, difficulty/GFX preferences, and a live stats ribbon (ELO, wins, streak, level). Every pre-game option in one glance.
 - **Classic Mode** — one-button toggle to a chess.com / lichess-style dark UI, hides newspaper chrome, perfect for mobile stealth play
 - **Graphics Quality presets** — Low / Medium / High with per-preset control over shadows, particles, skybox, environment, and render scale
 - **AI Aggression system** — 20-level slider controlling bonus pieces, board rearrangement, and pawn upgrades
@@ -116,7 +123,7 @@ A chess game that combines:
 |---|---|
 | Systems programming | Rust engine: bitboard move gen, magic bitboard lookups, Zobrist hashing — all compiled to WASM |
 | Full-stack ownership | Frontend (TS + Three.js), backend (Node + Express + Prisma), engine (Rust), infra (Docker + Fly.io) |
-| Testing discipline | 806 unit tests + 13 E2E Playwright tests: 218 Rust (cargo test) + 420 frontend (Vitest) + 168 server (Vitest) + 13 browser playtests |
+| Testing discipline | 854 tests across 4 test suites: 218 Rust (cargo test) + 420 frontend (Vitest) + 168 server (Vitest) + 48 E2E Playwright browser tests |
 | Performance engineering | Engine does ~5M positions/sec in WASM. Magic bitboards reduce sliding piece lookup from O(28) to O(1) |
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
 | Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
@@ -139,7 +146,7 @@ A chess game that combines:
 | Classic Mode | One-button dark chess.com-style UI — hides newspaper chrome |
 | Graphics Quality | 3 presets (Low / Med / High) — shadows, particles, skybox, render scale |
 | Era environments | 20 with procedural skyboxes, dynamic lighting, L-system trees, and particle systems |
-| Test count | 806 unit + 13 E2E Playwright (819 total) across 3 languages |
+| Test count | 806 unit + 48 E2E Playwright (854 total) across 3 languages |
 | Prometheus metrics | 16 custom metrics + Node.js defaults |
 
 ---
@@ -248,6 +255,8 @@ Request → Rust WASM (~1M+ NPS)
 | Headers | XSS / clickjack / sniffing | Helmet.js — CSP, X-Frame-Options, HSTS, etc. | ✅ Enforced |
 | CORS | Origin spoofing | Allowlist: Vercel domain + localhost dev only | ✅ Enforced |
 | Rooms | Memory exhaustion | Max 500 active rooms (`canCreateRoom`) | ✅ Enforced |
+| Secrets | Key exposure | `JWT_SECRET` set via Fly.io secrets (never in code); `.env.example` documents required vars without real values; rotate secrets on each deploy | ✅ Enforced |
+| Supply chain | Dependency vulnerabilities | `npm audit` run before each release; Dependabot enabled on GitHub; lockfile committed | ✅ Enforced |
 | Game moves | Engine-assisted cheating | Server validates legality only — no move-quality analysis | ⚠️ Legality only |
 | Anti-cheat | Statistical detection | Time-per-move / move-quality correlation analysis | 🔲 Planned |
 | Server | Horizontal scaling | Single Fly.io VM — no clustering yet | 🔲 Planned |
@@ -268,6 +277,11 @@ All numbers are reproducible. Commands included.
 | WASM binary size | ~170 KB gzipped | — | `ls -la public/wasm/` |
 | WASM cold-start init | ~50–100ms | ~150ms | First `initEngine()` call |
 | JS fallback (TypeScript minimax) | ~10K positions/sec | ~5K positions/sec | Automatic if WASM fails |
+
+> **Definitions:**
+> - **positions/sec** = perft leaf nodes (fully legal move generation, no bulk-counting shortcuts)
+> - **NPS** (in AI Fallback Chain) = search nodes visited including static evaluation + transposition table lookups + move ordering
+> - Measured on AMD Ryzen 5 5600X, Chrome 131, WASM via `wasm-pack --release`. Mobile numbers from Pixel 7, Chrome 131.
 
 **Server (Node.js + Express + Socket.io)**
 
@@ -290,11 +304,11 @@ All numbers are reproducible. Commands included.
 | Frontend unit | TypeScript (Vitest) | 420 | `npm test` |
 | Rust engine | Rust (cargo test) | 218 | `cd rust-engine && cargo test` |
 | Server | TypeScript (Vitest) | 168 | `cd server && npm test` |
-| E2E browser | TypeScript (Playwright) | 13 | `npx playwright test` |
+| E2E browser (4 suites) | TypeScript (Playwright) | 48 | `npx playwright test` |
 | k6 HTTP load | JavaScript (k6) | 6 scenarios | `k6 run load-tests/http-load-test.js` |
 | k6 WebSocket load | JavaScript (k6) | ramp to 200 VUs | `k6 run load-tests/websocket-load-test.js` |
 | k6 stress (breaking point) | JavaScript (k6) | 500 RPS / 250 WS | `k6 run load-tests/stress-test.js` |
-| **Total** | **3 languages** | **819 + 3 k6** | |
+| **Total** | **3 languages** | **854 + 3 k6** | |
 
 ### Multiplayer Protocol Reference
 
@@ -395,7 +409,7 @@ Questions a senior engineer will ask, with honest 1-sentence answers and deep-di
 
 ```bash
 git clone https://github.com/beautifulplanet/Promotion-Variant-Chess.git
-cd "Promotion-Variant-Chess/version 1"
+cd Promotion-Variant-Chess
 npm install
 npm run dev
 ```
@@ -541,7 +555,7 @@ wasm-pack build --target web --release --out-dir ../public/wasm
 
 ```bash
 git clone https://github.com/beautifulplanet/Promotion-Variant-Chess.git
-cd "Promotion-Variant-Chess/version 1"
+cd Promotion-Variant-Chess
 ```
 
 **Step 2: Install dependencies**
@@ -565,8 +579,8 @@ npm run dev
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 You should see:
-- A newspaper-styled header reading **"The Chess Chronicle"**
-- A 3D chess board with the starting position
+- The **Welcome Dashboard** — a newspaper-themed landing screen with your stats (ELO, wins, streak), game mode buttons (Play AI, Multiplayer, Classic Mode), and difficulty/GFX preferences
+- Click **Play** to enter the game: a 3D chess board with the starting position
 - A sidebar with game controls (difficulty, undo, settings)
 - Era-themed environment (starts at Stone Age for new players)
 
@@ -622,7 +636,7 @@ Server runs on `http://localhost:3001`.
 | Endpoint | What |
 |---|---|
 | `GET /health` | Status + DB connectivity |
-| `GET /metrics` | Prometheus metrics |
+| `GET /metrics` | Prometheus metrics *(optionally protected — set `METRICS_TOKEN` env var to require `Bearer` auth)* |
 | `POST /api/auth/register` | Create account |
 | `POST /api/auth/login` | Get JWT token |
 | `WebSocket /` | Real-time gameplay |
@@ -643,19 +657,22 @@ cd server && npm test
 # Rust engine (218 tests, ~2s)
 cd rust-engine && cargo test
 
-# E2E browser tests (13 tests)
+# E2E browser tests (48 tests across 4 suites)
 npx playwright install chromium    # First time only
 npm run e2e
 ```
 
-**Total: 806 unit/integration tests + 13 E2E Playwright tests**
+**Total: 806 unit/integration tests + 48 E2E Playwright tests (854 total)**
 
 | Suite | Count | Covers |
 |---|---|---|
 | Rust engine | 218 | Bitboards, attacks, magic bitboards, move gen, search, eval, TT, Zobrist, perft, game state, tournament |
 | Frontend | 420 | Game controller, ELO, era system, save system, chess engine, performance, AI aggression |
 | Server | 168 | Auth, API, database CRUD, matchmaker, game rooms, metrics, protocol, CORS |
-| E2E | 13 | Gameplay (8 turns, undo, new-game, PGN), visual correctness (flip, turn indicator, board state), stress (rapid clicks, mobile viewport, UI buttons, console audit) |
+| E2E — playtest | 13 | Gameplay (8 turns, undo, new-game, PGN), visual correctness (flip, turn indicator, board state), stress (rapid clicks, mobile viewport, UI buttons, console audit) |
+| E2E — welcome dashboard | 18 | Dashboard visibility, beta badge, date display, stats ribbon, button navigation (Play AI, Classic Mode, Multiplayer, Explore), dismiss/return, preference persistence |
+| E2E — classic mode | 12 | Classic layout toggle, dark theme rendering, board sizing, overlay hidden, scrollable articles, Explore mode |
+| E2E — smoke | 5 | Page load, AI response, save/load, console error audit |
 
 ---
 
@@ -720,6 +737,9 @@ fly deploy
 # Verify
 curl https://chess-server-falling-lake-2071.fly.dev/health
 curl https://chess-server-falling-lake-2071.fly.dev/metrics
+# Note: /metrics is public when METRICS_TOKEN is unset.
+# To protect: fly secrets set METRICS_TOKEN=$(openssl rand -hex 16)
+# Then: curl -H "Authorization: Bearer <token>" .../metrics
 ```
 
 ---
@@ -865,7 +885,23 @@ Bridge (`rustEngine.ts`): blob URL dynamic import (Vite-compatible), try/catch e
 
 ## B10. Rendering Pipeline
 
-Three.js WebGL renderer (5,000+ lines in `renderer3d.ts`) with a deep visual customization system:
+Three.js WebGL renderer (5,000+ lines in `renderer3d.ts`) with a deep visual customization system.
+
+> **Modular boundaries inside `renderer3d.ts`:** While still a single file, the code is organized into clearly separated responsibility zones:
+>
+> | Zone | Approx. lines | Responsibility |
+> |---|---|---|
+> | Scene lifecycle | ~200 | init, dispose, resize, context-loss recovery |
+> | Asset management | ~400 | texture loading, geometry caching, material pools |
+> | Piece mesh / material factory | ~1,200 | 7 3D + 17 2D piece style constructors, color mapping |
+> | Board construction & highlights | ~600 | square meshes, selection rings, legal-move dots |
+> | Input handling | ~300 | raycasting, click debounce, `screenToBoard` coord flip |
+> | Camera & controls | ~200 | orbit setup, flip-board view rotation |
+> | Post-processing & lighting | ~400 | shadow mapping, environment maps, bloom |
+> | State sync (`updatePieces` / `updateState`) | ~500 | diff-based piece add/remove/move, animation |
+> | Era environment generation | ~800 | 20 themed worlds, skyboxes, particles, trees |
+>
+> Extracting these into separate modules (or an ECS architecture) is the top refactor target — see ["What would you do differently"](#what-would-you-do-differently).
 
 **Board & Piece Visuals:**
 - **24 piece styles** — 7 3D geometry sets (Staunton, Lewis, Modern, Crystal, Neon, Marble, Wood) + 17 2D canvas-drawn styles (Classic, Staunton 2D, Modern, Symbols, Newspaper, Editorial, Outline, Figurine, Pixel Art, Gothic, Minimalist, Celtic, Sketch, Pharaoh sprite, Art Deco, Steampunk, Tribal)
@@ -1235,6 +1271,8 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
 
 This project is designed with a scaling roadmap from portfolio-scale to planetary-scale. Each tier identifies the bottleneck, the fix, and the infrastructure change.
 
+> **Framing note:** This is a prepared system-design answer demonstrating architectural thinking at each scale boundary. The current build is intentionally Tier 0 to stay shippable as a one-person portfolio project — over-engineering the infrastructure would be the wrong trade-off at this stage.
+
 **Current Production (Tier 0 — up to ~100 concurrent):**
 Single Node.js process on Fly.io `shared-cpu-1x` (256MB). In-memory `Map` for game rooms. SQLite on a 1GB persistent volume. All AI runs client-side (WASM). Rate-limited: 100 req/min HTTP, 20 msg/sec WebSocket, 10 connections/IP, 500 room cap. Graceful shutdown with 15-second drain.
 
@@ -1388,12 +1426,20 @@ WASM = ~60% desktop speed on mobile. JS fallback = ~10× slower.
 | Engine | cargo test | 218 |
 | Frontend | Vitest | 420 |
 | Server | Vitest | 168 |
-| E2E | Playwright | 13 |
+| E2E (4 suites) | Playwright | 48 |
 | Load (HTTP) | k6 | 6 scenarios |
 | Load (WebSocket) | k6 | ramp to 200 VUs |
 | Stress | k6 | 500 RPS / 250 WS |
 
 **Mocked:** Three.js (no GPU), chess.js, Socket.io, localStorage.
+
+**E2E suites (48 tests):**
+| Suite | Tests | Focus |
+|---|---|---|
+| playtest | 13 | Gameplay, visual correctness, stress |
+| welcome-dashboard | 18 | Dashboard UI, buttons, stats, dismiss/return |
+| classic-mode | 12 | Classic layout, Explore mode, sizing |
+| smoke | 5 | Load, AI response, save/load, console audit |
 
 **Load testing:** 3 k6 scripts validate SLOs under pressure — HTTP API (P95 < 500ms, <5% error rate), WebSocket gameplay simulation (200 concurrent, <2s connect), and stress/breaking point discovery (500 RPS, 250 concurrent WS). See [D14](#d14-what-are-your-load-testing-methodology-and-slos) for full methodology.
 
@@ -1699,13 +1745,22 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   └── stress-test.js         # Breaking point: 500 RPS, 250 WS connections
 │
 ├── tests/                     # Frontend test suite (420 tests)
-├── e2e/                       # Playwright E2E tests (13 tests)
+├── e2e/                       # Playwright E2E tests (48 tests, 4 suites)
+│   ├── playtest.spec.ts       # Gameplay + visual correctness + stress (13 tests)
+│   ├── welcome-dashboard.spec.ts # Dashboard UI, buttons, stats, dismiss (18 tests)
+│   ├── classic-mode.spec.ts   # Classic layout toggle, Explore mode (12 tests)
+│   └── smoke.spec.ts          # Load, AI, save/load, console audit (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
 ├── docs/                      # Documentation
 │   ├── PART1_SUMMARY.md       # Standalone Part 1
 │   ├── PART2_TECH_STACK.md    # Standalone Part 2
 │   ├── PART3_QUICK_START.md   # Standalone Part 3
 │   ├── PART4_FULL_TUTORIAL.md # Standalone Part 4
+│   ├── SCOPE.md               # MVP definition, non-goals, invariants, perf floors
+│   ├── REQUIREMENTS.md        # MUST/SHOULD/MAY requirements (RFC 2119)
+│   ├── ACCEPTANCE_TESTS.md    # Requirements → verification mapping (42 tests)
+│   ├── DEFINITION_OF_DONE.md  # Per-change quality checklist
+│   ├── RELEASE_CHECKLIST.md   # Pre-deploy verification steps
 │   ├── INCIDENT_RESPONSE.md   # P0-P3 incident runbook
 │   ├── LOAD_TEST_PLAN.md      # k6 methodology, SLOs, capacity planning
 │   ├── PRODUCTION_RESILIENCE.md # Defense-in-depth, failure modes, SLOs
@@ -1713,7 +1768,9 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── adr/                   # Architecture Decision Records
 │   └── blog/                  # Blog post drafts
 ├── TESTING.md                 # Playtest agent docs — bugs found, 13 tests, architecture
+├── CHANGELOG.md               # Keep-a-Changelog format — all releases and unreleased changes
 ├── ANDROID_RELEASE.md         # Google Play Store release guide (Capacitor)
+├── .github/ISSUE_TEMPLATE/    # Scope-first change template (scope, acceptance, rollback)
 └── index.html                 # Single-page app entry (2,200+ lines)
 ```
 
@@ -1899,10 +1956,16 @@ Tournament Runner                             Tournament SQLite DB
 | [docs/PART2_TECH_STACK.md](docs/PART2_TECH_STACK.md) | Architecture and stack decisions | Senior engineers |
 | [docs/PART3_QUICK_START.md](docs/PART3_QUICK_START.md) | Clone, install, run in 2 minutes | Developers |
 | [docs/PART4_FULL_TUTORIAL.md](docs/PART4_FULL_TUTORIAL.md) | Complete engine manual + system design | Learners |
+| [docs/SCOPE.md](docs/SCOPE.md) | MVP definition, non-goals, invariants, performance floors | Anyone scoping changes |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | MUST/SHOULD/MAY requirements (RFC 2119) | Reviewers / testers |
+| [docs/ACCEPTANCE_TESTS.md](docs/ACCEPTANCE_TESTS.md) | Every requirement → exact verification command | QA / CI |
+| [docs/DEFINITION_OF_DONE.md](docs/DEFINITION_OF_DONE.md) | Per-change quality checklist | Contributors |
+| [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | Pre-deploy verification steps (~5 min) | Release engineers |
 | [docs/PRODUCTION_RESILIENCE.md](docs/PRODUCTION_RESILIENCE.md) | SLOs, defense-in-depth, failure modes | SRE / DevOps |
 | [docs/LOAD_TEST_PLAN.md](docs/LOAD_TEST_PLAN.md) | k6 methodology, capacity planning, CI integration | Performance engineers |
 | [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) | P0–P3 runbook, diagnostic commands, rollback | On-call engineers |
 | [docs/ARCHITECTURE_FAQ.md](docs/ARCHITECTURE_FAQ.md) | "Why did you choose X?" — every architectural trade-off explained | Staff+ interviewers |
+| [CHANGELOG.md](CHANGELOG.md) | All releases in Keep-a-Changelog format | Anyone tracking changes |
 | [TESTING.md](TESTING.md) | Playtest agent — bugs found, 13 E2E tests, architecture | QA / developers |
 | [ANDROID_RELEASE.md](ANDROID_RELEASE.md) | Google Play Store release guide (Capacitor) | Mobile developers |
 
@@ -1914,4 +1977,4 @@ Tournament Runner                             Tournament SQLite DB
 
 ---
 
-*Built with Rust, TypeScript, and Three.js. 806 unit tests + 13 E2E Playwright tests. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*
+*Built with Rust, TypeScript, and Three.js. 806 unit tests + 48 E2E Playwright tests across 4 suites. 3 k6 load test suites. 1-million-AI tournament runner. Zero frameworks. One `<canvas>`.*

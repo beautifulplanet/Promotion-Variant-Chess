@@ -277,7 +277,9 @@ function updateSidebar(state: Game.GameState): void {
   // ===== Classic mode: player bars + compact move list =====
   if (ClassicMode.isClassicMode()) {
     const playerColor = state.playerColor || 'white';
-    const isFlipped = playerColor === 'black';
+    // Board appears flipped when playing black OR when user toggled the flip button
+    const colorFlipped = playerColor === 'black';
+    const isFlipped = Renderer.isViewFlipped() ? !colorFlipped : colorFlipped;
 
     // Names
     if (cpbTopName) cpbTopName.textContent = isFlipped ? 'You' : 'Stockfish';
@@ -467,11 +469,12 @@ const boBoardStyleBtn = document.getElementById('bo-board-style-btn');
 const boPiece2dBtn = document.getElementById('bo-piece-2d-btn');
 
 function doFlip() {
-  const newColor = Renderer.toggleBoardFlip();
-  if (flipBtn) flipBtn.textContent = newColor === 'white' ? '🔄 Flip' : '🔃 Flipped';
-  if (boFlipBtn) boFlipBtn.textContent = newColor === 'white' ? '🔄 Flip' : '🔃 Flipped';
+  Renderer.toggleBoardFlip();
+  const flipped = Renderer.isViewFlipped();
+  if (flipBtn) flipBtn.textContent = flipped ? '🔃 Flipped' : '🔄 Flip';
+  if (boFlipBtn) boFlipBtn.textContent = flipped ? '🔃 Flipped' : '🔄 Flip';
   Sound.play('move');
-  console.log('[Flip] Perspective:', newColor, '(viewFlipped:', Renderer.isViewFlipped(), ')');
+  console.log('[Flip] viewFlipped:', flipped);
 }
 
 if (flipBtn) {

@@ -124,9 +124,9 @@ let COLORS_3D = {
 
 // Helper function to get visual color based on player perspective
 function getVisualColor(pieceColor: 'white' | 'black'): 'white' | 'black' {
-    // If player is white, show pieces as their logical color
-    // If player is black, invert colors so player's pieces appear white
-    return cachedPlayerColor === 'white' ? pieceColor : (pieceColor === 'white' ? 'black' : 'white');
+    // Pieces always keep their actual color — flipping the board only
+    // rotates the view, it never swaps white/black appearance.
+    return pieceColor;
 }
 
 // Callbacks
@@ -1473,11 +1473,9 @@ export function updateState(
     cachedLegalMoves = legalMoves;
     cachedTurn = turn;
     cachedInCheck = inCheck;
-    // Apply viewFlipped override: if user toggled flip, invert the perspective
-    const baseColor = playerColor || 'white';
-    cachedPlayerColor = viewFlipped
-        ? (baseColor === 'white' ? 'black' : 'white')
-        : baseColor;
+    // viewFlipped only affects visual position mapping (via _sqWorld),
+    // it never changes the logical player color.
+    cachedPlayerColor = playerColor || 'white';
 
     // BUGFIX: Coalesce rapid calls — only run the expensive rebuild once per frame
     if (!_pendingStateUpdate) {
@@ -1517,17 +1515,16 @@ export function getPlayerColor(): 'white' | 'black' {
  */
 export function toggleBoardFlip(): 'white' | 'black' {
     viewFlipped = !viewFlipped;
-    // Simple inversion: cachedPlayerColor already has the OLD flip applied,
-    // toggling means just swap it. updateState() will also recompute correctly
-    // on its next call because it reads viewFlipped.
-    cachedPlayerColor = cachedPlayerColor === 'white' ? 'black' : 'white';
-    pieceMaterialCache.clear();
-    pieceSpritesCache.clear();
+    // Flip only rotates the visual board — cachedPlayerColor stays the same.
+    // Force full piece rebuild so positions update via _sqWorld.
     _prevBoardHash = '';
-    // Synchronous rebuild for instant visual feedback on button click
-    updatePieces();
+    updatePieces(true);
     updateSquareHighlights();
-    return cachedPlayerColor;
+    // Return the perspective label: when flipped, the viewer sees from the
+    // opposite side, but still plays as their original color.
+    return viewFlipped
+        ? (cachedPlayerColor === 'white' ? 'black' : 'white')
+        : cachedPlayerColor;
 }
 
 /**
@@ -1938,10 +1935,12 @@ export function screenToBoard(screenX: number, screenY: number): { row: number; 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData?.row !== undefined && hit.userData?.col !== undefined) {
-            return {
-                row: hit.userData.row,
-                col: hit.userData.col,
-            };
+            // Board squares store visual-grid positions. When the board is
+            // flipped the visual grid is mirrored, so un-flip to get the
+            // logical chess coordinate.
+            const r = viewFlipped ? 7 - hit.userData.row : hit.userData.row;
+            const c = viewFlipped ? 7 - hit.userData.col : hit.userData.col;
+            return { row: r, col: c };
         }
     }
 
@@ -4563,9 +4562,9 @@ function create2DPieceSprite(piece: Piece, row: number, col: number): void {
 
         const sprite = new THREE.Sprite(material);
         sprite.position.set(
-            col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+            _sqWorld(row, col).x,
             0.6,
-            row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+            _sqWorld(row, col).z
         );
         sprite.scale.set(0.9, 0.9, 1);
         sprite.userData = { piece, row, col };
@@ -4594,9 +4593,9 @@ async function createSpriteSheetPiece(
 
         const sprite = new THREE.Sprite(material);
         sprite.position.set(
-            col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+            _sqWorld(row, col).x,
             0.6,
-            row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+            _sqWorld(row, col).z
         );
         sprite.scale.set(0.9, 0.9, 1);
         sprite.userData = { piece, row, col };
@@ -4611,9 +4610,9 @@ async function createSpriteSheetPiece(
         }
         const sprite = new THREE.Sprite(material);
         sprite.position.set(
-            col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+            _sqWorld(row, col).x,
             0.6,
-            row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+            _sqWorld(row, col).z
         );
         sprite.scale.set(0.9, 0.9, 1);
         sprite.userData = { piece, row, col };
@@ -4795,9 +4794,12 @@ export function setPendingMoveAnimation(data: MoveAnimationData): void {
 }
 
 function _sqWorld(row: number, col: number): { x: number; z: number } {
+    // When board is flipped, mirror positions so row 0 appears at the bottom
+    const vRow = viewFlipped ? 7 - row : row;
+    const vCol = viewFlipped ? 7 - col : col;
     return {
-        x: col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
-        z: row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+        x: vCol * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+        z: vRow * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
     };
 }
 
@@ -5196,9 +5198,9 @@ function createPieceMesh(piece: Piece, row: number, col: number): void {
     }
 
     group.position.set(
-        col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
+        _sqWorld(row, col).x,
         0.12,
-        row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
+        _sqWorld(row, col).z
     );
 
     group.castShadow = true;
@@ -5587,6 +5589,7 @@ function createPawnMesh(group: THREE.Group, material: THREE.Material, rimMateria
 let _prevSelectedSquare: { row: number; col: number } | null = null;
 let _prevLegalMoveCount: number = 0;
 let _prevInCheck: boolean = false;
+let _prevViewFlipped: boolean = false;
 const _legalMoveSet: Set<number> = new Set(); // PERF: O(1) legal move lookup
 
 // Check highlight state
@@ -5601,14 +5604,16 @@ function updateSquareHighlights(): void {
         (cachedSelectedSquare?.col === _prevSelectedSquare?.col);
     const sameMoveCount = cachedLegalMoves.length === _prevLegalMoveCount;
     const sameCheck = cachedInCheck === _prevInCheck;
+    const sameFlip = viewFlipped === _prevViewFlipped;
 
-    if (sameSelection && sameMoveCount && sameCheck) {
+    if (sameSelection && sameMoveCount && sameCheck && sameFlip) {
         return;
     }
 
     _prevSelectedSquare = cachedSelectedSquare ? { ...cachedSelectedSquare } : null;
     _prevLegalMoveCount = cachedLegalMoves.length;
     _prevInCheck = cachedInCheck;
+    _prevViewFlipped = viewFlipped;
 
     // Find the king in check
     _checkKingSquare = null;
@@ -5625,8 +5630,24 @@ function updateSquareHighlights(): void {
 
     // PERFORMANCE: Pre-compute legal move set for O(1) lookup
     _legalMoveSet.clear();
+    // Pre-compute flipped versions of logical coordinates for comparison
+    // against board square userData (which is in visual grid space).
+    const selRow = cachedSelectedSquare ? (viewFlipped ? 7 - cachedSelectedSquare.row : cachedSelectedSquare.row) : -1;
+    const selCol = cachedSelectedSquare ? (viewFlipped ? 7 - cachedSelectedSquare.col : cachedSelectedSquare.col) : -1;
+
+    // Legal moves — map to visual positions
+    _legalMoveSet.clear();
     for (const m of cachedLegalMoves) {
-        _legalMoveSet.add((m.to.row << 3) | m.to.col);
+        const vr = viewFlipped ? 7 - m.to.row : m.to.row;
+        const vc = viewFlipped ? 7 - m.to.col : m.to.col;
+        _legalMoveSet.add((vr << 3) | vc);
+    }
+
+    // Check king — map to visual position
+    let checkRow = -1, checkCol = -1;
+    if (_checkKingSquare) {
+        checkRow = viewFlipped ? 7 - _checkKingSquare.row : _checkKingSquare.row;
+        checkCol = viewFlipped ? 7 - _checkKingSquare.col : _checkKingSquare.col;
     }
 
     // Use cached squares if available
@@ -5641,7 +5662,7 @@ function updateSquareHighlights(): void {
 
         let color = isLight ? COLORS_3D.lightSquare : COLORS_3D.darkSquare;
 
-        if (cachedSelectedSquare?.row === row && cachedSelectedSquare?.col === col) {
+        if (selRow === row && selCol === col) {
             color = COLORS_3D.selectedSquare;
         }
 
@@ -5650,7 +5671,7 @@ function updateSquareHighlights(): void {
         }
 
         // Check highlight — king square turns red
-        if (_checkKingSquare && _checkKingSquare.row === row && _checkKingSquare.col === col) {
+        if (checkRow === row && checkCol === col) {
             color = CHECK_COLOR;
         }
 
