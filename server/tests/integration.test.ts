@@ -187,6 +187,88 @@ describe('Server Integration', () => {
     client2.disconnect();
   });
 
+  it('reconnect token restores game session after disconnect', async () => {
+    const client1 = connectClient();
+    const client2 = connectClient();
+
+    await new Promise<void>(resolve => client1.on('connect', resolve));
+    await new Promise<void>(resolve => client2.on('connect', resolve));
+
+    // Create table + join to start game
+    const tableCreatedPromise = waitForMessage<TableCreated>(client1, 'table_created');
+    client1.emit('message', { type: 'create_table', v: 1, playerName: 'Alice', elo: 1200 });
+    const tc = await tableCreatedPromise;
+
+    const game1Promise = waitForMessage<GameFound>(client1, 'game_found');
+    const game2Promise = waitForMessage<GameFound>(client2, 'game_found');
+    client2.emit('message', { type: 'join_table', v: 1, tableId: tc.tableId, playerName: 'Bob', elo: 1200 });
+
+    const [game1, game2] = await Promise.all([game1Promise, game2Promise]);
+
+    // Both should receive a playerToken
+    expect(game1.playerToken).toBeDefined();
+    expect(typeof game1.playerToken).toBe('string');
+    expect(game2.playerToken).toBeDefined();
+    expect(game1.playerToken).not.toBe(game2.playerToken);
+
+    // Disconnect client1, then reconnect with a new socket
+    const token1 = game1.playerToken;
+    const gameId = game1.gameId;
+    client1.disconnect();
+
+    // Small delay so disconnect registers server-side
+    await new Promise(r => setTimeout(r, 200));
+
+    const client1b = connectClient();
+    await new Promise<void>(resolve => client1b.on('connect', resolve));
+
+    // Reconnect with the saved token
+    const reconnectPromise = waitForMessage<GameFound>(client1b, 'game_found');
+    client1b.emit('message', { type: 'reconnect', v: 1, playerToken: token1, gameId });
+
+    const reconnected = await reconnectPromise;
+    expect(reconnected.gameId).toBe(gameId);
+    expect(reconnected.color).toBe(game1.color);
+    expect(reconnected.playerToken).toBe(token1);
+
+    client1b.disconnect();
+    client2.disconnect();
+  });
+
+  it('reconnect with invalid token returns error', async () => {
+    const client1 = connectClient();
+    const client2 = connectClient();
+
+    await new Promise<void>(resolve => client1.on('connect', resolve));
+    await new Promise<void>(resolve => client2.on('connect', resolve));
+
+    // Create a game
+    const tableCreatedPromise = waitForMessage<TableCreated>(client1, 'table_created');
+    client1.emit('message', { type: 'create_table', v: 1, playerName: 'Alice', elo: 1200 });
+    const tc = await tableCreatedPromise;
+
+    const game1Promise = waitForMessage<GameFound>(client1, 'game_found');
+    const game2Promise = waitForMessage<GameFound>(client2, 'game_found');
+    client2.emit('message', { type: 'join_table', v: 1, tableId: tc.tableId, playerName: 'Bob', elo: 1200 });
+    const [game1] = await Promise.all([game1Promise, game2Promise]);
+
+    // Disconnect and try reconnecting with a bogus token
+    client1.disconnect();
+    await new Promise(r => setTimeout(r, 200));
+
+    const client1b = connectClient();
+    await new Promise<void>(resolve => client1b.on('connect', resolve));
+
+    const errPromise = waitForMessage<ServerError>(client1b, 'error');
+    client1b.emit('message', { type: 'reconnect', v: 1, playerToken: 'bogus-token', gameId: game1.gameId });
+
+    const err = await errPromise;
+    expect(err.code).toBe('INVALID_TOKEN');
+
+    client1b.disconnect();
+    client2.disconnect();
+  });
+
   it('leaderboard endpoint returns sorted players', async () => {
     // Seed the database with test players
     const db = getPrisma();

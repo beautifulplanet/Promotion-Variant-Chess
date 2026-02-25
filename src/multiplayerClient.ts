@@ -51,6 +51,7 @@ export interface GameFoundMsg {
   opponent: { name: string; elo: number };
   timeControl: TimeControl;
   fen: string;
+  playerToken: string;       // opaque reconnect token (UUIDv4)
   myPieceBank?: PieceBank;
   opponentPieceBank?: PieceBank;
 }
@@ -159,6 +160,14 @@ export class MultiplayerClient {
 
     this.socket.on('connect', () => {
       this._connected = true;
+
+      // Auto-reconnect to an in-progress game after a transient disconnect
+      // (e.g. Wi-Fi drop). Token is kept in memory only — a full page refresh
+      // loses it, which is an intentional security trade-off (see ARCHITECTURE_FAQ).
+      if (this._inGame && this._playerToken && this._gameId) {
+        this.send({ type: 'reconnect', playerToken: this._playerToken, gameId: this._gameId });
+      }
+
       this.callbacks.onConnected?.();
     });
 
@@ -176,6 +185,7 @@ export class MultiplayerClient {
     this._hostingTable = false;
     this._inGame = false;
     this._gameId = null;
+    this._playerToken = null;
     this.socket?.disconnect();
     this.socket = null;
     this._connected = false;
@@ -262,6 +272,7 @@ export class MultiplayerClient {
         this._myColor = gf.color;
         this._opponentName = gf.opponent.name;
         this._opponentElo = gf.opponent.elo;
+        this._playerToken = gf.playerToken;
         this.callbacks.onGameFound?.(gf);
         break;
       }
@@ -278,6 +289,7 @@ export class MultiplayerClient {
         const go = msg as unknown as GameOverMsg;
         this._inGame = false;
         this._gameId = null;
+        this._playerToken = null;
         this.callbacks.onGameOver?.(go);
         break;
       }

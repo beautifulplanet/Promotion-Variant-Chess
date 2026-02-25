@@ -1587,6 +1587,47 @@
       filter: brightness(0.85);
     }
 
+    /* STYLE POP-OUT MENUS (piece style / board style pickers) */
+    .style-popout {
+      position: fixed;
+      z-index: 10000;
+      background: #262522;
+      border: 1px solid #3d3b37;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      max-height: 55vh;
+      overflow-y: auto;
+      padding: 4px;
+      min-width: 200px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .style-popout-item {
+      display: flex;
+      flex-direction: column;
+      padding: 10px 14px;
+      cursor: pointer;
+      border-radius: 6px;
+      border-left: 3px solid transparent;
+      transition: background 0.12s;
+    }
+    .style-popout-item:hover {
+      background: #3d3b37;
+    }
+    .style-popout-item.active {
+      background: #3a3a35;
+      border-left-color: #81b64c;
+    }
+    .style-popout-item-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e8e0d0;
+    }
+    .style-popout-item-desc {
+      font-size: 11px;
+      color: #8a7e6e;
+      margin-top: 2px;
+    }
+
     /* PAWN PROMOTION MODAL */
     #promotion-overlay {
       position: fixed;
@@ -1933,7 +1974,7 @@
       scroll-behavior: smooth;
     }
 
-    /* ── Center section = game area, fills viewport, always first ── */
+    /* ── Center section = game area, auto-height so content flows naturally ── */
     body.classic-mode #center-section {
       order: -1;
       flex: 0 0 auto;
@@ -1945,10 +1986,12 @@
       align-items: stretch;
       padding: 0;
       gap: 0;
-      height: 100vh;
-      height: 100dvh;
-      overflow: hidden;
+      /* No fixed height — sizes to board + bars + buttons + compact move list */
+      overflow: visible;
     }
+    /* Action bar sits right after the board, move list fills remaining space below */
+    body.classic-mode .classic-action-bar { order: 3; flex-shrink: 0; }
+    body.classic-mode #classic-moves { order: 4; }
 
     /* ── Classic Newspaper Header (dark "Chess Wars Chronicle" banner) ── */
     body.classic-mode #classic-newspaper-header {
@@ -2020,10 +2063,11 @@
       display: none !important;
     }
 
-    /* Move list → grows to fill remaining space between board and action bar */
+    /* Move list → compact, grows with content, capped height, scrollable */
     body.classic-mode .classic-moves {
-      flex: 1 1 0px;
+      flex: 0 1 auto;
       min-height: 48px;
+      max-height: 30vh;
       border-top: 1px solid #1a1917;
       overflow-y: auto;
       overscroll-behavior: contain; /* prevent scroll chaining to parent */
@@ -2118,8 +2162,7 @@
       }
       body.classic-mode #center-section {
         max-width: 100%;
-        height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-        height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        /* No fixed height — auto-sizes to content */
       }
       body.classic-mode .classic-player-bar { padding: 4px 8px; }
       body.classic-mode .cpb-name { font-size: 13px; }
@@ -2574,7 +2617,7 @@
       <div class="wd-section-header">Preferences</div>
       <div class="wd-pref-row">
         <button class="wd-pref-btn" id="wd-classic-btn">♟ Classic Mode</button>
-        <button class="wd-pref-btn" id="wd-gfx-btn">⚡ GFX: High</button>
+        <button class="wd-pref-btn" id="wd-gfx-btn">🔥 GFX: High</button>
         <button class="wd-pref-btn" id="wd-theme-btn">🎨 Theme</button>
       </div>
 
@@ -2717,7 +2760,7 @@
         <span class="bo-sep">·</span>
         <button id="bo-classic-btn" class="bo-btn">♟ Classic</button>
         <span class="bo-sep">·</span>
-        <button id="bo-gfx-btn" class="bo-btn">⚡ GFX: High</button>
+        <button id="bo-gfx-btn" class="bo-btn">🔥 GFX: High</button>
       </div>
 
       <!-- CLASSIC MODE: bottom action bar (large touch-friendly buttons) -->
@@ -2725,6 +2768,7 @@
         <button class="cab-btn cab-primary" id="cab-new-btn"><span class="cab-icon">▶</span><span class="cab-label">New</span></button>
         <button class="cab-btn cab-danger" id="cab-resign-btn" style="display:none;"><span class="cab-icon">⚑</span><span class="cab-label">Resign</span></button>
         <button class="cab-btn" id="cab-undo-btn"><span class="cab-icon">↩</span><span class="cab-label">Undo</span></button>
+        <button class="cab-btn" id="cab-save-btn"><span class="cab-icon">💾</span><span class="cab-label">Save</span></button>
         <button class="cab-btn" id="cab-flip-btn"><span class="cab-icon">🔄</span><span class="cab-label">Flip</span></button>
         <button class="cab-btn" id="cab-explore-btn"><span class="cab-icon">🌌</span><span class="cab-label">Explore</span></button>
         <button class="cab-btn" id="cab-settings-btn"><span class="cab-icon">⚙</span><span class="cab-label">Settings</span></button>
@@ -2918,8 +2962,34 @@
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
             <button id="classic-mode-btn" class="btn-muted">♟ Classic</button>
-            <button id="gfx-quality-btn" class="btn-muted">⚡ GFX: High</button>
+            <button id="gfx-quality-btn" class="btn-muted">🔥 GFX: High</button>
           </div>
+          <div style="margin-top:8px;">
+            <button id="gfx-auto-btn" class="btn-muted" style="width:100%;" title="Re-scan your device and pick the best quality setting automatically">🔍 Auto-Detect Best Quality</button>
+          </div>
+        </div>
+
+        <!-- Device & Graphics Info -->
+        <div class="sidebar-section" id="device-info-section">
+          <h3>🖥️ Device &amp; Graphics</h3>
+          <div id="device-info-details" style="font-size: 12px; color: var(--sidebar-text-muted); line-height: 1.6;">
+            <div>GPU: <span id="device-gpu">detecting…</span></div>
+            <div>Screen: <span id="device-screen">—</span></div>
+            <div>Cores: <span id="device-cores">—</span> · Memory: <span id="device-mem">—</span></div>
+            <div>Recommended: <strong id="device-recommended">—</strong></div>
+          </div>
+          <details style="margin-top: 6px; font-size: 11px; color: var(--sidebar-text-muted);">
+            <summary style="cursor:pointer; user-select:none;">ℹ️ Quality Tier Guide</summary>
+            <table style="width:100%; margin-top:6px; border-collapse:collapse; font-size:11px;">
+              <tr><td style="padding:3px 4px;">🥔 <b>Potato</b></td><td>Budget tablets (A7&nbsp;Lite, Fire&nbsp;7)</td></tr>
+              <tr><td style="padding:3px 4px;">🔋 <b>Low</b></td><td>Budget phones, older tablets</td></tr>
+              <tr><td style="padding:3px 4px;">⚡ <b>Medium</b></td><td>Mid-range phones &amp; tablets</td></tr>
+              <tr><td style="padding:3px 4px;">🔥 <b>High</b></td><td>Modern phones, older laptops</td></tr>
+              <tr><td style="padding:3px 4px;">💎 <b>Ultra</b></td><td>Modern laptops &amp; desktops</td></tr>
+              <tr><td style="padding:3px 4px;">🚀 <b>Extreme</b></td><td>Gaming PCs, high-refresh displays</td></tr>
+            </table>
+            <p style="margin:6px 0 0 0;">The game auto-detects your hardware on first visit. If you see black reflections or lag, try a lower tier. If everything runs smoothly, try a higher one!</p>
+          </details>
         </div>
 
         <div style="text-align: center; padding-top: 8px; border-top: 1px solid var(--sidebar-border);">

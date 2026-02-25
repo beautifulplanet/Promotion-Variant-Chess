@@ -161,6 +161,7 @@ export type GameFound = {
   };
   timeControl: TimeControl;
   fen: string;
+  playerToken: string;       // opaque reconnect token (UUIDv4)
   myPieceBank?: PieceBank;
   opponentPieceBank?: PieceBank;
 };

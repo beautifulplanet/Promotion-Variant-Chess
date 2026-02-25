@@ -35,7 +35,7 @@ import * as Overlay from './overlayRenderer';
 import { getCurrentOpeningName } from './openingBook';
 import { getLastMoveQuality, getMoveQualityDisplay } from './moveQualityAnalyzer';
 import { initEngine, getEngineType } from './engineProvider';
-import { getPieceStyleConfig } from './pieceStyles';
+import { getPieceStyleConfig, STYLES_3D_ORDER, STYLES_2D_ORDER } from './pieceStyles';
 import type { PieceType } from './types';
 
 // Classic mode DOM elements
@@ -406,13 +406,109 @@ if (viewModeBtn) {
   });
 }
 
-// Piece style cycling - separate 3D and 2D
+// =============================================================================
+// STYLE POP-OUT MENUS
+// =============================================================================
+
+function closeStylePopout(): void {
+  const existing = document.getElementById('style-popout-active');
+  if (existing) existing.remove();
+}
+
+function showStylePopout(
+  styles: string[],
+  currentStyle: string,
+  onSelect: (styleId: string) => void,
+  anchorEl: HTMLElement,
+): void {
+  // Toggle: close if already open
+  if (document.getElementById('style-popout-active')) {
+    closeStylePopout();
+    return;
+  }
+
+  const popout = document.createElement('div');
+  popout.className = 'style-popout';
+  popout.id = 'style-popout-active';
+
+  for (const styleId of styles) {
+    const config = getPieceStyleConfig(styleId);
+    const item = document.createElement('div');
+    item.className = 'style-popout-item' + (styleId === currentStyle ? ' active' : '');
+    item.innerHTML = `
+      <span class="style-popout-item-name">${config.name}</span>
+      <span class="style-popout-item-desc">${config.description}</span>
+    `;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onSelect(styleId);
+      closeStylePopout();
+    });
+    popout.appendChild(item);
+  }
+
+  document.body.appendChild(popout);
+
+  // Position near the anchor button
+  const rect = anchorEl.getBoundingClientRect();
+  const popH = popout.getBoundingClientRect().height;
+  const popW = popout.getBoundingClientRect().width;
+
+  // Prefer above the button; fall back to below
+  let top = rect.top - popH - 4;
+  if (top < 8) top = rect.bottom + 4;
+
+  let left = rect.left + rect.width / 2 - popW / 2;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+
+  popout.style.top = `${Math.max(0, top)}px`;
+  popout.style.left = `${Math.max(0, left)}px`;
+
+  // Close on outside click (delay to not catch the triggering click)
+  requestAnimationFrame(() => {
+    const handler = (e: MouseEvent) => {
+      if (!popout.contains(e.target as Node)) {
+        closeStylePopout();
+        document.removeEventListener('click', handler);
+      }
+    };
+    document.addEventListener('click', handler);
+  });
+}
+
+// Piece style pop-out — 3D styles
 if (style3dBtn) {
-  style3dBtn.addEventListener('click', () => {
-    Renderer.cycle3DPieceStyle();
-    const newStyle = Renderer.get3DPieceStyle();
-    style3dBtn.textContent = `🎨 ${newStyle}`;
-    Game.updateStylePreferences(newStyle, undefined, undefined);
+  style3dBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showStylePopout(
+      STYLES_3D_ORDER,
+      Renderer.get3DPieceStyle(),
+      (styleId) => {
+        Renderer.set3DPieceStyle(styleId);
+        style3dBtn.textContent = `🎨 ${getPieceStyleConfig(styleId).name}`;
+        Game.updateStylePreferences(styleId, undefined, undefined);
+      },
+      style3dBtn,
+    );
+  });
+}
+
+// Piece style pop-out — 2D styles
+if (style2dBtn) {
+  style2dBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showStylePopout(
+      STYLES_2D_ORDER,
+      Renderer.get2DPieceStyle(),
+      (styleId) => {
+        Renderer.set2DPieceStyle(styleId);
+        style2dBtn.textContent = `🖼️ ${getPieceStyleConfig(styleId).name}`;
+        Game.updateStylePreferences(undefined, styleId, undefined);
+        showStylePreview(styleId);
+      },
+      style2dBtn,
+    );
   });
 }
 
@@ -445,16 +541,6 @@ function showStylePreview(styleId: string): void {
     toast.classList.add('fade-out');
     setTimeout(() => toast.classList.remove('visible', 'fade-out'), 300);
   }, 2000);
-}
-
-if (style2dBtn) {
-  style2dBtn.addEventListener('click', () => {
-    Renderer.cycle2DPieceStyle();
-    const newStyle = Renderer.get2DPieceStyle();
-    style2dBtn.textContent = `🖼️ ${newStyle}`;
-    Game.updateStylePreferences(undefined, newStyle, undefined);
-    showStylePreview(Renderer.get2DPieceStyle());
-  });
 }
 
 // Board style cycling
@@ -499,14 +585,23 @@ if (boBoardStyleBtn) {
   });
 }
 
-// Board overlay: cycle 2D piece style
+// Board overlay: 2D piece style pop-out
 if (boPiece2dBtn) {
-  boPiece2dBtn.addEventListener('click', () => {
-    Renderer.cycle2DPieceStyle();
-    const newStyle = Renderer.get2DPieceStyle();
-    if (style2dBtn) style2dBtn.textContent = `🖼️ ${newStyle}`;
-    boPiece2dBtn.textContent = `🖼️ ${newStyle}`;
-    Game.updateStylePreferences(undefined, newStyle, undefined);
+  boPiece2dBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showStylePopout(
+      STYLES_2D_ORDER,
+      Renderer.get2DPieceStyle(),
+      (styleId) => {
+        Renderer.set2DPieceStyle(styleId);
+        const name = getPieceStyleConfig(styleId).name;
+        if (style2dBtn) style2dBtn.textContent = `🖼️ ${name}`;
+        boPiece2dBtn.textContent = `🖼️ ${name}`;
+        Game.updateStylePreferences(undefined, styleId, undefined);
+        showStylePreview(styleId);
+      },
+      boPiece2dBtn,
+    );
   });
 }
 
@@ -534,11 +629,11 @@ if (loadBtn) {
       const saveData = Game.getCurrentSaveData();
       if (saveData.pieceStyle3D) {
         Renderer.set3DPieceStyle(saveData.pieceStyle3D);
-        if (style3dBtn) style3dBtn.textContent = `🎨 ${saveData.pieceStyle3D}`;
+        if (style3dBtn) style3dBtn.textContent = `🎨 ${getPieceStyleConfig(saveData.pieceStyle3D).name}`;
       }
       if (saveData.pieceStyle2D) {
         Renderer.set2DPieceStyle(saveData.pieceStyle2D);
-        if (style2dBtn) style2dBtn.textContent = `🖼️ ${saveData.pieceStyle2D}`;
+        if (style2dBtn) style2dBtn.textContent = `🖼️ ${getPieceStyleConfig(saveData.pieceStyle2D).name}`;
       }
       if (saveData.boardStyle && isValidBoardStyle(saveData.boardStyle)) {
         Renderer.setBoardStyle(saveData.boardStyle);
@@ -1969,9 +2064,16 @@ function updateClassicButtons(): void {
 
 function updateGfxButtons(): void {
   const q = ClassicMode.getGraphicsQuality();
-  const label = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
-  if (boGfxBtn) boGfxBtn.textContent = label;
-  if (gfxQualityBtn) gfxQualityBtn.textContent = label;
+  const info = ClassicMode.QUALITY_INFO[q];
+  const label = `${info.emoji} GFX: ${info.label}`;
+  if (boGfxBtn) {
+    boGfxBtn.textContent = label;
+    boGfxBtn.title = `${info.desc}\nBest for: ${info.target}`;
+  }
+  if (gfxQualityBtn) {
+    gfxQualityBtn.textContent = label;
+    gfxQualityBtn.title = `${info.desc}\nBest for: ${info.target}`;
+  }
 }
 
 function handleClassicToggle(): void {
@@ -2043,6 +2145,11 @@ cabUndoBtn?.addEventListener('click', () => {
   performUndo();
 });
 
+const cabSaveBtn = document.getElementById('cab-save-btn');
+cabSaveBtn?.addEventListener('click', () => {
+  Game.saveProgress();
+});
+
 cabFlipBtn?.addEventListener('click', () => doFlip());
 
 cabExploreBtn?.addEventListener('click', () => {
@@ -2073,6 +2180,41 @@ function updateCabResignVisibility(): void {
 // Initialize button labels from saved state
 updateClassicButtons();
 updateGfxButtons();
+
+// =============================================================================
+// DEVICE DETECTION & AUTO-QUALITY — populate Options panel
+// =============================================================================
+
+function populateDeviceInfo(): void {
+  const profile = ClassicMode.detectDeviceCapabilities();
+  const gpuEl = document.getElementById('device-gpu');
+  const screenEl = document.getElementById('device-screen');
+  const coresEl = document.getElementById('device-cores');
+  const memEl = document.getElementById('device-mem');
+  const recEl = document.getElementById('device-recommended');
+
+  if (gpuEl) gpuEl.textContent = profile.gpu === 'unknown' ? 'Not exposed by browser' : profile.gpu;
+  if (screenEl) screenEl.textContent = `${profile.screenWidth}px · DPR ${profile.dpr.toFixed(1)} · ${profile.isTouch ? 'Touch' : 'Desktop'}`;
+  if (coresEl) coresEl.textContent = String(profile.cores);
+  if (memEl) memEl.textContent = profile.memoryGB > 0 ? `${profile.memoryGB} GB` : 'N/A';
+  if (recEl) {
+    const info = ClassicMode.QUALITY_INFO[profile.recommended];
+    recEl.textContent = `${info.emoji} ${info.label}`;
+  }
+}
+
+// Auto-detect button in Options panel
+document.getElementById('gfx-auto-btn')?.addEventListener('click', () => {
+  const profile = ClassicMode.detectDeviceCapabilities();
+  ClassicMode.setGraphicsQuality(profile.recommended);
+  updateGfxButtons();
+  populateDeviceInfo();
+  Sound.play('move');
+  console.log('[GFX] Auto-detected quality:', profile.recommended);
+});
+
+// Populate on first load (deferred so canvas is ready for WebGL probing)
+requestAnimationFrame(() => populateDeviceInfo());
 
 // =============================================================================
 // WELCOME DASHBOARD — WIRING  (placed at end so all variables are defined)
@@ -2106,7 +2248,9 @@ if (welcomeDashboard) {
   const wdClassicBtn = document.getElementById('wd-classic-btn');
   if (wdGfxBtn) {
     const q = ClassicMode.getGraphicsQuality();
-    wdGfxBtn.textContent = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
+    const info = ClassicMode.QUALITY_INFO[q];
+    wdGfxBtn.textContent = `${info.emoji} GFX: ${info.label}`;
+    wdGfxBtn.title = `${info.desc}\nBest for: ${info.target}`;
   }
   if (wdClassicBtn) {
     wdClassicBtn.textContent = ClassicMode.isClassicMode() ? '♟ Normal Mode' : '♟ Classic Mode';
@@ -2174,7 +2318,11 @@ if (welcomeDashboard) {
   wdGfxBtn?.addEventListener('click', () => {
     handleGfxCycle();
     const q = ClassicMode.getGraphicsQuality();
-    if (wdGfxBtn) wdGfxBtn.textContent = `⚡ GFX: ${q.charAt(0).toUpperCase() + q.slice(1)}`;
+    const info = ClassicMode.QUALITY_INFO[q];
+    if (wdGfxBtn) {
+      wdGfxBtn.textContent = `${info.emoji} GFX: ${info.label}`;
+      wdGfxBtn.title = `${info.desc}\nBest for: ${info.target}`;
+    }
   });
 
   // 🎨 Theme cycle

@@ -353,9 +353,12 @@ function doResize(): void {
           }
         }
       }
-      // Available height for board = container height minus sibling heights
-      const containerHeight = container?.clientHeight || window.innerHeight;
-      const availBoardHeight = containerHeight - siblingHeight;
+      // Available height for board = viewport height minus sibling heights
+      // Use window.innerHeight directly so board sizing doesn't depend on
+      // the center-section having a fixed CSS height (we removed height:100vh
+      // to let the section auto-size and keep buttons snug under the board).
+      const viewportHeight = window.innerHeight;
+      const availBoardHeight = viewportHeight - siblingHeight;
 
       // Board = biggest square that fits in available space
       const size = Math.floor(Math.min(containerWidth, Math.max(200, availBoardHeight)));

@@ -873,7 +873,8 @@ function handleReconnect(
   playerTokens.set(socket.id, playerToken);
   socket.join(gameId);
 
-  // Send current game state
+  // Send current game state (include the same reconnect token so the
+  // client can reconnect again if it disconnects a second time)
   const info = room.getPlayerBySocketId(socket.id)!;
   send(socket, {
     type: 'game_found', v: PROTOCOL_VERSION,
@@ -885,6 +886,7 @@ function handleReconnect(
     },
     timeControl: room.timeControl,
     fen: room.fen,
+    playerToken,
   });
 }
 
@@ -959,6 +961,7 @@ function createGame(p1: TableEntry, p2: TableEntry) {
       gameId: room.id, color: 'w',
       opponent: { name: black.name, elo: black.elo },
       timeControl, fen: room.fen,
+      playerToken: whiteToken,
       myPieceBank: whiteEntry.pieceBank,
       opponentPieceBank: blackEntry.pieceBank,
     });
@@ -971,6 +974,7 @@ function createGame(p1: TableEntry, p2: TableEntry) {
       gameId: room.id, color: 'b',
       opponent: { name: white.name, elo: white.elo },
       timeControl, fen: room.fen,
+      playerToken: blackToken,
       myPieceBank: blackEntry.pieceBank,
       opponentPieceBank: whiteEntry.pieceBank,
     });
