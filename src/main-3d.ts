@@ -976,24 +976,36 @@ if (trainAiBtn) {
 }
 
 // AI Speed button - cycles through speeds
+// Base delay = 5000ms (5s) in Watch AI mode, multiplied by these values:
+//   2x   → 10s (slow study)
+//   1x   → 5s  (default — easy to follow)
+//   0.5x → 2.5s
+//   0.25x→ 1.25s
+//   0.1x → 0.5s (fast)
 const AI_SPEEDS = [
-  { value: 1, label: '1x' },
-  { value: 0.5, label: '2x' },
-  { value: 0.25, label: '4x' },
-  { value: 0.1, label: '10x' },
-  { value: 2, label: '0.5x' },
+  { value: 1,    label: '5s' },
+  { value: 2,    label: '10s' },
+  { value: 0.5,  label: '2.5s' },
+  { value: 0.25, label: '1.25s' },
+  { value: 0.1,  label: '0.5s' },
 ];
 let currentSpeedIndex = 0;
 
 function updateAiSpeedButton(): void {
-  if (!aiSpeedBtn) return;
+  const inWatch = Game.isAiVsAiMode() && !Game.getState().gameOver;
+  const label = `⏱️ ${AI_SPEEDS[currentSpeedIndex].label}`;
 
-  // Show speed button only during AI vs AI mode
-  if (Game.isAiVsAiMode() && !Game.getState().gameOver) {
-    aiSpeedBtn.style.display = 'inline-block';
-    aiSpeedBtn.textContent = `⏱️ ${AI_SPEEDS[currentSpeedIndex].label}`;
-  } else {
-    aiSpeedBtn.style.display = 'none';
+  // Sidebar speed button
+  if (aiSpeedBtn) {
+    aiSpeedBtn.style.display = inWatch ? 'inline-block' : 'none';
+    aiSpeedBtn.textContent = label;
+  }
+  // Classic action bar speed button
+  const cabSpeedBtn = document.getElementById('cab-speed-btn');
+  if (cabSpeedBtn) {
+    cabSpeedBtn.style.display = inWatch ? 'flex' : 'none';
+    const cabSpeedLabel = cabSpeedBtn.querySelector('.cab-label');
+    if (cabSpeedLabel) cabSpeedLabel.textContent = AI_SPEEDS[currentSpeedIndex].label;
   }
 }
 
@@ -1614,6 +1626,11 @@ Game.registerCallbacks({
     const isLoss = message.includes('You Lose');
     const result: 'win' | 'loss' | 'draw' = isWin ? 'win' : isLoss ? 'loss' : 'draw';
 
+    // Record in career stats (skip AI vs AI spectator games)
+    if (!Game.isAiVsAiMode()) {
+      Stats.recordGame(result, Game.getState().elo);
+    }
+
     // Detect draw type from message
     let drawType: string | undefined;
     if (message.includes('Stalemate')) drawType = 'stalemate';
@@ -2014,33 +2031,57 @@ if (themeBtn) {
   });
 }
 
-// Stats modal button
+// =============================================================================
+// STATS MODAL
+// =============================================================================
+
+function openStatsModal(): void {
+  const overlay = document.getElementById('stats-overlay');
+  if (!overlay) return;
+
+  const stats = Stats.getStats();
+  const winRate = Stats.getWinRate();
+  const playTime = Stats.getPlayTimeDisplay();
+  const streak = stats.currentStreak;
+
+  // Populate values
+  const set = (id: string, val: string) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
+  set('stat-total-games', String(stats.totalGames));
+  set('stat-wins', String(stats.wins));
+  set('stat-losses', String(stats.losses));
+  set('stat-draws', String(stats.draws));
+  set('stat-winrate', `${winRate}%`);
+  set('stat-streak', streak > 0 ? `🔥 ${streak} wins` : streak < 0 ? `❄️ ${Math.abs(streak)} losses` : '—');
+  set('stat-best-streak', String(stats.longestWinStreak));
+  set('stat-highest-elo', String(stats.highestElo));
+  set('stat-lowest-elo', String(stats.lowestElo));
+  set('stat-playtime', playTime);
+
+  overlay.style.display = 'flex';
+  Sound.play('move');
+}
+
+// Close button
+document.getElementById('stats-close-btn')?.addEventListener('click', () => {
+  const overlay = document.getElementById('stats-overlay');
+  if (overlay) overlay.style.display = 'none';
+});
+
+// Click outside to close
+document.getElementById('stats-overlay')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    (e.target as HTMLElement).style.display = 'none';
+  }
+});
+
+// Stats modal button (sidebar)
 if (statsBtn) {
   statsBtn.addEventListener('click', () => {
-    const stats = Stats.getStats();
-    const winRate = Stats.getWinRate();
-    const playTime = Stats.getPlayTimeDisplay();
-
-    const message = `
-📊 CAREER STATS
-━━━━━━━━━━━━━━━
-Games: ${stats.totalGames}
-Wins: ${stats.wins} | Losses: ${stats.losses} | Draws: ${stats.draws}
-Win Rate: ${winRate}%
-
-🏆 Streaks
-Current: ${stats.currentStreak > 0 ? '+' + stats.currentStreak : stats.currentStreak}
-Longest Win: ${stats.longestWinStreak}
-
-📈 ELO Range
-Highest: ${stats.highestElo}
-Lowest: ${stats.lowestElo}
-
-⏱️ Play Time: ${playTime}
-    `.trim();
-
-    alert(message);
-    Sound.play('move');
+    openStatsModal();
   });
 }
 
@@ -2168,6 +2209,92 @@ cabSettingsBtn?.addEventListener('click', () => {
 });
 
 cabExitBtn?.addEventListener('click', handleClassicToggle);
+
+// ── New classic bar buttons: Load, Setup, Piece Styles, Watch AI, Speed, Stats ──
+
+document.getElementById('cab-load-btn')?.addEventListener('click', async () => {
+  const loaded = await Game.loadProgress();
+  if (loaded) {
+    const saveData = Game.getCurrentSaveData();
+    if (saveData.pieceStyle3D) {
+      Renderer.set3DPieceStyle(saveData.pieceStyle3D);
+      if (style3dBtn) style3dBtn.textContent = `🎨 ${getPieceStyleConfig(saveData.pieceStyle3D).name}`;
+    }
+    if (saveData.pieceStyle2D) {
+      Renderer.set2DPieceStyle(saveData.pieceStyle2D);
+      if (style2dBtn) style2dBtn.textContent = `🖼️ ${getPieceStyleConfig(saveData.pieceStyle2D).name}`;
+    }
+    if (saveData.boardStyle && isValidBoardStyle(saveData.boardStyle)) {
+      Renderer.setBoardStyle(saveData.boardStyle);
+      if (boardStyleBtn) boardStyleBtn.textContent = `🏁 ${saveData.boardStyle}`;
+    }
+    updateAggressionDisplay();
+  }
+  syncRendererState();
+});
+
+document.getElementById('cab-setup-btn')?.addEventListener('click', () => {
+  // Reuse the existing setup overlay
+  if (setupBtn) setupBtn.click();
+});
+
+document.getElementById('cab-3d-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const btn = document.getElementById('cab-3d-btn')!;
+  showStylePopout(
+    STYLES_3D_ORDER,
+    Renderer.get3DPieceStyle(),
+    (styleId) => {
+      Renderer.set3DPieceStyle(styleId);
+      const name = getPieceStyleConfig(styleId).name;
+      if (style3dBtn) style3dBtn.textContent = `🎨 ${name}`;
+      Game.updateStylePreferences(styleId, undefined, undefined);
+    },
+    btn,
+  );
+});
+
+document.getElementById('cab-2d-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const btn = document.getElementById('cab-2d-btn')!;
+  showStylePopout(
+    STYLES_2D_ORDER,
+    Renderer.get2DPieceStyle(),
+    (styleId) => {
+      Renderer.set2DPieceStyle(styleId);
+      const name = getPieceStyleConfig(styleId).name;
+      if (style2dBtn) style2dBtn.textContent = `🖼️ ${name}`;
+      Game.updateStylePreferences(undefined, styleId, undefined);
+      showStylePreview(styleId);
+    },
+    btn,
+  );
+});
+
+document.getElementById('cab-board-btn')?.addEventListener('click', () => {
+  Renderer.cycleBoardStyle();
+  const newStyle = Renderer.getBoardStyle();
+  if (boardStyleBtn) boardStyleBtn.textContent = `🏁 ${newStyle}`;
+  Game.updateStylePreferences(undefined, undefined, newStyle);
+});
+
+document.getElementById('cab-watch-btn')?.addEventListener('click', () => {
+  Game.startAiVsAi();
+  MoveListUI.startGameTimer();
+  syncRendererState();
+  updateStartButton();
+  updateAiSpeedButton();
+});
+
+document.getElementById('cab-speed-btn')?.addEventListener('click', () => {
+  currentSpeedIndex = (currentSpeedIndex + 1) % AI_SPEEDS.length;
+  Game.setAiSpeed(AI_SPEEDS[currentSpeedIndex].value);
+  updateAiSpeedButton();
+});
+
+document.getElementById('cab-stats-btn')?.addEventListener('click', () => {
+  openStatsModal();
+});
 
 // Sync cab resign button visibility with game state
 function updateCabResignVisibility(): void {

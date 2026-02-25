@@ -602,6 +602,83 @@
       border-bottom: none;
     }
 
+    /* ─── Stats Modal ─── */
+    #stats-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 3200;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: overlay-fade-in 0.2s ease;
+    }
+    #stats-panel {
+      background: var(--sidebar-bg, #f5f0e6);
+      border: 2px solid var(--sidebar-border);
+      border-radius: 10px;
+      width: 90vw;
+      max-width: 400px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.35);
+      animation: panel-slide-up 0.25s ease;
+    }
+    #stats-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--sidebar-border);
+      background: var(--sidebar-text);
+      color: var(--sidebar-bg);
+      border-radius: 8px 8px 0 0;
+    }
+    #stats-panel-header h2 { margin: 0; font-size: 18px; }
+    .stats-panel-close {
+      background: none; border: none; font-size: 24px;
+      cursor: pointer; color: inherit; padding: 4px 8px; line-height: 1;
+    }
+    #stats-panel-body { padding: 16px 18px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .stats-card {
+      text-align: center;
+      padding: 10px 4px;
+      background: var(--sidebar-hover, rgba(0,0,0,0.04));
+      border-radius: 8px;
+    }
+    .stats-card-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--sidebar-text, #333);
+    }
+    .stats-card-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--sidebar-text-muted);
+      margin-top: 2px;
+    }
+    .stats-card.stats-win .stats-card-value { color: #81b64c; }
+    .stats-card.stats-loss .stats-card-value { color: #e05555; }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--sidebar-border);
+      font-size: 13px;
+    }
+    .stats-row:last-child { border-bottom: none; }
+    .stats-row-label { color: var(--sidebar-text-muted); }
+    .stats-row-value { font-weight: 700; color: var(--sidebar-text); }
+
     /* ─── How to Play Modal ─── */
     #htp-overlay {
       display: none;
@@ -2769,7 +2846,15 @@
         <button class="cab-btn cab-danger" id="cab-resign-btn" style="display:none;"><span class="cab-icon">⚑</span><span class="cab-label">Resign</span></button>
         <button class="cab-btn" id="cab-undo-btn"><span class="cab-icon">↩</span><span class="cab-label">Undo</span></button>
         <button class="cab-btn" id="cab-save-btn"><span class="cab-icon">💾</span><span class="cab-label">Save</span></button>
+        <button class="cab-btn" id="cab-load-btn"><span class="cab-icon">📂</span><span class="cab-label">Load</span></button>
+        <button class="cab-btn" id="cab-setup-btn"><span class="cab-icon">🔧</span><span class="cab-label">Setup</span></button>
         <button class="cab-btn" id="cab-flip-btn"><span class="cab-icon">🔄</span><span class="cab-label">Flip</span></button>
+        <button class="cab-btn" id="cab-3d-btn"><span class="cab-icon">🎨</span><span class="cab-label">3D</span></button>
+        <button class="cab-btn" id="cab-2d-btn"><span class="cab-icon">🖼️</span><span class="cab-label">2D</span></button>
+        <button class="cab-btn" id="cab-board-btn"><span class="cab-icon">🏁</span><span class="cab-label">Board</span></button>
+        <button class="cab-btn" id="cab-watch-btn"><span class="cab-icon">🤖</span><span class="cab-label">Watch</span></button>
+        <button class="cab-btn" id="cab-speed-btn" style="display:none;"><span class="cab-icon">⏱️</span><span class="cab-label">5s</span></button>
+        <button class="cab-btn" id="cab-stats-btn"><span class="cab-icon">📊</span><span class="cab-label">Stats</span></button>
         <button class="cab-btn" id="cab-explore-btn"><span class="cab-icon">🌌</span><span class="cab-label">Explore</span></button>
         <button class="cab-btn" id="cab-settings-btn"><span class="cab-icon">⚙</span><span class="cab-label">Settings</span></button>
         <button class="cab-btn" id="cab-exit-btn"><span class="cab-icon">✕</span><span class="cab-label">Classic</span></button>
@@ -2902,7 +2987,7 @@
 
         <!-- Multiplayer Controls -->
         <div class="sidebar-section" id="multiplayer-section">
-          <h3>&#x1F310; Multiplayer</h3>
+          <h3>&#x1F310; Multiplayer <span style="font-size:10px; font-weight:normal; color:#e0a030; background:rgba(224,160,48,0.15); padding:2px 6px; border-radius:4px; margin-left:4px;">BETA</span></h3>
           <div id="mp-offline">
             <input id="mp-player-name" type="text" placeholder="Your name..." style="width:100%; padding:10px; margin-bottom:4px; border:1px solid var(--sidebar-border, #ccc); border-radius:6px; font-size:14px; background:var(--sidebar-bg, #fff); color:var(--sidebar-text, #333); box-sizing:border-box;">
             <div style="display:flex; gap:6px; margin-bottom:8px;">
@@ -3221,6 +3306,60 @@
   </div>
 
   <div id="level-notification"></div>
+
+  <!-- STATS MODAL -->
+  <div id="stats-overlay" style="display:none;">
+    <div id="stats-panel">
+      <div id="stats-panel-header">
+        <h2>📊 Career Stats</h2>
+        <button class="stats-panel-close" id="stats-close-btn" title="Close">&times;</button>
+      </div>
+      <div id="stats-panel-body">
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-card-value" id="stat-total-games">0</div>
+            <div class="stats-card-label">Games</div>
+          </div>
+          <div class="stats-card stats-win">
+            <div class="stats-card-value" id="stat-wins">0</div>
+            <div class="stats-card-label">Wins</div>
+          </div>
+          <div class="stats-card stats-loss">
+            <div class="stats-card-value" id="stat-losses">0</div>
+            <div class="stats-card-label">Losses</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value" id="stat-draws">0</div>
+            <div class="stats-card-label">Draws</div>
+          </div>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Win Rate</span>
+          <span class="stats-row-value" id="stat-winrate">0%</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Current Streak</span>
+          <span class="stats-row-value" id="stat-streak">—</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Best Win Streak</span>
+          <span class="stats-row-value" id="stat-best-streak">0</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Highest ELO</span>
+          <span class="stats-row-value" id="stat-highest-elo">400</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Lowest ELO</span>
+          <span class="stats-row-value" id="stat-lowest-elo">400</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-row-label">Play Time</span>
+          <span class="stats-row-value" id="stat-playtime">0m</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- PAWN PROMOTION MODAL -->
   <div id="promotion-overlay" style="display: none;">

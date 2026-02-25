@@ -827,7 +827,7 @@ export function isAiVsAiMode(): boolean {
  * Set AI move speed (0.25 = very fast, 1 = normal, 2 = slow)
  */
 export function setAiSpeed(speed: number): void {
-  aiMoveSpeedMultiplier = Math.max(0.1, Math.min(3, speed));
+  aiMoveSpeedMultiplier = Math.max(0.1, Math.min(10, speed));
   console.log('[Game] AI speed set to:', aiMoveSpeedMultiplier);
 }
 
@@ -1801,9 +1801,10 @@ function scheduleAIMove(): void {
     pendingAIMoveTimeout = null;
   }
 
-  // In AI vs AI mode, use 100ms base delay (balanced: fast but UI-responsive)
-  // Speed button multiplies this: 0.1x = 10ms (blitz), 2x = 200ms (slow)
-  const baseDelay = aiVsAiMode ? 100 : TIMING.aiMoveDelay;
+  // In AI vs AI (Watch AI) mode, use 5000ms base delay (5s between moves so
+  // humans can follow the game).  Speed button multiplies this:
+  //   0.5x = 10s (slow study), 1x = 5s (default), 2x = 2.5s, 4x = 1.25s
+  const baseDelay = aiVsAiMode ? 5000 : TIMING.aiMoveDelay;
   const delay = Math.round(baseDelay * aiMoveSpeedMultiplier);
   DEBUG_LOG('[AI] Scheduling AI move in', delay, 'ms');
 
