@@ -336,14 +336,18 @@ function updateSidebar(state: Game.GameState): void {
 
 function showLevelNotification(levelName: string, isUp: boolean): void {
   if (levelNotificationElem) {
-    levelNotificationElem.style.display = 'block';
     levelNotificationElem.style.background = isUp ? COLORS.levelUpBackground : COLORS.levelDownBackground;
     levelNotificationElem.innerHTML = `
       <div style="font-weight:bold;">${isUp ? 'LEVEL UP!' : 'LEVEL DOWN'}</div>
       <div style="font-size:0.9em;">${levelName}</div>
     `;
+    // Force slideDown animation to re-run each time (animation is in stylesheet)
+    levelNotificationElem.style.animation = 'none';
+    levelNotificationElem.offsetHeight; // reflow
+    levelNotificationElem.style.animation = '';
+    levelNotificationElem.style.display = 'block';
     setTimeout(() => {
-      levelNotificationElem.style.display = 'none';
+      levelNotificationElem!.style.display = 'none';
     }, TIMING.levelNotificationDuration);
   }
 }
@@ -2061,20 +2065,20 @@ function openStatsModal(): void {
   set('stat-lowest-elo', String(stats.lowestElo));
   set('stat-playtime', playTime);
 
-  overlay.style.display = 'flex';
+  overlay.classList.add('open');
   Sound.play('move');
 }
 
 // Close button
 document.getElementById('stats-close-btn')?.addEventListener('click', () => {
   const overlay = document.getElementById('stats-overlay');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) overlay.classList.remove('open');
 });
 
 // Click outside to close
 document.getElementById('stats-overlay')?.addEventListener('click', (e) => {
   if (e.target === e.currentTarget) {
-    (e.target as HTMLElement).style.display = 'none';
+    (e.target as HTMLElement).classList.remove('open');
   }
 });
 

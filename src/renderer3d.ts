@@ -4935,16 +4935,16 @@ function _easeOutQuad(t: number): number {
 function tickMoveAnimations(): void {
     const now = performance.now();
 
-    // --- Poll for pending animation start (piece may be async) ---
+    // --- Poll for pending animation start (piece may be async, e.g. 2D sprite sheet load) ---
+    const ANIM_POLL_TIMEOUT_MS = 2500;
     if (pendingStartAnim) {
         const found = _findPiece(pendingStartAnim.toRow, pendingStartAnim.toCol);
-        console.log('[ANIM] polling for piece at', pendingStartAnim.toRow, pendingStartAnim.toCol, 'found:', !!found, 'children:', piecesGroup.children.length, 'elapsed:', Math.round(now - pendingStartTime), 'ms');
         if (found && _tryStartAnim(pendingStartAnim)) {
-            console.log('[ANIM] animation STARTED!');
             pendingStartAnim = null;
-        } else if (now - pendingStartTime > 500) {
-            console.warn('[ANIM] poll timeout - piece never appeared');
-            pendingStartAnim = null; // timeout
+        } else if (now - pendingStartTime > ANIM_POLL_TIMEOUT_MS) {
+            // Still show capture effect at destination so attacks give feedback even if piece was slow to appear
+            if (pendingStartAnim.isCapture) _spawnCapture(pendingStartAnim.toRow, pendingStartAnim.toCol);
+            pendingStartAnim = null; // timeout (e.g. sprite sheet still loading)
         }
     }
 

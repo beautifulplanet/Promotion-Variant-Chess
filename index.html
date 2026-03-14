@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -534,10 +534,10 @@
       background: rgba(0,0,0,0.5);
       align-items: center;
       justify-content: center;
-      animation: overlay-fade-in 0.2s ease;
     }
     #options-overlay.open {
       display: flex;
+      animation: overlay-fade-in 0.2s ease;
     }
     @keyframes overlay-fade-in {
       from { opacity: 0; }
@@ -552,8 +552,10 @@
       max-height: 85vh;
       overflow-y: auto;
       box-shadow: 0 12px 48px rgba(0,0,0,0.35);
-      animation: panel-slide-up 0.25s ease;
       padding: 0;
+    }
+    #options-overlay.open #options-panel {
+      animation: panel-slide-up 0.25s ease;
     }
     @keyframes panel-slide-up {
       from { transform: translateY(30px); opacity: 0.5; }
@@ -604,13 +606,16 @@
 
     /* ─── Stats Modal ─── */
     #stats-overlay {
+      display: none;
       position: fixed;
       inset: 0;
       z-index: 3200;
       background: rgba(0,0,0,0.55);
-      display: flex;
       align-items: center;
       justify-content: center;
+    }
+    #stats-overlay.open {
+      display: flex;
       animation: overlay-fade-in 0.2s ease;
     }
     #stats-panel {
@@ -622,6 +627,8 @@
       max-height: 85vh;
       overflow-y: auto;
       box-shadow: 0 12px 48px rgba(0,0,0,0.35);
+    }
+    #stats-overlay.open #stats-panel {
       animation: panel-slide-up 0.25s ease;
     }
     #stats-panel-header {
@@ -688,9 +695,11 @@
       background: rgba(0,0,0,0.6);
       align-items: center;
       justify-content: center;
+    }
+    #htp-overlay.open {
+      display: flex;
       animation: overlay-fade-in 0.2s ease;
     }
-    #htp-overlay.open { display: flex; }
     #htp-panel {
       background: var(--sidebar-bg, #f5f0e6);
       border: 2px solid var(--sidebar-border);
@@ -700,8 +709,10 @@
       max-height: 88vh;
       overflow-y: auto;
       box-shadow: 0 12px 48px rgba(0,0,0,0.35);
-      animation: panel-slide-up 0.25s ease;
       padding: 0;
+    }
+    #htp-overlay.open #htp-panel {
+      animation: panel-slide-up 0.25s ease;
     }
     #htp-panel-header {
       display: flex;
@@ -767,9 +778,11 @@
       background: rgba(0,0,0,0.6);
       align-items: center;
       justify-content: center;
+    }
+    #shortcuts-overlay.open {
+      display: flex;
       animation: overlay-fade-in 0.2s ease;
     }
-    #shortcuts-overlay.open { display: flex; }
     #shortcuts-panel {
       background: var(--sidebar-bg, #f5f0e6);
       border: 2px solid var(--sidebar-border);
@@ -779,8 +792,10 @@
       max-height: 85vh;
       overflow-y: auto;
       box-shadow: 0 12px 48px rgba(0,0,0,0.35);
-      animation: panel-slide-up 0.25s ease;
       padding: 0;
+    }
+    #shortcuts-overlay.open #shortcuts-panel {
+      animation: panel-slide-up 0.25s ease;
     }
     #shortcuts-panel-header {
       display: flex;
@@ -3308,7 +3323,7 @@
   <div id="level-notification"></div>
 
   <!-- STATS MODAL -->
-  <div id="stats-overlay" style="display:none;">
+  <div id="stats-overlay">
     <div id="stats-panel">
       <div id="stats-panel-header">
         <h2>📊 Career Stats</h2>
