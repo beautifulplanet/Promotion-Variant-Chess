@@ -2,6 +2,17 @@
 .planning/
 LOCAL_*.md
 
+# AI/agent workflow — stays local, never push (my workflow with Cursor)
+AGENTS.md
+**/AGENTS.md
+.cursor/
+.cursorrules
+*.cursorrules
+RULE.md
+**/RULE.md
+.cursor/rules/
+**/.cursor/
+
 # Dependencies
 node_modules/
 .pnpm-store/
