@@ -4757,12 +4757,32 @@ let activeCaptureEffects: CaptureEffect[] = [];
 // Screen shake system for captures — visible in all modes (applied to active camera)
 let shakeIntensity = 0;
 let shakeDecay = 0;
-const SHAKE_DURATION = 2280;   // ms — 6x extended so shake is unmissable
-const SHAKE_INTENSITY = 16.5;  // base camera offset — 5x further increase, all modes
+let SHAKE_DURATION = 300;      // ms — tunable via shake tuner panel (press ` key twice fast)
+let SHAKE_INTENSITY = 0.018;   // base camera offset — subtle, natural feel
+
+// Per-piece shake multipliers — tunable via shake tuner panel
+let SHAKE_MULT_QK  = 1.2;
+let SHAKE_MULT_RBN = 1.0;
+let SHAKE_MULT_P   = 0.85;
+
+export function getShakeConfig() {
+    return { intensity: SHAKE_INTENSITY, duration: SHAKE_DURATION, multQK: SHAKE_MULT_QK, multRBN: SHAKE_MULT_RBN, multP: SHAKE_MULT_P };
+}
+export function setShakeConfig(cfg: { intensity?: number; duration?: number; multQK?: number; multRBN?: number; multP?: number }) {
+    if (cfg.intensity !== undefined) SHAKE_INTENSITY = cfg.intensity;
+    if (cfg.duration !== undefined) SHAKE_DURATION = cfg.duration;
+    if (cfg.multQK !== undefined) SHAKE_MULT_QK = cfg.multQK;
+    if (cfg.multRBN !== undefined) SHAKE_MULT_RBN = cfg.multRBN;
+    if (cfg.multP !== undefined) SHAKE_MULT_P = cfg.multP;
+}
 
 function triggerScreenShake(intensity: number = SHAKE_INTENSITY): void {
     shakeIntensity = intensity;
     shakeDecay = performance.now();
+}
+
+export function triggerTestShake(): void {
+    triggerScreenShake(SHAKE_INTENSITY * SHAKE_MULT_RBN);
 }
 
 function getShakeOffset(): { x: number; y: number } {
@@ -4935,16 +4955,13 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
 /** Pick capture effect and intensity by captured piece type (Phase C: variants by kill). */
 function _getCaptureEffectForPiece(capturedType?: string): { effectType: CaptureEffect['effectType']; scale: number; duration: number; shake: number } {
     const piece = (capturedType || 'P').toUpperCase();
-    // Queen/King: massive shake — should feel like a shockwave
     if (piece === 'Q' || piece === 'K') {
-        return { effectType: Math.random() < 0.5 ? 'spiral' : 'pop', scale: 1.4, duration: 850, shake: 3.2 };
+        return { effectType: Math.random() < 0.5 ? 'spiral' : 'pop', scale: 1.4, duration: 850, shake: SHAKE_MULT_QK };
     }
-    // Rook/Bishop/Knight: strong, clearly noticeable
     if (piece === 'R' || piece === 'B' || piece === 'N') {
-        return { effectType: Math.random() < 0.5 ? 'squish' : 'pop', scale: 1.1, duration: 650, shake: 2.0 };
+        return { effectType: Math.random() < 0.5 ? 'squish' : 'pop', scale: 1.1, duration: 650, shake: SHAKE_MULT_RBN };
     }
-    // Pawn or unknown: still noticeable — no silent kills
-    return { effectType: Math.random() < 0.5 ? 'poof' : 'squish', scale: 0.85, duration: 550, shake: 1.4 };
+    return { effectType: Math.random() < 0.5 ? 'poof' : 'squish', scale: 0.85, duration: 550, shake: SHAKE_MULT_P };
 }
 
 function _spawnCapture(row: number, col: number, capturedType?: string): void {

@@ -2475,3 +2475,157 @@ if (welcomeDashboard) {
     Sound.play('move');
   });
 }
+
+// =============================================================================
+// SHAKE TUNER PANEL — floating debug UI to dial in shake values
+// =============================================================================
+(function initShakeTuner() {
+  const panel = document.createElement('div');
+  panel.id = 'shake-tuner';
+  panel.innerHTML = `
+    <style>
+      #shake-tuner {
+        position: fixed; bottom: 12px; right: 12px; z-index: 99999;
+        display: none; /* hidden until Ctrl+Shift+S */
+        background: rgba(30,28,26,0.95); color: #e8dcc8; border-radius: 8px;
+        padding: 14px 16px; font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 12px; min-width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        border: 1px solid rgba(200,180,140,0.25);
+      }
+      #shake-tuner.collapsed .st-body { display: none; }
+      #shake-tuner .st-header {
+        display: flex; justify-content: space-between; align-items: center;
+        cursor: pointer; user-select: none; margin-bottom: 8px;
+      }
+      #shake-tuner .st-title { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+      #shake-tuner .st-toggle { font-size: 16px; opacity: 0.6; }
+      #shake-tuner label { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+      #shake-tuner label span { flex: 0 0 90px; }
+      #shake-tuner input[type=range] { flex: 1; margin: 0 8px; accent-color: #8b4513; }
+      #shake-tuner .st-val { flex: 0 0 44px; text-align: right; color: #c0a880; }
+      #shake-tuner .st-btns { display: flex; gap: 6px; margin-top: 10px; }
+      #shake-tuner button {
+        flex: 1; padding: 6px 8px; border: 1px solid rgba(200,180,140,0.3);
+        border-radius: 4px; background: rgba(90,74,58,0.6); color: #e8dcc8;
+        cursor: pointer; font-family: inherit; font-size: 11px;
+      }
+      #shake-tuner button:hover { background: rgba(139,69,19,0.5); }
+      #shake-tuner .st-json {
+        margin-top: 8px; padding: 6px 8px; background: rgba(0,0,0,0.3);
+        border-radius: 4px; font-size: 10px; word-break: break-all;
+        max-height: 80px; overflow-y: auto; color: #c0a880;
+      }
+      #shake-tuner .st-copied {
+        color: #5a7a4a; font-weight: 700; text-align: center; margin-top: 4px; font-size: 11px;
+      }
+    </style>
+    <div class="st-header">
+      <span class="st-title">SHAKE TUNER</span>
+      <span class="st-toggle">▼</span>
+    </div>
+    <div class="st-body">
+      <label><span>Intensity</span><input type="range" min="0.1" max="30" step="0.1" id="st-intensity"><span class="st-val" id="st-intensity-val"></span></label>
+      <label><span>Duration ms</span><input type="range" min="100" max="5000" step="50" id="st-duration"><span class="st-val" id="st-duration-val"></span></label>
+      <label><span>Q/K mult</span><input type="range" min="0.1" max="8" step="0.1" id="st-qk"><span class="st-val" id="st-qk-val"></span></label>
+      <label><span>R/B/N mult</span><input type="range" min="0.1" max="6" step="0.1" id="st-rbn"><span class="st-val" id="st-rbn-val"></span></label>
+      <label><span>Pawn mult</span><input type="range" min="0.1" max="4" step="0.1" id="st-p"><span class="st-val" id="st-p-val"></span></label>
+      <div class="st-btns">
+        <button id="st-test">Test Shake</button>
+        <button id="st-copy">Copy JSON</button>
+      </div>
+      <div class="st-json" id="st-json"></div>
+      <div class="st-copied" id="st-copied" style="display:none;">Copied!</div>
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  const header = panel.querySelector('.st-header')!;
+  const toggle = panel.querySelector('.st-toggle')!;
+  header.addEventListener('click', () => {
+    panel.classList.toggle('collapsed');
+    toggle.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
+  });
+
+  const sliders: Record<string, { slider: HTMLInputElement; display: HTMLElement; key: string }> = {};
+  const keys = [
+    { id: 'st-intensity', key: 'intensity' },
+    { id: 'st-duration',  key: 'duration' },
+    { id: 'st-qk',        key: 'multQK' },
+    { id: 'st-rbn',       key: 'multRBN' },
+    { id: 'st-p',         key: 'multP' },
+  ];
+  for (const k of keys) {
+    sliders[k.key] = {
+      slider: document.getElementById(k.id) as HTMLInputElement,
+      display: document.getElementById(k.id + '-val') as HTMLElement,
+      key: k.key,
+    };
+  }
+
+  function syncFromRenderer() {
+    const cfg = Renderer.getShakeConfig();
+    sliders.intensity.slider.value = String(cfg.intensity);
+    sliders.intensity.display.textContent = cfg.intensity.toFixed(1);
+    sliders.duration.slider.value = String(cfg.duration);
+    sliders.duration.display.textContent = String(cfg.duration);
+    sliders.multQK.slider.value = String(cfg.multQK);
+    sliders.multQK.display.textContent = cfg.multQK.toFixed(1);
+    sliders.multRBN.slider.value = String(cfg.multRBN);
+    sliders.multRBN.display.textContent = cfg.multRBN.toFixed(1);
+    sliders.multP.slider.value = String(cfg.multP);
+    sliders.multP.display.textContent = cfg.multP.toFixed(1);
+    updateJSON();
+  }
+
+  function pushToRenderer() {
+    Renderer.setShakeConfig({
+      intensity: parseFloat(sliders.intensity.slider.value),
+      duration:  parseFloat(sliders.duration.slider.value),
+      multQK:    parseFloat(sliders.multQK.slider.value),
+      multRBN:   parseFloat(sliders.multRBN.slider.value),
+      multP:     parseFloat(sliders.multP.slider.value),
+    });
+  }
+
+  function updateJSON() {
+    const cfg = Renderer.getShakeConfig();
+    const jsonEl = document.getElementById('st-json');
+    if (jsonEl) jsonEl.textContent = JSON.stringify(cfg, null, 2);
+  }
+
+  for (const entry of Object.values(sliders)) {
+    entry.slider.addEventListener('input', () => {
+      entry.display.textContent = entry.key === 'duration'
+        ? entry.slider.value
+        : parseFloat(entry.slider.value).toFixed(1);
+      pushToRenderer();
+      updateJSON();
+    });
+  }
+
+  document.getElementById('st-test')?.addEventListener('click', () => {
+    Renderer.triggerTestShake();
+  });
+
+  document.getElementById('st-copy')?.addEventListener('click', () => {
+    const cfg = Renderer.getShakeConfig();
+    const json = JSON.stringify(cfg, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      const el = document.getElementById('st-copied')!;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 1500);
+    });
+  });
+
+  syncFromRenderer();
+
+  // Shift+M toggles the shake tuner panel
+  document.addEventListener('keydown', (e) => {
+    if (e.shiftKey && e.key === 'M') {
+      e.preventDefault();
+      const visible = panel.style.display !== 'none';
+      panel.style.display = visible ? 'none' : 'block';
+      if (!visible) syncFromRenderer();
+    }
+  });
+})();
