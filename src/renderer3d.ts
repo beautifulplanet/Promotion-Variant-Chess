@@ -4754,11 +4754,11 @@ interface CaptureEffect {
 }
 let activeCaptureEffects: CaptureEffect[] = [];
 
-// Screen shake system for captures
+// Screen shake system for captures — visible in all modes (applied to active camera)
 let shakeIntensity = 0;
 let shakeDecay = 0;
-const SHAKE_DURATION = 200;    // ms
-const SHAKE_INTENSITY = 0.04;  // max camera offset
+const SHAKE_DURATION = 2280;   // ms — 6x extended so shake is unmissable
+const SHAKE_INTENSITY = 16.5;  // base camera offset — 5x further increase, all modes
 
 function triggerScreenShake(intensity: number = SHAKE_INTENSITY): void {
     shakeIntensity = intensity;
@@ -4769,7 +4769,9 @@ function getShakeOffset(): { x: number; y: number } {
     if (shakeIntensity <= 0.001) return { x: 0, y: 0 };
     const elapsed = performance.now() - shakeDecay;
     const t = Math.min(elapsed / SHAKE_DURATION, 1);
-    const remaining = shakeIntensity * (1 - t * t); // Ease-out decay
+    // Scale shake magnitude by quality: potato=20%, low=40%, balanced=70%, high+=100%
+    const qualityScale = animQuality <= 1 ? 0.2 : animQuality <= 2 ? 0.4 : animQuality <= 3 ? 0.7 : 1.0;
+    const remaining = shakeIntensity * (1 - t * t) * qualityScale; // Ease-out decay
     if (remaining <= 0.001) {
         shakeIntensity = 0;
         return { x: 0, y: 0 };
@@ -4786,6 +4788,60 @@ interface DustPuff {
     duration: number;
 }
 let activeDustPuffs: DustPuff[] = [];
+
+// Cartoon-style tiny stars that burst from the captured piece
+interface StarBurst {
+    points: THREE.Points;
+    startTime: number;
+    duration: number;
+    velocities: Float32Array;
+    baseX: number;
+    baseZ: number;
+}
+let activeStarBursts: StarBurst[] = [];
+const STAR_BURST_COUNT = 22;
+const STAR_BURST_SPEED = 1.8;
+const STAR_BURST_DURATION = 520;
+
+function _spawnStarBurst(centerX: number, centerZ: number): void {
+    if (!effectsGroup) return;
+    const pos = new Float32Array(STAR_BURST_COUNT * 3);
+    const velocities = new Float32Array(STAR_BURST_COUNT * 3);
+    for (let i = 0; i < STAR_BURST_COUNT; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const out = 0.02 + Math.random() * 0.02;
+        const vx = Math.cos(theta) * STAR_BURST_SPEED * (0.6 + Math.random() * 0.8);
+        const vz = Math.sin(theta) * STAR_BURST_SPEED * (0.6 + Math.random() * 0.8);
+        const vy = (0.4 + Math.random() * 0.8) * STAR_BURST_SPEED;
+        pos[i * 3] = centerX;
+        pos[i * 3 + 1] = 0.5;
+        pos[i * 3 + 2] = centerZ;
+        velocities[i * 3] = vx;
+        velocities[i * 3 + 1] = vy;
+        velocities[i * 3 + 2] = vz;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+        color: 0xffee99,
+        size: 0.08,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        sizeAttenuation: true,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.position.set(0, 0, 0);
+    effectsGroup.add(pts);
+    activeStarBursts.push({
+        points: pts,
+        startTime: performance.now(),
+        duration: STAR_BURST_DURATION,
+        velocities,
+        baseX: centerX,
+        baseZ: centerZ,
+    });
+}
 
 /** Queue a move animation. Called BEFORE notifyStateChange. */
 export function setPendingMoveAnimation(data: MoveAnimationData): void {
@@ -4879,16 +4935,16 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
 /** Pick capture effect and intensity by captured piece type (Phase C: variants by kill). */
 function _getCaptureEffectForPiece(capturedType?: string): { effectType: CaptureEffect['effectType']; scale: number; duration: number; shake: number } {
     const piece = (capturedType || 'P').toUpperCase();
-    // Queen/King: big dramatic (spiral or pop), longer, stronger shake
+    // Queen/King: massive shake — should feel like a shockwave
     if (piece === 'Q' || piece === 'K') {
-        return { effectType: Math.random() < 0.5 ? 'spiral' : 'pop', scale: 1.4, duration: 850, shake: 1.2 };
+        return { effectType: Math.random() < 0.5 ? 'spiral' : 'pop', scale: 1.4, duration: 850, shake: 3.2 };
     }
-    // Rook/Bishop/Knight: medium (squish or pop)
+    // Rook/Bishop/Knight: strong, clearly noticeable
     if (piece === 'R' || piece === 'B' || piece === 'N') {
-        return { effectType: Math.random() < 0.5 ? 'squish' : 'pop', scale: 1.1, duration: 650, shake: 1.0 };
+        return { effectType: Math.random() < 0.5 ? 'squish' : 'pop', scale: 1.1, duration: 650, shake: 2.0 };
     }
-    // Pawn or unknown: small (poof or squish)
-    return { effectType: Math.random() < 0.5 ? 'poof' : 'squish', scale: 0.85, duration: 550, shake: 0.85 };
+    // Pawn or unknown: still noticeable — no silent kills
+    return { effectType: Math.random() < 0.5 ? 'poof' : 'squish', scale: 0.85, duration: 550, shake: 1.4 };
 }
 
 function _spawnCapture(row: number, col: number, capturedType?: string): void {
@@ -4896,6 +4952,7 @@ function _spawnCapture(row: number, col: number, capturedType?: string): void {
     const { effectType, scale, duration, shake } = _getCaptureEffectForPiece(capturedType);
     triggerScreenShake(SHAKE_INTENSITY * shake);
     const pos = _sqWorld(row, col);
+    _spawnStarBurst(pos.x, pos.z);
     const inner = 0.05 * scale;
     const outer = 0.35 * scale;
     const geo = new THREE.RingGeometry(inner, outer, 16);
@@ -4917,6 +4974,8 @@ function _spawnCapture(row: number, col: number, capturedType?: string): void {
 }
 
 function _spawnDust(x: number, z: number): void {
+    // Skip dust on lowest quality — it's pure overhead on budget devices
+    if (animQuality < 2) return;
     if (!effectsGroup) return;
     const count = 8;
     const pos = new Float32Array(count * 3);
@@ -4950,6 +5009,8 @@ const IDLE_BREATH_AMOUNT = 0.035;
 const IDLE_BREATH_SPEED = 0.8;
 
 function tickIdleAnimations(): void {
+    // Idle breathing is skipped at potato/low quality — 32 piece scale operations per frame is avoidable overhead
+    if (animQuality < 3) return;
     if (!piecesGroup || piecesGroup.children.length === 0) return;
     const time = performance.now() * 0.001 * IDLE_BREATH_SPEED;
     for (const piece of piecesGroup.children) {
@@ -5104,6 +5165,29 @@ function tickMoveAnimations(): void {
             dp.particles.geometry.dispose();
             mat.dispose();
             activeDustPuffs.splice(i, 1);
+        }
+    }
+
+    // --- Star bursts (cartoon tiny stars from capture) ---
+    for (let i = activeStarBursts.length - 1; i >= 0; i--) {
+        const sb = activeStarBursts[i];
+        const elapsed = now - sb.startTime;
+        const t = Math.min(elapsed / sb.duration, 1);
+        const tSec = elapsed * 0.001;
+        const posAttr = sb.points.geometry.attributes.position as THREE.BufferAttribute;
+        const posArr = posAttr.array as Float32Array;
+        for (let j = 0; j < STAR_BURST_COUNT; j++) {
+            posArr[j * 3] = sb.baseX + sb.velocities[j * 3] * tSec;
+            posArr[j * 3 + 1] = 0.5 + sb.velocities[j * 3 + 1] * tSec;
+            posArr[j * 3 + 2] = sb.baseZ + sb.velocities[j * 3 + 2] * tSec;
+        }
+        posAttr.needsUpdate = true;
+        (sb.points.material as THREE.PointsMaterial).opacity = 0.95 * (1 - t);
+        if (t >= 1) {
+            effectsGroup.remove(sb.points);
+            sb.points.geometry.dispose();
+            (sb.points.material as THREE.Material).dispose();
+            activeStarBursts.splice(i, 1);
         }
     }
 }
@@ -5831,17 +5915,26 @@ function startRenderLoop(): void {
             // Hide environment completely when looking overhead
             environmentGroup.visible = false;
 
-            // Apply screen shake
+            // Screen shake: same position.x / position.z technique as the 3D path.
+            // The ortho camera is at (0,20,0) looking straight down — shifting x moves
+            // the view left/right, shifting z moves it forward/back (up/down on screen).
+            // The renderer calls camera.updateMatrixWorld() before drawing, so position
+            // changes are always picked up without any extra matrix calls.
             const shake = getShakeOffset();
-            camera.position.x += shake.x;
-            camera.position.y += shake.y;
+            const activeOrtho = orthoCamera ?? camera;
+            if (shake.x !== 0 || shake.y !== 0) {
+                activeOrtho.position.x += shake.x;
+                activeOrtho.position.z += shake.y;
+            }
 
             // Always render in 2D mode - no frame skipping to avoid stuttering
-            renderer.render(scene, getActiveCamera());
+            renderer.render(scene, activeOrtho);
 
-            // Restore camera
-            camera.position.x -= shake.x;
-            camera.position.y -= shake.y;
+            // Restore to exact prior position
+            if (shake.x !== 0 || shake.y !== 0) {
+                activeOrtho.position.x -= shake.x;
+                activeOrtho.position.z -= shake.y;
+            }
             return;
         }
 
@@ -5871,22 +5964,23 @@ function startRenderLoop(): void {
             updateEraEnvironment(environmentGroup, deltaTime * motionScale, ribbonSpeed);
         }
 
-        // Apply screen shake
+        // Screen shake for perspective camera: offset position.x (screen left/right)
+        // and position.z (screen up/down — camera is nearly overhead so z = depth on screen).
         const shake3D = getShakeOffset();
         camera.position.x += shake3D.x;
-        camera.position.y += shake3D.y;
+        camera.position.z += shake3D.y;
 
         // Render scene — wrapped in try-catch to prevent uncaught Three.js
         // errors from crashing the renderer process under stress
         try {
-            renderer.render(scene, getActiveCamera());
+            renderer.render(scene, camera);
         } catch (err) {
             console.error('[Renderer3D] Render error:', err);
         }
 
-        // Restore camera
+        // Restore camera to exact prior position
         camera.position.x -= shake3D.x;
-        camera.position.y -= shake3D.y;
+        camera.position.z -= shake3D.y;
     }
 
     animate(0);

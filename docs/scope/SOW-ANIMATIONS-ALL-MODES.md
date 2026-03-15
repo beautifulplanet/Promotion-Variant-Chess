@@ -126,6 +126,23 @@ So: **piece move arc** and **capture/dust effects** are driven by the same pipel
 | E1 | Decide: use `animQuality` to gate animation complexity (e.g. frame-skip for env, or disable idle at low quality) or remove and document. | ADR or SOW update. |
 | E2 | Implement or remove per decision. | Code. |
 
+**Phase E implemented (2026-03-14)**
+
+**Decision:** Wire `animQuality` (1–6) to three animation systems, not remove it. Rationale: on Potato/Low devices these systems are pure CPU overhead per frame; disabling them at low quality is the right trade-off. The quality levels already exist and users can choose them on the welcome screen.
+
+| animQuality | Idle breathing | Dust puffs | Shake intensity |
+|-------------|---------------|------------|-----------------|
+| 1 (Potato)  | Off           | Off        | 20%             |
+| 2 (Low)     | Off           | On         | 40%             |
+| 3 (Balanced)| On            | On         | 70%             |
+| 4–6 (High+) | On            | On         | 100%            |
+
+**Code changes in `renderer3d.ts`:**
+- `_spawnDust()`: early-return `if (animQuality < 2)`.
+- `tickIdleAnimations()`: early-return `if (animQuality < 3)`.
+- `getShakeOffset()`: `qualityScale = animQuality ≤ 1 ? 0.2 : animQuality ≤ 2 ? 0.4 : animQuality ≤ 3 ? 0.7 : 1.0`. Applied to `remaining` before random offset is computed.
+- Ortho frustum restore guard: changed from `shake.x !== 0` to `shake.x !== 0 || shake.y !== 0` (stored as `hasOrthoShake`) so the restore fires correctly regardless of which axis is non-zero.
+
 ### Phase F: Verification and regression
 
 | ID | Task | Deliverable |

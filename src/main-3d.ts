@@ -2372,18 +2372,22 @@ if (welcomeDashboard) {
     wdDate.textContent = d.toLocaleDateString('en-US', opts);
   }
 
-  // Sync GFX / Classic button text
-  const wdGfxBtn = document.getElementById('wd-gfx-btn');
-  const wdClassicBtn = document.getElementById('wd-classic-btn');
-  if (wdGfxBtn) {
-    const q = ClassicMode.getGraphicsQuality();
-    const info = ClassicMode.QUALITY_INFO[q];
-    wdGfxBtn.textContent = `${info.emoji} GFX: ${info.label}`;
-    wdGfxBtn.title = `${info.desc}\nBest for: ${info.target}`;
+  // ── Mode cards: set initial selected state ──
+  function syncModeCards(): void {
+    const is3D = !ClassicMode.isClassicMode();
+    document.getElementById('wd-mode-3d')?.classList.toggle('selected', is3D);
+    document.getElementById('wd-mode-classic')?.classList.toggle('selected', !is3D);
   }
-  if (wdClassicBtn) {
-    wdClassicBtn.textContent = ClassicMode.isClassicMode() ? '♟ Normal Mode' : '♟ Classic Mode';
+  syncModeCards();
+
+  // ── Quality pills: set initial selected state ──
+  function syncQualityBtns(): void {
+    const current = ClassicMode.getGraphicsQuality();
+    document.querySelectorAll<HTMLButtonElement>('#wd-quality-row .wd-quality-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.quality === current);
+    });
   }
+  syncQualityBtns();
 
   // ── Dashboard button handlers ──
 
@@ -2437,21 +2441,29 @@ if (welcomeDashboard) {
     if (htpOverlay) htpOverlay.classList.add('open');
   });
 
-  // ♟ Classic Mode toggle
-  wdClassicBtn?.addEventListener('click', () => {
-    handleClassicToggle();
-    if (wdClassicBtn) wdClassicBtn.textContent = ClassicMode.isClassicMode() ? '♟ Normal Mode' : '♟ Classic Mode';
+  // ── Mode card click handlers ──
+  document.getElementById('wd-mode-3d')?.addEventListener('click', () => {
+    if (ClassicMode.isClassicMode()) {
+      handleClassicToggle(); // turns Classic OFF → 3D on
+      syncModeCards();
+    }
+  });
+  document.getElementById('wd-mode-classic')?.addEventListener('click', () => {
+    if (!ClassicMode.isClassicMode()) {
+      handleClassicToggle(); // turns Classic ON
+      syncModeCards();
+    }
   });
 
-  // ⚡ GFX quality cycle
-  wdGfxBtn?.addEventListener('click', () => {
-    handleGfxCycle();
-    const q = ClassicMode.getGraphicsQuality();
-    const info = ClassicMode.QUALITY_INFO[q];
-    if (wdGfxBtn) {
-      wdGfxBtn.textContent = `${info.emoji} GFX: ${info.label}`;
-      wdGfxBtn.title = `${info.desc}\nBest for: ${info.target}`;
-    }
+  // ── Quality pill click handlers ──
+  document.querySelectorAll<HTMLButtonElement>('#wd-quality-row .wd-quality-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.quality as ClassicMode.GraphicsQuality | undefined;
+      if (q) {
+        ClassicMode.setGraphicsQuality(q);
+        syncQualityBtns();
+      }
+    });
   });
 
   // 🎨 Theme cycle
