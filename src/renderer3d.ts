@@ -1068,9 +1068,7 @@ function setupCameraControls(): void {
     canvas.addEventListener('touchend', (e) => {
         if (e.touches.length === 0) {
             // Single finger lift — if it was a tap (not a drag), fire click
-            // Block clicks in explore mode (viewing scenery, not playing)
-            const isExploring = document.body.classList.contains('explore-mode');
-            if (!isDragging && !isExploring && e.changedTouches.length === 1) {
+            if (!isDragging && e.changedTouches.length === 1) {
                 // BUGFIX: Same throttle as click handler to prevent rapid-tap crashes
                 const now = performance.now();
                 if (now - _lastClickTime < CLICK_THROTTLE_MS) return;
@@ -1151,8 +1149,6 @@ function setupClickHandler(): void {
     canvas.addEventListener('click', (e) => {
         // Don't process clicks during drag operations or Alt+clicks (orbit trigger)
         if (isDragging || e.altKey) return;
-        // Block clicks in explore mode (viewing scenery, not playing)
-        if (document.body.classList.contains('explore-mode')) return;
 
         // Throttle: ignore clicks that arrive faster than CLICK_THROTTLE_MS
         const now = performance.now();
@@ -1380,11 +1376,12 @@ export function setFlatBoardMode(enabled: boolean): void {
         }
         updateOrthoCameraSize();
 
-        // Hide all 3D world objects
+        // Hide all 3D world objects (skybox, env, UI) but keep capture/dust effects visible
         if (environmentGroup) environmentGroup.visible = false;
         if (proceduralSkybox) proceduralSkybox.getMesh().visible = false;
         if (uiGroup) uiGroup.visible = false;
-        if (effectsGroup) effectsGroup.visible = false;
+        // effectsGroup stays visible so capture poof/squish/spiral/pop and dust show in Classic/flat
+        if (effectsGroup) effectsGroup.visible = true;
 
         // Solid dark background — no skybox, no fog
         scene.background = new THREE.Color(0x302e2b);
@@ -4852,7 +4849,7 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
     const arcHeight = isKnight ? 1.8 + dist * 0.3 : 0.4 + dist * 0.12;
     const duration = isKnight ? 700 : 500;
 
-    if (anim.isCapture) _spawnCapture(anim.toRow, anim.toCol);
+    if (anim.isCapture) _spawnCapture(anim.toRow, anim.toCol, anim.capturedType);
 
     let rookFromX: number | undefined;
     let rookToX: number | undefined;
@@ -4879,13 +4876,29 @@ function _tryStartAnim(anim: MoveAnimationData): boolean {
     return true;
 }
 
-function _spawnCapture(row: number, col: number): void {
+/** Pick capture effect and intensity by captured piece type (Phase C: variants by kill). */
+function _getCaptureEffectForPiece(capturedType?: string): { effectType: CaptureEffect['effectType']; scale: number; duration: number; shake: number } {
+    const piece = (capturedType || 'P').toUpperCase();
+    // Queen/King: big dramatic (spiral or pop), longer, stronger shake
+    if (piece === 'Q' || piece === 'K') {
+        return { effectType: Math.random() < 0.5 ? 'spiral' : 'pop', scale: 1.4, duration: 850, shake: 1.2 };
+    }
+    // Rook/Bishop/Knight: medium (squish or pop)
+    if (piece === 'R' || piece === 'B' || piece === 'N') {
+        return { effectType: Math.random() < 0.5 ? 'squish' : 'pop', scale: 1.1, duration: 650, shake: 1.0 };
+    }
+    // Pawn or unknown: small (poof or squish)
+    return { effectType: Math.random() < 0.5 ? 'poof' : 'squish', scale: 0.85, duration: 550, shake: 0.85 };
+}
+
+function _spawnCapture(row: number, col: number, capturedType?: string): void {
     if (!effectsGroup) return;
-    triggerScreenShake();
+    const { effectType, scale, duration, shake } = _getCaptureEffectForPiece(capturedType);
+    triggerScreenShake(SHAKE_INTENSITY * shake);
     const pos = _sqWorld(row, col);
-    const types: CaptureEffect['effectType'][] = ['poof', 'squish', 'spiral', 'pop'];
-    const effectType = types[Math.floor(Math.random() * types.length)];
-    const geo = new THREE.RingGeometry(0.05, 0.35, 16);
+    const inner = 0.05 * scale;
+    const outer = 0.35 * scale;
+    const geo = new THREE.RingGeometry(inner, outer, 16);
     const mat = new THREE.MeshBasicMaterial({
         color: effectType === 'poof' ? 0xffcc44 : effectType === 'squish' ? 0xff4444 :
                effectType === 'spiral' ? 0x44aaff : 0xff8800,
@@ -4894,10 +4907,11 @@ function _spawnCapture(row: number, col: number): void {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(pos.x, 0.7, pos.z);
     mesh.rotation.x = -Math.PI / 2;
+    mesh.scale.setScalar(1); // scale is in geometry size; object scale stays 1 for animation
     effectsGroup.add(mesh);
     activeCaptureEffects.push({
         object: mesh, startTime: performance.now(),
-        duration: effectType === 'spiral' ? 800 : 600,
+        duration,
         effectType, basePos: { x: pos.x, y: 0.7, z: pos.z },
     });
 }
@@ -4931,6 +4945,30 @@ function _easeOutQuad(t: number): number {
     return 1 - (1 - t) * (1 - t);
 }
 
+// Phase D: Idle "lazy" piece animation — subtle scale breathe when piece is at rest
+const IDLE_BREATH_AMOUNT = 0.035;
+const IDLE_BREATH_SPEED = 0.8;
+
+function tickIdleAnimations(): void {
+    if (!piecesGroup || piecesGroup.children.length === 0) return;
+    const time = performance.now() * 0.001 * IDLE_BREATH_SPEED;
+    for (const piece of piecesGroup.children) {
+        const row = piece.userData?.row;
+        const col = piece.userData?.col;
+        if (row === undefined || col === undefined) continue;
+        if (activeMoveAnim && activeMoveAnim.toRow === row && activeMoveAnim.toCol === col) continue;
+        if (landingBounce && landingBounce.row === row && landingBounce.col === col) continue;
+        const phase = row * 0.4 + col * 0.25;
+        const breath = 1 + Math.sin(time + phase) * IDLE_BREATH_AMOUNT;
+        const base = piece instanceof THREE.Sprite ? 0.9 : 1;
+        if (piece instanceof THREE.Sprite) {
+            piece.scale.set(base * breath, base * breath, 1);
+        } else if (piece instanceof THREE.Group) {
+            piece.scale.set(base * breath, base * breath, base * breath);
+        }
+    }
+}
+
 /** Tick all animations. Called every frame from render loop. */
 function tickMoveAnimations(): void {
     const now = performance.now();
@@ -4943,7 +4981,7 @@ function tickMoveAnimations(): void {
             pendingStartAnim = null;
         } else if (now - pendingStartTime > ANIM_POLL_TIMEOUT_MS) {
             // Still show capture effect at destination so attacks give feedback even if piece was slow to appear
-            if (pendingStartAnim.isCapture) _spawnCapture(pendingStartAnim.toRow, pendingStartAnim.toCol);
+            if (pendingStartAnim.isCapture) _spawnCapture(pendingStartAnim.toRow, pendingStartAnim.toCol, pendingStartAnim.capturedType);
             pendingStartAnim = null; // timeout (e.g. sprite sheet still loading)
         }
     }
@@ -5758,6 +5796,8 @@ function startRenderLoop(): void {
 
         // Tick piece move/capture/dust animations every frame
         tickMoveAnimations();
+        // Phase D: subtle idle "breathe" for pieces at rest (all modes)
+        tickIdleAnimations();
 
         // Pulse check highlight (red glow oscillation)
         if (_checkKingSquare) {
