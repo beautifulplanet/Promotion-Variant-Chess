@@ -335,8 +335,8 @@ function doResize(): void {
     let width: number;
     let height: number;
 
-    if ((flatBoardMode || isClassic) && !isExploring) {
-      // ── Flat / Classic mode: square board that fits the viewport ──
+    if ((flatBoardMode || isClassic || is2DMode) && !isExploring) {
+      // ── Square board: Classic mode, flat mode, or Chronicle overhead 2D ──
       const container = wrapper.parentElement; // #center-section
       const containerWidth = container?.clientWidth || window.innerWidth;
 
@@ -393,7 +393,7 @@ function doResize(): void {
     // Update wrapper size
     wrapper.style.width = width + 'px';
     wrapper.style.height = height + 'px';
-    if ((flatBoardMode || isClassic) && !isExploring) {
+    if ((flatBoardMode || isClassic || is2DMode) && !isExploring) {
       // Center the board horizontally when it's narrower than the container
       wrapper.style.margin = '0 auto';
     } else {
@@ -1122,18 +1122,23 @@ function updateCameraPosition(): void {
     is2DMode = orbitPhi < OVERHEAD_THRESHOLD || currentViewMode === 'play';
 
     // If mode changed, switch to appropriate style and rebuild pieces
-    if (wasIs2DMode !== is2DMode && cachedBoard.length > 0) {
+    if (wasIs2DMode !== is2DMode) {
         console.log('[Renderer3D] Switching to', is2DMode ? '2D' : '3D', 'piece mode');
-        // Apply the correct style for the new mode
-        const newStyle = is2DMode ? current2DStyle : current3DStyle;
-        if (currentPieceStyle !== newStyle) {
-            currentPieceStyle = newStyle;
-            currentPieceStyleConfig = getPieceStyleConfig(newStyle);
-            pieceSpritesCache.clear();
-            pieceMaterialCache.clear();
-            pieceMeshCache.clear();
+
+        // Resize canvas: 2D uses square board, 3D uses cinematic aspect
+        doResize();
+
+        if (cachedBoard.length > 0) {
+            const newStyle = is2DMode ? current2DStyle : current3DStyle;
+            if (currentPieceStyle !== newStyle) {
+                currentPieceStyle = newStyle;
+                currentPieceStyleConfig = getPieceStyleConfig(newStyle);
+                pieceSpritesCache.clear();
+                pieceMaterialCache.clear();
+                pieceMeshCache.clear();
+            }
+            updatePieces(true);
         }
-        updatePieces(true); // Force update since hash hasn't changed
     }
 }
 
@@ -4757,13 +4762,13 @@ let activeCaptureEffects: CaptureEffect[] = [];
 // Screen shake system for captures — visible in all modes (applied to active camera)
 let shakeIntensity = 0;
 let shakeDecay = 0;
-let SHAKE_DURATION = 300;      // ms — tunable via shake tuner panel (press ` key twice fast)
-let SHAKE_INTENSITY = 0.018;   // base camera offset — subtle, natural feel
+let SHAKE_DURATION = 350;      // ms — tunable via Shift+M shake tuner panel
+let SHAKE_INTENSITY = 0.09;    // base camera offset — visible during active play, not crazy
 
-// Per-piece shake multipliers — tunable via shake tuner panel
-let SHAKE_MULT_QK  = 1.2;
-let SHAKE_MULT_RBN = 1.0;
-let SHAKE_MULT_P   = 0.85;
+// Per-piece shake multipliers — tunable via Shift+M shake tuner panel
+let SHAKE_MULT_QK  = 1.6;     // Q/K: strong
+let SHAKE_MULT_RBN = 1.0;     // R/B/N: standard
+let SHAKE_MULT_P   = 0.7;     // Pawn: lighter
 
 export function getShakeConfig() {
     return { intensity: SHAKE_INTENSITY, duration: SHAKE_DURATION, multQK: SHAKE_MULT_QK, multRBN: SHAKE_MULT_RBN, multP: SHAKE_MULT_P };
