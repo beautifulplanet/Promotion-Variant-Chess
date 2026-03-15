@@ -341,13 +341,11 @@ function showLevelNotification(levelName: string, isUp: boolean): void {
       <div style="font-weight:bold;">${isUp ? 'LEVEL UP!' : 'LEVEL DOWN'}</div>
       <div style="font-size:0.9em;">${levelName}</div>
     `;
-    // Force slideDown animation to re-run each time (animation is in stylesheet)
-    levelNotificationElem.style.animation = 'none';
-    levelNotificationElem.offsetHeight; // reflow
-    levelNotificationElem.style.animation = '';
-    levelNotificationElem.style.display = 'block';
+    levelNotificationElem.classList.remove('show');
+    levelNotificationElem.offsetHeight; // reflow so removing .show takes effect
+    levelNotificationElem.classList.add('show'); // re-add so slideDown runs every time
     setTimeout(() => {
-      levelNotificationElem!.style.display = 'none';
+      levelNotificationElem!.classList.remove('show');
     }, TIMING.levelNotificationDuration);
   }
 }
