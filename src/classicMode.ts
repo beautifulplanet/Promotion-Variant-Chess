@@ -125,7 +125,7 @@ export function enterExploreMode(): void {
     // Temporarily restore 3D rendering (exit flat mode)
     Renderer.setFlatBoardMode(false);
 
-    // Enable full 3D effects
+    // Enable full 3D effects and animations (play + scenery both work)
     Renderer.setSkyboxEnabled(true);
     Renderer.setParticlesEnabled(true);
     Renderer.setEnvironmentEnabled(true);
@@ -134,7 +134,7 @@ export function enterExploreMode(): void {
     Renderer.setMotionScale(1.0);
     Renderer.setRenderScale(1.0);
 
-    console.log('[ClassicMode] Explore mode ON — 3D scenery visible');
+    console.log('[ClassicMode] Explore mode ON — 3D scenery visible, play and animations enabled');
 }
 
 export function exitExploreMode(): void {
