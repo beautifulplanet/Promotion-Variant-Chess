@@ -109,7 +109,9 @@ A chess game that combines:
 - **3D rendering** with Three.js — 20 procedurally generated era environments with procedural skyboxes, L-system trees, Lorenz attractor particles, and dynamic lighting
 - **24 piece styles** (7 3D + 17 2D canvas-drawn including Art Deco, Steampunk, and Tribal) and **12 board visual styles** with per-style theme-aware highlights
 - **8 UI themes** (Newspaper, Obsidian, Arctic, Ember, Jade, Dusk, Ivory, Cobalt) with full CSS variable theming via `themeSystem.ts`
-- **Welcome Dashboard** — newspaper-themed landing screen with game mode buttons, difficulty/GFX preferences, and a live stats ribbon (ELO, wins, streak, level). Every pre-game option in one glance.
+- **Welcome Dashboard** — newspaper-themed landing screen with game mode buttons, difficulty/GFX preferences, ELO era picker, and a live stats ribbon (ELO, wins, streak, level). Includes Puzzle Mode and Position Editor launchers.
+- **Puzzle Mode** — 2,500 offline Lichess puzzles (CC0, rating 400–2976) with a separate puzzle ELO, streak tracking, theme filtering, and confetti animation on solve. All puzzles bundled — no network required.
+- **Position Editor** — full 8x8 drag-and-drop board editor with piece palette, FEN import/export, side-to-move toggle, castling rights, position validation, and saved position slots. "Play as White/Black" launches an unranked analysis game against the AI.
 - **Classic Mode** — one-button toggle to a chess.com / lichess-style dark UI, hides newspaper chrome, perfect for mobile stealth play
 - **Graphics Quality presets** — Low / Medium / High with per-preset control over shadows, particles, skybox, environment, and render scale
 - **AI Aggression system** — 20-level slider controlling bonus pieces, board rearrangement, and pawn upgrades
@@ -128,6 +130,8 @@ A chess game that combines:
 | Graceful degradation | Triple AI fallback: Rust WASM → Stockfish.js Worker → TypeScript minimax. Game always works. |
 | Production resilience | Rate limiting (HTTP + WS), graceful shutdown, crash recovery, Helmet.js security headers, k6 load testing |
 | UI / UX polish | 8 full themes, Classic Mode stealth toggle, 3-tier GFX quality, stability hardening (debounce, RAF coalescing, WebGL recovery) |
+| Offline content pipeline | 2,500 Lichess puzzles acquired via streaming decompression of a 277MB zstd archive, filtered by rating bands, bundled as a 473KB JSON file |
+| Analysis tooling | Position Editor with FEN I/O, drag-and-drop, saved positions, and unranked AI play — no ELO impact |
 | Large-scale AI experimentation | 1-million-player tournament runner with Swiss pairing, A/B testing, rayon parallelism, SQLite analytics |
 
 ### Key Numbers
@@ -146,6 +150,8 @@ A chess game that combines:
 | Classic Mode | One-button dark chess.com-style UI — hides newspaper chrome |
 | Graphics Quality | 3 presets (Low / Med / High) — shadows, particles, skybox, render scale |
 | Era environments | 20 with procedural skyboxes, dynamic lighting, L-system trees, and particle systems |
+| Offline puzzles | 2,500 Lichess CC0 puzzles (rating 400–2976), 473 KB bundled JSON |
+| Position Editor | Drag-and-drop, FEN I/O, castling rights, up to 50 saved positions |
 | Test count | 806 unit + 48 E2E Playwright (854 total) across 3 languages |
 | Prometheus metrics | 16 custom metrics + Node.js defaults |
 
@@ -374,6 +380,8 @@ Guarantees the system makes — auditable in source:
 6. **WebGL failure is non-fatal.** Context-loss triggers a toast notification; game logic continues; renderer attempts automatic recovery. *(source: `renderer3d.ts` context-loss handler)*
 7. **Clock integrity in multiplayer.** Server tracks wall-clock elapsed time per move. Clocks are updated server-side before broadcasting — clients display but don't control time. *(source: `GameRoom.makeMove()` clock logic)*
 8. **Graceful shutdown preserves connections.** SIGTERM/SIGINT triggers: stop accepting new connections → notify all clients → drain timeout → force disconnect. Fly.io deploys don't orphan games. *(source: `resilience.ts`)*
+9. **Analysis games never affect ELO.** Games started from the Position Editor set `analysisMode = true`, which bypasses ELO calculation and stat updates in `handleGameEnd()`. A visible banner confirms the mode. *(source: `gameController.ts`)*
+10. **Puzzles work fully offline.** 2,500 puzzles are bundled in `public/puzzles.json`. No network fetch required. Puzzle progress (rating, streaks, solved IDs) persists in the same localStorage save file as game progress. *(source: `puzzleSystem.ts`, `saveSystem.ts`)*
 
 ### Interview Drill Sheet
 
@@ -579,7 +587,7 @@ npm run dev
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 You should see:
-- The **Welcome Dashboard** — a newspaper-themed landing screen with your stats (ELO, wins, streak), game mode buttons (Play AI, Multiplayer, Classic Mode), and difficulty/GFX preferences
+- The **Welcome Dashboard** — a newspaper-themed landing screen with your stats (ELO, wins, streak), game mode buttons (Play AI, Multiplayer, Classic Mode), difficulty/GFX preferences, Puzzles, and Position Editor
 - Click **Play** to enter the game: a 3D chess board with the starting position
 - A sidebar with game controls (difficulty, undo, settings)
 - Era-themed environment (starts at Stone Age for new players)
@@ -1687,8 +1695,8 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 
 ```
 ├── src/                       # Frontend TypeScript (40+ files)
-│   ├── main-3d.ts             # Entry point, DOM wiring (1,626 lines)
-│   ├── gameController.ts      # Core game logic (1,900+ lines)
+│   ├── main-3d.ts             # Entry point, DOM wiring, puzzle/editor controllers (3,300+ lines)
+│   ├── gameController.ts      # Core game logic, analysis mode (2,300+ lines)
 │   ├── renderer3d.ts          # Three.js 3D rendering (5,000+ lines)
 │   ├── classicMode.ts         # Classic Mode toggle + GFX quality presets (117 lines)
 │   ├── themeSystem.ts         # 8 UI themes, CSS variable theming (283 lines)
@@ -1708,8 +1716,10 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── moveQualityAnalyzer.ts # Move quality evaluation
 │   ├── multiplayerClient.ts   # Socket.io client wrapper
 │   ├── multiplayerUI.ts       # Multiplayer + guest play UI
+│   ├── puzzleSystem.ts        # Offline puzzle engine — selection, rating, progress (282 lines)
+│   ├── saveSystem.ts          # Save/load with puzzle progress + saved positions (525 lines)
 │   ├── eras/                  # 10 era-specific world definitions
-│   └── ...                    # Sound, save, stats, themes, newspaper articles
+│   └── ...                    # Sound, stats, themes, newspaper articles
 │
 ├── rust-engine/               # Rust chess engine → WASM
 │   └── src/
@@ -1751,6 +1761,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 │   ├── classic-mode.spec.ts   # Classic layout toggle, Explore mode (12 tests)
 │   └── smoke.spec.ts          # Load, AI, save/load, console audit (5 tests)
 ├── public/wasm/               # Pre-built WASM binary
+├── public/puzzles.json        # 2,500 offline Lichess puzzles (473 KB)
 ├── docs/                      # Documentation
 │   ├── PART1_SUMMARY.md       # Standalone Part 1
 │   ├── PART2_TECH_STACK.md    # Standalone Part 2
@@ -1771,7 +1782,7 @@ WS_URL=ws://localhost:3001 k6 run load-tests/websocket-load-test.js
 ├── CHANGELOG.md               # Keep-a-Changelog format — all releases and unreleased changes
 ├── ANDROID_RELEASE.md         # Google Play Store release guide (Capacitor)
 ├── .github/ISSUE_TEMPLATE/    # Scope-first change template (scope, acceptance, rollback)
-└── index.html                 # Single-page app entry (2,200+ lines)
+└── index.html                 # Single-page app entry (3,900+ lines)
 ```
 
 ---
