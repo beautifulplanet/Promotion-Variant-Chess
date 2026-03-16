@@ -1033,6 +1033,11 @@ function updateAggressionDisplay(): void {
   if (aggressionLevelDisplay) aggressionLevelDisplay.textContent = String(level);
   if (aggressionDescDisplay) aggressionDescDisplay.textContent = Game.getAggressionDescription(level);
   if (aggressionSlider) aggressionSlider.value = String(level);
+  // Sync quick-access labels in classic and full mode bars
+  const cabLvl = document.getElementById('cab-ai-level');
+  const boLvl = document.getElementById('bo-ai-level');
+  if (cabLvl) cabLvl.textContent = String(level);
+  if (boLvl) boLvl.textContent = String(level);
 }
 
 if (aggressionSlider) {
@@ -2312,6 +2317,32 @@ function updateCabResignVisibility(): void {
   const state = Game.getState();
   btn.style.display = (state.gameStarted && !state.gameOver) ? 'flex' : 'none';
 }
+
+// ── Puzzles / Editor / AI Difficulty buttons (classic bar + full bar) ──
+
+function openPuzzleOverlay(): void {
+  document.getElementById('wd-puzzle-btn')?.click();
+}
+function openEditorOverlay(): void {
+  document.getElementById('wd-editor-btn')?.click();
+}
+function cycleAiDifficulty(delta: number): void {
+  const current = Game.getAiAggression();
+  const next = Math.max(1, Math.min(20, current + delta));
+  Game.setAiAggression(next);
+  updateAggressionDisplay();
+}
+
+document.getElementById('cab-puzzle-btn')?.addEventListener('click', openPuzzleOverlay);
+document.getElementById('cab-editor-btn')?.addEventListener('click', openEditorOverlay);
+document.getElementById('bo-puzzle-btn')?.addEventListener('click', openPuzzleOverlay);
+document.getElementById('bo-editor-btn')?.addEventListener('click', openEditorOverlay);
+
+// Click = +1, right-click = -1 for quick AI tuning
+document.getElementById('cab-difficulty-btn')?.addEventListener('click', () => cycleAiDifficulty(1));
+document.getElementById('cab-difficulty-btn')?.addEventListener('contextmenu', (e) => { e.preventDefault(); cycleAiDifficulty(-1); });
+document.getElementById('bo-difficulty-btn')?.addEventListener('click', () => cycleAiDifficulty(1));
+document.getElementById('bo-difficulty-btn')?.addEventListener('contextmenu', (e) => { e.preventDefault(); cycleAiDifficulty(-1); });
 
 // Initialize button labels from saved state
 updateClassicButtons();

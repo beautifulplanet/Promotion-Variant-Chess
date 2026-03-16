@@ -17,7 +17,7 @@
 
 export type ThemeName =
     'newspaper' | 'obsidian' | 'arctic' | 'ember' | 'jade' |
-    'dusk' | 'ivory' | 'cobalt';
+    'dusk' | 'ivory' | 'cobalt' | 'rose' | 'midnight' | 'sand' | 'forest';
 
 export interface Theme {
     name: string;
@@ -206,6 +206,86 @@ const themes: Record<ThemeName, Theme> = {
         surfaceAlt: '#10182a',
         scrollbarTrack: '#0c1424',
         scrollbarThumb: '#1e3a5f',
+    },
+
+    // ---- ROSE: soft blush pink + warm raspberry (Gris palette) ----
+    rose: {
+        name: 'Rose',
+        sidebarBg: '#fdf2f4',
+        sidebarText: '#3b1a28',
+        sidebarTextMuted: '#b08898',
+        sidebarBorder: '#f0d4dc',
+        sidebarAccent: '#be4068',
+        buttonPrimary: '#d44a70',
+        buttonPrimaryText: '#fff5f7',
+        buttonSecondary: '#8a4060',
+        buttonSecondaryText: '#fae8ee',
+        buttonMuted: '#6a3048',
+        buttonMutedText: '#e8c8d4',
+        gameAreaBg: '#faf0f2',
+        surfaceAlt: '#f5e4ea',
+        scrollbarTrack: '#f0d8e0',
+        scrollbarThumb: '#c890a8',
+    },
+
+    // ---- MIDNIGHT: true black + neon cyan accent (cyberpunk terminal) ----
+    midnight: {
+        name: 'Midnight',
+        sidebarBg: '#0a0a0e',
+        sidebarText: '#e0e8f0',
+        sidebarTextMuted: '#505868',
+        sidebarBorder: '#1a1a24',
+        sidebarAccent: '#00e5c8',
+        buttonPrimary: '#00d4b8',
+        buttonPrimaryText: '#0a0a0e',
+        buttonSecondary: '#1a2a30',
+        buttonSecondaryText: '#b0d8d0',
+        buttonMuted: '#141420',
+        buttonMutedText: '#68808a',
+        gameAreaBg: '#060608',
+        surfaceAlt: '#0e0e14',
+        scrollbarTrack: '#0a0a0e',
+        scrollbarThumb: '#1a2a30',
+    },
+
+    // ---- SAND: warm desert tones + terracotta (Firewatch palette) ----
+    sand: {
+        name: 'Sand',
+        sidebarBg: '#f8f0e0',
+        sidebarText: '#4a3820',
+        sidebarTextMuted: '#a08860',
+        sidebarBorder: '#e0d0b0',
+        sidebarAccent: '#b87830',
+        buttonPrimary: '#c08030',
+        buttonPrimaryText: '#faf4e8',
+        buttonSecondary: '#8a7050',
+        buttonSecondaryText: '#f8f0e0',
+        buttonMuted: '#6a5840',
+        buttonMutedText: '#d8c8a8',
+        gameAreaBg: '#f4ecd8',
+        surfaceAlt: '#ede4ce',
+        scrollbarTrack: '#e4d8c0',
+        scrollbarThumb: '#c0a878',
+    },
+
+    // ---- FOREST: deep green + warm amber (nature at dusk) ----
+    forest: {
+        name: 'Forest',
+        sidebarBg: '#0e1a10',
+        sidebarText: '#d0e0c8',
+        sidebarTextMuted: '#5a7858',
+        sidebarBorder: '#1a2e1a',
+        sidebarAccent: '#e0a840',
+        buttonPrimary: '#d49830',
+        buttonPrimaryText: '#0e1a10',
+        buttonSecondary: '#1e3820',
+        buttonSecondaryText: '#c0d8b0',
+        buttonMuted: '#142818',
+        buttonMutedText: '#708868',
+        gameAreaBg: '#0a1208',
+        surfaceAlt: '#12201a',
+        scrollbarTrack: '#0e1a10',
+        scrollbarThumb: '#1e3820',
     },
 };
 
