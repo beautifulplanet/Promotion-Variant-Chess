@@ -1,198 +1,180 @@
 #!/usr/bin/env node
 // scripts/fetch-puzzles.mjs
-// Fetches curated puzzles from the Lichess API (individual puzzle endpoint)
-// Run: node scripts/fetch-puzzles.mjs
-// Lichess puzzle data is CC0 (public domain).
+// Downloads puzzles from the Lichess puzzle CSV database (CC0 public domain).
+// Streams the zstd-compressed CSV, decompresses, and parses line-by-line
+// using chunked processing to avoid memory issues with the ~2GB decompressed file.
+//
+// Run:  node --max-old-space-size=4096 scripts/fetch-puzzles.mjs
 
-import { writeFileSync, existsSync, readFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 
-const TARGET = 2500;
-const CONCURRENCY = 3;      // parallel requests
-const DELAY_MS = 350;        // between batches
+const CSV_URL = 'https://database.lichess.org/lichess_db_puzzle.csv.zst';
 const OUTPUT = 'public/puzzles.json';
-const PROGRESS_FILE = 'scripts/.puzzle-progress.json';
 
-// Lichess puzzle IDs are base62-ish (alphanumeric, 5 chars). We iterate ranges.
-// Known valid prefixes from the database: 00xxx through zzzzz
-function generatePuzzleIds(count) {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  const ids = [];
-  // Sample from different ranges for rating diversity
-  const prefixes = [
-    '00s', '01a', '02b', '03c', '04d', '05e', '06f', '07g', '08h', '09i',
-    '0Aa', '0Ba', '0Ca', '0Da', '0Ea', '0Fa', '0Ga', '0Ha', '0Ia', '0Ja',
-    '0Ka', '0La', '0Ma', '0Na', '0Oa', '0Pa', '0Qa', '0Ra', '0Sa', '0Ta',
-    '0Ua', '0Va', '0Wa', '0Xa', '0Ya', '0Za', '0aa', '0ba', '0ca', '0da',
-    '0ea', '0fa', '0ga', '0ha', '0ia', '0ja', '0ka', '0la', '0ma', '0na',
-    '0oa', '0pa', '0qa', '0ra', '0sa', '0ta', '0ua', '0va', '0wa', '0xa',
-    '1Aa', '1Ba', '1Ca', '1Da', '1Ea', '1Fa', '1Ga', '1Ha', '1Ia', '1Ja',
-    '1Ka', '1La', '1Ma', '1Na', '1Oa', '1Pa', '1Qa', '1Ra', '1Sa', '1Ta',
-    '2Aa', '2Ba', '2Ca', '2Da', '2Ea', '2Fa', '2Ga', '2Ha', '2Ia', '2Ja',
-    '3Aa', '3Ba', '3Ca', '3Da', '3Ea', '3Fa', '3Ga', '3Ha', '3Ia', '3Ja',
-    '4Aa', '4Ba', '4Ca', '4Da', '4Ea', '4Fa', '4Ga', '4Ha', '4Ia', '4Ja',
-    '5Aa', '5Ba', '5Ca', '5Da', '5Ea', '5Fa', '5Ga', '5Ha', '5Ia', '5Ja',
-  ];
+const BANDS = [
+  { min: 400,  max: 800,  target: 300, collected: [], _seen: 0 },
+  { min: 800,  max: 1100, target: 400, collected: [], _seen: 0 },
+  { min: 1100, max: 1400, target: 500, collected: [], _seen: 0 },
+  { min: 1400, max: 1700, target: 500, collected: [], _seen: 0 },
+  { min: 1700, max: 2000, target: 400, collected: [], _seen: 0 },
+  { min: 2000, max: 2400, target: 300, collected: [], _seen: 0 },
+  { min: 2400, max: 3500, target: 100, collected: [], _seen: 0 },
+];
 
-  for (const prefix of prefixes) {
-    for (let i = 0; i < chars.length && ids.length < count * 2; i++) {
-      for (let j = 0; j < chars.length && ids.length < count * 2; j++) {
-        ids.push(prefix + chars[i] + chars[j]);
-      }
+const TOTAL_TARGET = BANDS.reduce((s, b) => s + b.target, 0);
+
+function maybeCollect(puzzle) {
+  const band = BANDS.find(b => puzzle.rating >= b.min && puzzle.rating < b.max);
+  if (!band) return;
+
+  if (band.collected.length < band.target) {
+    band.collected.push(puzzle);
+  } else {
+    band._seen++;
+    const j = Math.floor(Math.random() * band._seen);
+    if (j < band.target) {
+      band.collected[j] = puzzle;
     }
   }
-  return ids.slice(0, count * 2); // generate extras since many will 404
 }
 
-async function fetchPuzzle(id) {
-  try {
-    const res = await fetch(`https://lichess.org/api/puzzle/${id}`, {
-      headers: { 'Accept': 'application/json' },
-    });
-    if (res.status === 429) return { rateLimit: true };
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.puzzle || !data.game) return null;
-    const p = data.puzzle;
-    return {
-      id: p.id,
-      fen: data.game.pgn ? undefined : p.fen, // we need FEN from game
-      moves: p.solution,
-      rating: p.rating,
-      themes: p.themes,
-      initialPly: p.initialPly,
-    };
-  } catch {
-    return null;
-  }
+function totalCollected() {
+  return BANDS.reduce((s, b) => s + b.collected.length, 0);
 }
 
-// Better approach: fetch with the game data to get proper FEN
-async function fetchPuzzleWithFEN(id) {
-  try {
-    const res = await fetch(`https://lichess.org/api/puzzle/${id}`, {
-      headers: { 'Accept': 'application/json' },
-    });
-    if (res.status === 429) return { rateLimit: true };
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.puzzle) return null;
-    const p = data.puzzle;
+// CSV: PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags
+function parseLine(line) {
+  const parts = line.split(',');
+  if (parts.length < 8) return null;
 
-    // The puzzle object contains the FEN at the initial position
-    // But we need the FEN after the setup move (initialPly)
-    // The game.pgn has all moves. Let's extract what we need.
-    // Actually the puzzle endpoint gives us all we need.
+  const id = parts[0];
+  const fen = parts[1];
+  const moves = parts[2];
+  const rating = parseInt(parts[3], 10);
+  const popularity = parseInt(parts[5], 10);
+  const rd = parseInt(parts[4], 10);
 
-    // FEN is in the game node at the puzzle position
-    // We need to reconstruct it. The simplest: use game.pgn + initialPly
-    // OR just store the FEN from game data.
+  if (!id || !fen || !moves || isNaN(rating)) return null;
+  if (popularity < 50) return null;   // skip unpopular
+  if (rd > 150) return null;          // skip unreliable ratings
 
-    // The response includes game.pgn and puzzle.initialPly
-    // The FEN at puzzle start = apply initialPly moves to starting position
-    // This is complex. Let's check if there's a fen field...
-
-    // Looking at the response structure more carefully:
-    // data.game.id, data.game.pgn, data.game.players
-    // data.puzzle.id, data.puzzle.rating, data.puzzle.solution, data.puzzle.themes, data.puzzle.initialPly
-
-    // We need to derive FEN. Let's try a different approach: just store the PGN and initialPly
-    // Then in the client, replay the PGN to the puzzle position using chess.js.
-
-    return {
-      id: p.id,
-      pgn: data.game.pgn,
-      initialPly: p.initialPly,
-      moves: p.solution,
-      rating: p.rating,
-      themes: p.themes,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
+  return {
+    id,
+    fen,
+    moves: moves.split(' '),
+    rating,
+    themes: parts[7].split(' ').filter(Boolean),
+  };
 }
 
 async function main() {
-  // Resume from progress if available
-  let puzzles = [];
-  let startIdx = 0;
-  if (existsSync(PROGRESS_FILE)) {
-    try {
-      const progress = JSON.parse(readFileSync(PROGRESS_FILE, 'utf-8'));
-      puzzles = progress.puzzles || [];
-      startIdx = progress.nextIdx || 0;
-      console.log(`Resuming from ${puzzles.length} puzzles, index ${startIdx}`);
-    } catch { /* fresh start */ }
+  console.log(`Lichess Puzzle Fetcher (chunked stream approach)`);
+  console.log(`Target: ${TOTAL_TARGET} puzzles across ${BANDS.length} rating bands\n`);
+
+  const fzstd = await import('fzstd');
+
+  console.log(`Downloading: ${CSV_URL}`);
+  const response = await fetch(CSV_URL);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const contentLength = response.headers.get('content-length');
+  if (contentLength) console.log(`Download size: ${(parseInt(contentLength) / 1024 / 1024).toFixed(0)} MB\n`);
+
+  // Download compressed data
+  const chunks = [];
+  let downloaded = 0;
+  const reader = response.body.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    downloaded += value.length;
+    if (downloaded % (10 * 1024 * 1024) < value.length) {
+      console.log(`  Downloaded: ${(downloaded / 1024 / 1024).toFixed(0)} MB...`);
+    }
   }
 
-  const candidateIds = generatePuzzleIds(TARGET);
-  console.log(`Generated ${candidateIds.length} candidate IDs`);
-  console.log(`Target: ${TARGET} puzzles\n`);
+  console.log(`\nDownload complete: ${(downloaded / 1024 / 1024).toFixed(1)} MB`);
 
-  let rateLimitHits = 0;
+  // Concat compressed chunks
+  const compressed = new Uint8Array(downloaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    compressed.set(chunk, offset);
+    offset += chunk.length;
+  }
+  chunks.length = 0; // free memory
 
-  for (let i = startIdx; i < candidateIds.length && puzzles.length < TARGET; i += CONCURRENCY) {
-    const batch = candidateIds.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(batch.map(id => fetchPuzzleWithFEN(id)));
+  console.log(`Decompressing...`);
+  const decompressed = fzstd.decompress(compressed);
+  console.log(`Decompressed: ${(decompressed.length / 1024 / 1024).toFixed(0)} MB`);
 
-    for (const result of results) {
-      if (!result) continue;
-      if (result.rateLimit) {
-        rateLimitHits++;
-        if (rateLimitHits >= 3) {
-          console.log('\nHit rate limit 3x, saving progress and exiting.');
-          console.log('Re-run the script to resume.\n');
-          writeFileSync(PROGRESS_FILE, JSON.stringify({ puzzles, nextIdx: i }));
-          break;
-        }
-        console.log('Rate limited, waiting 65s...');
-        await sleep(65000);
-        i -= CONCURRENCY; // retry this batch
+  // Process the decompressed bytes line-by-line WITHOUT creating one giant string.
+  // Scan for newline bytes (0x0A) and decode each line individually.
+  console.log(`Parsing puzzles...`);
+
+  const NL = 0x0A;
+  const decoder = new TextDecoder();
+  let lineStart = 0;
+  let linesParsed = 0;
+  let skippedHeader = false;
+
+  for (let i = 0; i < decompressed.length; i++) {
+    if (decompressed[i] === NL) {
+      if (!skippedHeader) {
+        skippedHeader = true;
+        lineStart = i + 1;
         continue;
       }
-      puzzles.push(result);
-    }
 
-    if (rateLimitHits >= 3) break;
+      // Decode just this line
+      const lineBytes = decompressed.subarray(lineStart, i);
+      lineStart = i + 1;
 
-    if (puzzles.length % 25 === 0 && puzzles.length > 0) {
-      console.log(`  ${puzzles.length}/${TARGET} puzzles (index ${i}/${candidateIds.length})`);
-      // Save progress every 100
-      if (puzzles.length % 100 === 0) {
-        writeFileSync(PROGRESS_FILE, JSON.stringify({ puzzles, nextIdx: i + CONCURRENCY }));
+      if (lineBytes.length < 10) continue;
+      const line = decoder.decode(lineBytes);
+
+      const puzzle = parseLine(line);
+      if (puzzle) {
+        maybeCollect(puzzle);
+        linesParsed++;
+      }
+
+      if (linesParsed % 500000 === 0) {
+        console.log(`  Parsed ${linesParsed.toLocaleString()} eligible puzzles, collected ${totalCollected()}/${TOTAL_TARGET}`);
       }
     }
-
-    await sleep(DELAY_MS);
   }
 
-  // Sort by rating for nice distribution
-  puzzles.sort((a, b) => a.rating - b.rating);
+  console.log(`\nParsed ${linesParsed.toLocaleString()} eligible puzzles from CSV`);
+
+  const allPuzzles = BANDS.flatMap(b => b.collected);
+  allPuzzles.sort((a, b) => a.rating - b.rating);
+
+  console.log(`\nRating distribution:`);
+  for (const band of BANDS) {
+    console.log(`  ${band.min}-${band.max}: ${band.collected.length}/${band.target}`);
+  }
 
   const output = {
     version: 1,
     source: 'lichess.org',
     license: 'CC0',
     generated: new Date().toISOString(),
-    count: puzzles.length,
-    puzzles,
+    count: allPuzzles.length,
+    puzzles: allPuzzles,
   };
 
   const json = JSON.stringify(output);
   const sizeMB = (Buffer.byteLength(json) / (1024 * 1024)).toFixed(2);
-  console.log(`\nTotal: ${puzzles.length} puzzles, ${sizeMB} MB`);
+  console.log(`\nTotal: ${allPuzzles.length} puzzles, ${sizeMB} MB`);
 
   writeFileSync(OUTPUT, json);
   console.log(`Written to ${OUTPUT}`);
-
-  // Clean up progress file
-  if (existsSync(PROGRESS_FILE)) {
-    const { unlinkSync } = await import('fs');
-    unlinkSync(PROGRESS_FILE);
-  }
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});
