@@ -1390,6 +1390,15 @@
       }
     }
 
+    #analysis-banner {
+      position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #5a4a3a, #7a6a5a);
+      color: #f8f4ec; padding: 6px 20px; border-radius: 6px;
+      font-family: 'Playfair Display', serif; font-size: 13px;
+      z-index: 900; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
+
     /* BOARD TOAST OVERLAY */
     .board-toast {
       font-family: 'Playfair Display', serif;
@@ -2825,6 +2834,18 @@
       font-family: 'Playfair Display', serif;
     }
     #puzzle-feedback.correct { color: #2d8a4e; }
+    /* Confetti burst on puzzle solve */
+    @keyframes pz-confetti-fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(120px) rotate(720deg); opacity: 0; }
+    }
+    #puzzle-confetti {
+      pointer-events: none; position: absolute; inset: 0; overflow: hidden; z-index: 10;
+    }
+    .pz-confetti-bit {
+      position: absolute; width: 8px; height: 8px; border-radius: 2px;
+      animation: pz-confetti-fall 1.2s ease-out forwards;
+    }
     #puzzle-feedback.wrong { color: #c44; }
     #puzzle-feedback.info { color: var(--sidebar-accent, #8b4513); }
     #puzzle-controls {
@@ -3747,7 +3768,8 @@
 
   <!-- ═══════════ PUZZLE MODE OVERLAY ═══════════ -->
   <div id="puzzle-overlay" style="display:none;">
-    <div id="puzzle-panel">
+    <div id="puzzle-panel" style="position:relative;">
+      <div id="puzzle-confetti"></div>
       <div id="puzzle-header">
         <h2>🧩 Puzzle Mode</h2>
         <div id="puzzle-stats-bar">
@@ -3865,6 +3887,9 @@
   </div>
 
   <div id="level-notification"></div>
+
+  <!-- Analysis game banner -->
+  <div id="analysis-banner" style="display:none;">📐 Analysis Game — No ELO Changes</div>
 
   <!-- STATS MODAL -->
   <div id="stats-overlay">

@@ -1613,6 +1613,12 @@ Game.registerCallbacks({
     updateStartButton();
     updateAiSpeedButton();
 
+    // Show/hide analysis banner
+    const analysisBanner = document.getElementById('analysis-banner');
+    if (analysisBanner) {
+      analysisBanner.style.display = (Game.isAnalysisGame() && state.gameStarted && !state.gameOver) ? 'block' : 'none';
+    }
+
     // Show promotion UI if there's a pending promotion
     if (state.pendingPromotion) {
       showPromotionUI(state.playerColor === 'black');
@@ -2724,6 +2730,27 @@ const PIECE_UNICODE: Record<string, Record<string, string>> = {
     feedbackEl.className = cls;
   }
 
+  const confettiContainer = document.getElementById('puzzle-confetti');
+  const CONFETTI_COLORS = ['#f44336','#e91e63','#9c27b0','#2196f3','#4caf50','#ff9800','#ffeb3b','#00bcd4'];
+
+  function spawnConfetti(): void {
+    if (!confettiContainer) return;
+    confettiContainer.innerHTML = '';
+    for (let i = 0; i < 40; i++) {
+      const bit = document.createElement('div');
+      bit.className = 'pz-confetti-bit';
+      bit.style.left = `${Math.random() * 100}%`;
+      bit.style.top = `${Math.random() * 40}%`;
+      bit.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+      bit.style.animationDelay = `${Math.random() * 0.4}s`;
+      bit.style.animationDuration = `${0.8 + Math.random() * 0.8}s`;
+      bit.style.width = `${6 + Math.random() * 6}px`;
+      bit.style.height = `${6 + Math.random() * 6}px`;
+      confettiContainer.appendChild(bit);
+    }
+    setTimeout(() => { confettiContainer.innerHTML = ''; }, 2000);
+  }
+
   function renderBoard(): void {
     if (!board || !puzzleChess) return;
     board.innerHTML = '';
@@ -2790,6 +2817,7 @@ const PIECE_UNICODE: Record<string, Record<string, string>> = {
           progress = PuzzleSystem.applyPuzzleResult(progress, result);
           saveProgress();
           setFeedback(`Correct! ${result.ratingChange >= 0 ? '+' : ''}${result.ratingChange} rating`, 'correct');
+          spawnConfetti();
           if (nextBtn) nextBtn.style.display = 'inline-block';
           if (hintBtn) hintBtn.style.display = 'none';
           if (skipBtn) skipBtn.style.display = 'none';
@@ -3089,6 +3117,8 @@ const STANDARD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
   // ── Render ──
 
+  let dragSource: { row: number; col: number } | null = null;
+
   function render(): void {
     if (!boardEl) return;
     boardEl.innerHTML = '';
@@ -3100,7 +3130,29 @@ const STANDARD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
         sq.className = `pos-sq ${isLight ? 'light' : 'dark'}`;
 
         const piece = grid[r][c];
-        if (piece) sq.textContent = PE_UNICODE[piece] || '';
+        if (piece) {
+          sq.textContent = PE_UNICODE[piece] || '';
+          sq.draggable = true;
+          sq.addEventListener('dragstart', (e) => {
+            dragSource = { row: r, col: c };
+            (e as DragEvent).dataTransfer!.effectAllowed = 'move';
+            sq.style.opacity = '0.4';
+          });
+          sq.addEventListener('dragend', () => { sq.style.opacity = '1'; dragSource = null; });
+        }
+
+        sq.addEventListener('dragover', (e) => { e.preventDefault(); (e as DragEvent).dataTransfer!.dropEffect = 'move'; });
+        sq.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if (dragSource) {
+            // Move piece from source to target
+            const srcPiece = grid[dragSource.row][dragSource.col];
+            grid[dragSource.row][dragSource.col] = '';
+            grid[r][c] = srcPiece;
+            dragSource = null;
+            render();
+          }
+        });
 
         sq.addEventListener('click', () => onSquareClick(r, c));
         boardEl.appendChild(sq);
