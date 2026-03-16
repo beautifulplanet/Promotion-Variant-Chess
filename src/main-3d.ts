@@ -29,6 +29,7 @@ import type { GamePerformanceData } from './gameReactiveArticles';
 import * as MoveListUI from './moveListUI';
 import * as Sound from './soundSystem';
 import * as Stats from './statsSystem';
+import * as PuzzleSystem from './puzzleSystem';
 import * as Theme from './themeSystem';
 import * as ClassicMode from './classicMode';
 import * as Overlay from './overlayRenderer';
@@ -2655,5 +2656,277 @@ if (welcomeDashboard) {
       panel.style.display = visible ? 'none' : 'block';
       if (!visible) syncFromRenderer();
     }
+  });
+})();
+
+// =============================================================================
+// PUZZLE MODE CONTROLLER
+// =============================================================================
+
+const PIECE_UNICODE: Record<string, Record<string, string>> = {
+  w: { k: '\u2654', q: '\u2655', r: '\u2656', b: '\u2657', n: '\u2658', p: '\u2659' },
+  b: { k: '\u265A', q: '\u265B', r: '\u265C', b: '\u265D', n: '\u265E', p: '\u265F' },
+};
+
+(async function initPuzzleMode() {
+  const overlay = document.getElementById('puzzle-overlay');
+  const board = document.getElementById('puzzle-board');
+  const openBtn = document.getElementById('wd-puzzle-btn');
+  const closeBtn = document.getElementById('puzzle-close-btn');
+  const hintBtn = document.getElementById('puzzle-hint-btn');
+  const skipBtn = document.getElementById('puzzle-skip-btn');
+  const nextBtn = document.getElementById('puzzle-next-btn');
+  const feedbackEl = document.getElementById('puzzle-feedback');
+  const ratingEl = document.getElementById('puzzle-rating-display');
+  const streakEl = document.getElementById('puzzle-streak-display');
+  const solvedEl = document.getElementById('puzzle-solved-display');
+  const difficultyEl = document.getElementById('puzzle-difficulty');
+  const themesEl = document.getElementById('puzzle-themes');
+  const colorEl = document.getElementById('puzzle-color-indicator');
+  const themeSelect = document.getElementById('puzzle-theme-select') as HTMLSelectElement | null;
+
+  if (!overlay || !board || !openBtn) return;
+
+  let puzzles: PuzzleSystem.Puzzle[] = [];
+  let progress = PuzzleSystem.createDefaultPuzzleProgress();
+  let currentPuzzle: PuzzleSystem.Puzzle | null = null;
+  let prepared: ReturnType<typeof PuzzleSystem.preparePuzzle> | null = null;
+  let moveIndex = 0;         // which solution move we're on
+  let selectedSquare: string | null = null;
+  let puzzleDone = false;
+  let boardFlipped = false;  // true when player is black
+
+  // Use chess.js for board state during puzzle
+  let puzzleChess: import('chess.js').Chess | null = null;
+
+  // Load puzzle progress from save data if available
+  function loadProgress(): void {
+    const saveData = Game.getCurrentSaveData();
+    if (saveData.puzzleProgress) {
+      progress = { ...PuzzleSystem.createDefaultPuzzleProgress(), ...saveData.puzzleProgress };
+    }
+  }
+
+  function saveProgress(): void {
+    const saveData = Game.getCurrentSaveData();
+    saveData.puzzleProgress = progress;
+  }
+
+  function updateStatsDisplay(): void {
+    if (ratingEl) ratingEl.textContent = `Rating: ${progress.puzzleRating}`;
+    if (streakEl) streakEl.textContent = `Streak: ${progress.currentStreak}`;
+    if (solvedEl) solvedEl.textContent = `Solved: ${progress.totalSolved}/${puzzles.length}`;
+  }
+
+  function setFeedback(text: string, cls: 'correct' | 'wrong' | 'info'): void {
+    if (!feedbackEl) return;
+    feedbackEl.textContent = text;
+    feedbackEl.className = cls;
+  }
+
+  function renderBoard(): void {
+    if (!board || !puzzleChess) return;
+    board.innerHTML = '';
+
+    const boardArr = puzzleChess.board();
+    for (let visualRow = 0; visualRow < 8; visualRow++) {
+      for (let visualCol = 0; visualCol < 8; visualCol++) {
+        const row = boardFlipped ? 7 - visualRow : visualRow;
+        const col = boardFlipped ? 7 - visualCol : visualCol;
+
+        const sq = document.createElement('div');
+        const isLight = (row + col) % 2 === 0;
+        sq.className = `pz-sq ${isLight ? 'light' : 'dark'}`;
+
+        const file = String.fromCharCode(97 + col);
+        const rank = String(8 - row);
+        const squareName = file + rank;
+        sq.dataset.sq = squareName;
+
+        const piece = boardArr[row][col];
+        if (piece) {
+          sq.textContent = PIECE_UNICODE[piece.color][piece.type] || '';
+        }
+
+        if (squareName === selectedSquare) sq.classList.add('selected');
+
+        sq.addEventListener('click', () => onSquareClick(squareName));
+        board.appendChild(sq);
+      }
+    }
+  }
+
+  function onSquareClick(sq: string): void {
+    if (puzzleDone || !puzzleChess || !prepared) return;
+
+    if (selectedSquare) {
+      // Attempt to make a move
+      const from = selectedSquare;
+      const to = sq;
+      selectedSquare = null;
+
+      // Check for promotion
+      const piece = puzzleChess.get(from as any);
+      let promotion: string | undefined;
+      if (piece && piece.type === 'p') {
+        const toRank = parseInt(to[1]);
+        if ((piece.color === 'w' && toRank === 8) || (piece.color === 'b' && toRank === 1)) {
+          promotion = 'q'; // auto-queen for puzzles
+        }
+      }
+
+      const uciMove = from + to + (promotion || '');
+      const expectedMove = prepared.solutionMoves[moveIndex];
+
+      if (PuzzleSystem.checkMove(uciMove, expectedMove)) {
+        // Correct move
+        puzzleChess.move({ from: from as any, to: to as any, promotion: promotion as any });
+        moveIndex++;
+
+        if (moveIndex >= prepared.solutionMoves.length) {
+          // Puzzle complete!
+          puzzleDone = true;
+          const result = PuzzleSystem.updatePuzzleRating(progress, currentPuzzle!, true);
+          progress = PuzzleSystem.applyPuzzleResult(progress, result);
+          saveProgress();
+          setFeedback(`Correct! ${result.ratingChange >= 0 ? '+' : ''}${result.ratingChange} rating`, 'correct');
+          if (nextBtn) nextBtn.style.display = 'inline-block';
+          if (hintBtn) hintBtn.style.display = 'none';
+          if (skipBtn) skipBtn.style.display = 'none';
+        } else {
+          setFeedback('Correct! Keep going...', 'correct');
+          // Play opponent's response
+          const opponentMove = prepared.opponentMoves[moveIndex - 1];
+          if (opponentMove) {
+            setTimeout(() => {
+              if (!puzzleChess) return;
+              const oFrom = opponentMove.slice(0, 2);
+              const oTo = opponentMove.slice(2, 4);
+              const oProm = opponentMove.length === 5 ? opponentMove[4] : undefined;
+              puzzleChess.move({ from: oFrom as any, to: oTo as any, promotion: oProm as any });
+              renderBoard();
+            }, 400);
+          }
+        }
+      } else {
+        // Wrong move
+        setFeedback('Incorrect. Try again!', 'wrong');
+        // Highlight wrong square briefly
+        const wrongSq = board?.querySelector(`[data-sq="${to}"]`);
+        if (wrongSq) {
+          wrongSq.classList.add('wrong-move');
+          setTimeout(() => wrongSq.classList.remove('wrong-move'), 800);
+        }
+      }
+
+      renderBoard();
+      updateStatsDisplay();
+    } else {
+      // Select a piece
+      if (!puzzleChess) return;
+      const piece = puzzleChess.get(sq as any);
+      const playerColorChar = prepared.playerColor === 'white' ? 'w' : 'b';
+      if (piece && piece.color === playerColorChar) {
+        selectedSquare = sq;
+        renderBoard();
+      }
+    }
+  }
+
+  async function startPuzzle(puzzle: PuzzleSystem.Puzzle): Promise<void> {
+    currentPuzzle = puzzle;
+    prepared = PuzzleSystem.preparePuzzle(puzzle);
+    moveIndex = 0;
+    selectedSquare = null;
+    puzzleDone = false;
+    boardFlipped = prepared.playerColor === 'black';
+
+    const chessModule = await import('chess.js');
+    puzzleChess = new chessModule.Chess(prepared.displayFen);
+
+    if (difficultyEl) difficultyEl.textContent = `Rating: ${puzzle.rating}`;
+    if (themesEl) {
+      const labels = puzzle.themes
+        .map(t => PuzzleSystem.PUZZLE_THEME_LABELS[t] || t)
+        .slice(0, 3);
+      themesEl.textContent = labels.join(', ');
+    }
+    if (colorEl) colorEl.textContent = `Play as ${prepared.playerColor}`;
+    setFeedback('Your turn — find the best move!', 'info');
+    if (nextBtn) nextBtn.style.display = 'none';
+    if (hintBtn) hintBtn.style.display = 'inline-block';
+    if (skipBtn) skipBtn.style.display = 'inline-block';
+
+    renderBoard();
+    updateStatsDisplay();
+  }
+
+  async function loadNextPuzzle(): Promise<void> {
+    const theme = themeSelect?.value || undefined;
+    const puzzle = PuzzleSystem.selectNextPuzzle(puzzles, progress, theme);
+    if (puzzle) {
+      await startPuzzle(puzzle);
+    } else {
+      setFeedback('No puzzles available!', 'info');
+    }
+  }
+
+  // ── Event handlers ──
+  openBtn.addEventListener('click', async () => {
+    dismissWelcomeDashboard();
+    overlay.style.display = 'flex';
+
+    if (puzzles.length === 0) {
+      setFeedback('Loading puzzles...', 'info');
+      puzzles = await PuzzleSystem.loadPuzzleDatabase();
+      loadProgress();
+
+      // Populate theme filter
+      if (themeSelect) {
+        const themes = PuzzleSystem.getAvailableThemes(puzzles);
+        for (const t of themes) {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = PuzzleSystem.PUZZLE_THEME_LABELS[t] || t;
+          themeSelect.appendChild(opt);
+        }
+      }
+    }
+
+    loadNextPuzzle();
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    puzzleChess = null;
+  });
+
+  hintBtn?.addEventListener('click', () => {
+    if (!prepared || puzzleDone) return;
+    const move = prepared.solutionMoves[moveIndex];
+    const from = move.slice(0, 2);
+    const sq = board?.querySelector(`[data-sq="${from}"]`);
+    if (sq) {
+      sq.classList.add('hint-sq');
+      setTimeout(() => sq.classList.remove('hint-sq'), 1500);
+    }
+    setFeedback(`Hint: look at ${from}`, 'info');
+  });
+
+  skipBtn?.addEventListener('click', () => {
+    if (!currentPuzzle || puzzleDone) return;
+    puzzleDone = true;
+    const result = PuzzleSystem.updatePuzzleRating(progress, currentPuzzle, false);
+    progress = PuzzleSystem.applyPuzzleResult(progress, result);
+    saveProgress();
+    setFeedback(`Skipped. ${result.ratingChange >= 0 ? '+' : ''}${result.ratingChange} rating`, 'wrong');
+    if (nextBtn) nextBtn.style.display = 'inline-block';
+    if (hintBtn) hintBtn.style.display = 'none';
+    if (skipBtn) skipBtn.style.display = 'none';
+    updateStatsDisplay();
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    loadNextPuzzle();
   });
 })();

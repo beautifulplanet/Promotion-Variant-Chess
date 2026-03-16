@@ -29,8 +29,22 @@ export interface SaveData {
   moveQualityStats?: MoveQualityStats;
   // AI aggression setting (1-20, default 10)
   aiAggressionLevel?: number;
+  // Puzzle progress (optional — absent in old saves)
+  puzzleProgress?: PuzzleProgressData;
   saveVersion: number;  // For future compatibility
   savedAt: string;  // ISO timestamp
+}
+
+// Puzzle progress stored in save file
+export interface PuzzleProgressData {
+  solvedIds: string[];
+  attemptedIds: string[];
+  currentStreak: number;
+  bestStreak: number;
+  totalAttempts: number;
+  totalSolved: number;
+  puzzleRating: number;
+  lastPlayedAt: string;
 }
 
 // Track move quality statistics
@@ -113,6 +127,25 @@ function isValidBoardProfile(profile: unknown): profile is BoardProfile {
   );
 }
 
+function sanitizePuzzleProgress(raw: unknown): PuzzleProgressData | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const p = raw as Record<string, unknown>;
+  return {
+    solvedIds: Array.isArray(p.solvedIds)
+      ? (p.solvedIds as unknown[]).filter(id => typeof id === 'string') as string[]
+      : [],
+    attemptedIds: Array.isArray(p.attemptedIds)
+      ? (p.attemptedIds as unknown[]).filter(id => typeof id === 'string') as string[]
+      : [],
+    currentStreak: isPositiveInt(p.currentStreak) ? p.currentStreak : 0,
+    bestStreak: isPositiveInt(p.bestStreak) ? p.bestStreak : 0,
+    totalAttempts: isPositiveInt(p.totalAttempts) ? p.totalAttempts : 0,
+    totalSolved: isPositiveInt(p.totalSolved) ? p.totalSolved : 0,
+    puzzleRating: isValidNumber(p.puzzleRating, 100, 4000) ? p.puzzleRating as number : 800,
+    lastPlayedAt: typeof p.lastPlayedAt === 'string' ? p.lastPlayedAt : '',
+  };
+}
+
 /**
  * Validate and sanitize save data from file
  * Returns null if data is unrecoverable, otherwise returns sanitized data
@@ -180,6 +213,7 @@ function validateAndSanitizeSaveData(data: unknown): SaveData | null {
     aiAggressionLevel: isValidNumber(d.aiAggressionLevel, 1, 20)
       ? Math.round(d.aiAggressionLevel as number)
       : 10,  // Default for old saves
+    puzzleProgress: sanitizePuzzleProgress(d.puzzleProgress),
     saveVersion: isPositiveInt(d.saveVersion) ? d.saveVersion : SAVE_VERSION,
     savedAt: typeof d.savedAt === 'string' ? d.savedAt : new Date().toISOString(),
   };

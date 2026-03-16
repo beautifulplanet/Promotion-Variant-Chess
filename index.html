@@ -2769,6 +2769,84 @@
       color: var(--btn-primary, #5a7a4a);
     }
 
+    /* ── Puzzle Mode ── */
+    #puzzle-overlay {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #puzzle-panel {
+      background: var(--paper-color, #f8f4ec);
+      border: 2px solid var(--border-color, #c0b090);
+      border-radius: 10px;
+      width: 95%; max-width: 520px;
+      max-height: 95vh; overflow-y: auto;
+      padding: 16px;
+      font-family: 'Old Standard TT', serif;
+      position: relative;
+    }
+    #puzzle-header {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      border-bottom: 2px solid var(--border-color, #c0b090);
+      padding-bottom: 10px; margin-bottom: 10px;
+    }
+    #puzzle-header h2 { margin: 0; font-family: 'Playfair Display', serif; font-size: 22px; }
+    #puzzle-stats-bar { display: flex; gap: 12px; font-size: 13px; color: var(--sidebar-text-muted, #8a7e6e); flex: 1; }
+    #puzzle-close-btn {
+      background: none; border: none; font-size: 28px; cursor: pointer;
+      color: var(--text-color, #2a2a2a); line-height: 1; padding: 0 4px;
+    }
+    #puzzle-info-bar {
+      display: flex; gap: 10px; font-size: 12px; margin-bottom: 8px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+    }
+    #puzzle-board-container { display: flex; justify-content: center; margin: 8px 0; }
+    #puzzle-board {
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      width: 100%; max-width: 440px; aspect-ratio: 1;
+      border: 2px solid var(--border-color, #c0b090);
+      border-radius: 4px; overflow: hidden;
+    }
+    .pz-sq {
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(20px, 5vw, 36px); cursor: pointer;
+      user-select: none; aspect-ratio: 1; position: relative;
+    }
+    .pz-sq.light { background: #f0d9b5; }
+    .pz-sq.dark { background: #b58863; }
+    .pz-sq.selected { box-shadow: inset 0 0 0 3px #ffcc00; }
+    .pz-sq.hint-sq { box-shadow: inset 0 0 0 3px #44cc44; }
+    .pz-sq.last-move { background: rgba(255, 255, 0, 0.3); }
+    .pz-sq.correct-move { background: rgba(0, 200, 0, 0.3); }
+    .pz-sq.wrong-move { background: rgba(255, 0, 0, 0.3); }
+    #puzzle-feedback {
+      text-align: center; font-size: 18px; font-weight: 700;
+      min-height: 32px; padding: 6px 0;
+      font-family: 'Playfair Display', serif;
+    }
+    #puzzle-feedback.correct { color: #2d8a4e; }
+    #puzzle-feedback.wrong { color: #c44; }
+    #puzzle-feedback.info { color: var(--sidebar-accent, #8b4513); }
+    #puzzle-controls {
+      display: flex; gap: 8px; justify-content: center; margin: 8px 0;
+    }
+    #puzzle-controls button {
+      padding: 8px 18px; border-radius: 6px; border: 1.5px solid var(--border-color, #c0b090);
+      background: var(--surface-alt, #f0ebe0); cursor: pointer;
+      font-family: 'Old Standard TT', serif; font-size: 14px;
+      transition: all 0.15s;
+    }
+    #puzzle-controls button:hover { border-color: var(--btn-primary, #5a7a4a); }
+    #puzzle-next-btn { background: var(--btn-primary, #5a7a4a) !important; color: #fff !important; border-color: var(--btn-primary, #5a7a4a) !important; }
+    #puzzle-theme-filter {
+      text-align: center; margin-top: 6px; font-size: 13px;
+    }
+    #puzzle-theme-select {
+      padding: 4px 8px; border-radius: 4px;
+      border: 1px solid var(--border-color, #c0b090);
+      font-family: 'Old Standard TT', serif; font-size: 13px;
+    }
+
     /* Mobile tweaks */
     @media (max-width: 500px) {
       .wd-masthead { padding: 18px 14px 10px; }
@@ -2924,6 +3002,11 @@
           <span class="wd-btn-icon">🌐</span>
           <span class="wd-btn-label">Play Online</span>
           <span class="wd-btn-desc">Create or join a table</span>
+        </button>
+        <button class="wd-btn" id="wd-puzzle-btn">
+          <span class="wd-btn-icon">🧩</span>
+          <span class="wd-btn-label">Puzzles</span>
+          <span class="wd-btn-desc">Tactical training from Lichess</span>
         </button>
         <button class="wd-btn" id="wd-howto-btn">
           <span class="wd-btn-icon">❓</span>
@@ -3535,6 +3618,41 @@
         <button id="setup-reset">↩️ Reset Default</button>
         <button id="setup-confirm">✅ Start Game</button>
         <button id="setup-cancel">❌ Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PUZZLE MODE OVERLAY ═══════════ -->
+  <div id="puzzle-overlay" style="display:none;">
+    <div id="puzzle-panel">
+      <div id="puzzle-header">
+        <h2>🧩 Puzzle Mode</h2>
+        <div id="puzzle-stats-bar">
+          <span id="puzzle-rating-display">Rating: 800</span>
+          <span id="puzzle-streak-display">Streak: 0</span>
+          <span id="puzzle-solved-display">Solved: 0/0</span>
+        </div>
+        <button id="puzzle-close-btn" title="Close">&times;</button>
+      </div>
+      <div id="puzzle-info-bar">
+        <span id="puzzle-difficulty"></span>
+        <span id="puzzle-themes"></span>
+        <span id="puzzle-color-indicator"></span>
+      </div>
+      <div id="puzzle-board-container">
+        <div id="puzzle-board"></div>
+      </div>
+      <div id="puzzle-feedback"></div>
+      <div id="puzzle-controls">
+        <button id="puzzle-hint-btn">💡 Hint</button>
+        <button id="puzzle-skip-btn">⏭️ Skip</button>
+        <button id="puzzle-next-btn" style="display:none;">Next Puzzle ➡️</button>
+      </div>
+      <div id="puzzle-theme-filter">
+        <label>Theme: </label>
+        <select id="puzzle-theme-select">
+          <option value="">All Themes</option>
+        </select>
       </div>
     </div>
   </div>
