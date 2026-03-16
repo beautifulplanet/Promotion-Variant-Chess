@@ -172,8 +172,8 @@ let _cachedArticles: { headline: string; snippet: string }[] | null = null;
 
 async function getArticles(): Promise<{ headline: string; snippet: string }[]> {
   if (!_cachedArticles) {
-    const { ARTICLES } = await import('./newspaperArticles');
-    _cachedArticles = ARTICLES;
+    const { ALL_ARTICLES } = await import('./newspaperArticles');
+    _cachedArticles = ALL_ARTICLES;
   }
   return _cachedArticles;
 }

@@ -133,7 +133,7 @@ export const ARTICLES: Article[] = [
 ];
 
 // Combine base articles with all expansion modules
-const ALL_ARTICLES: Article[] = [...ARTICLES, ...EXTRA_ARTICLES, ...EXPANSION_ARTICLES];
+export const ALL_ARTICLES: Article[] = [...ARTICLES, ...EXTRA_ARTICLES, ...EXPANSION_ARTICLES];
 
 // Get random articles for display (non-repeating pair)
 export function getRandomArticlePair(): [Article, Article] {
