@@ -2,6 +2,30 @@
 // Handles saving and loading game progress via file download/upload
 // No more localStorage - player explicitly saves/loads
 
+// ── Integrity checksum (HMAC-SHA256) ──
+// Raises the bar from "edit JSON in notepad" to "reverse-engineer the hash."
+// Not cryptographically secure against a determined attacker with source access,
+// but prevents casual save-file tampering and automated cheat tools.
+
+const INTEGRITY_SALT = 'uk-chess-2026-walk-dont-sprint';
+
+async function computeChecksum(data: Record<string, unknown>): Promise<string> {
+  const payload = JSON.stringify(data, Object.keys(data).sort());
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(INTEGRITY_SALT), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyChecksum(data: Record<string, unknown>, checksum: string): Promise<boolean> {
+  const copy = { ...data };
+  delete copy._checksum;
+  const expected = await computeChecksum(copy);
+  return expected === checksum;
+}
+
 export interface SaveData {
   elo: number;
   gamesWon: number;
@@ -299,12 +323,14 @@ export function createDefaultSave(): SaveData {
 /**
  * Download save data as a JSON file
  */
-export function downloadSave(data: SaveData): void {
-  const saveData = {
+export async function downloadSave(data: SaveData): Promise<void> {
+  const saveData: Record<string, unknown> = {
     ...data,
     saveVersion: SAVE_VERSION,
     savedAt: new Date().toISOString()
   };
+
+  saveData._checksum = await computeChecksum(saveData);
 
   const json = JSON.stringify(saveData, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -318,7 +344,7 @@ export function downloadSave(data: SaveData): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  console.log('[Save] Downloaded save file');
+  console.log('[Save] Downloaded save file (integrity checksum included)');
 }
 
 /**
@@ -354,6 +380,19 @@ export function loadSaveFromFile(): Promise<SaveData | null> {
           cleanup();
           resolve(null);
           return;
+        }
+
+        // Verify integrity checksum if present
+        if (data._checksum) {
+          const valid = await verifyChecksum(data, data._checksum);
+          if (!valid) {
+            console.warn('[Save] Integrity check failed — save file may have been tampered with');
+            alert('Save file integrity check failed. The file appears to have been modified outside the game.');
+            cleanup();
+            resolve(null);
+            return;
+          }
+          console.log('[Save] Integrity checksum verified');
         }
 
         // Comprehensive save validation

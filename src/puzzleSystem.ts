@@ -51,6 +51,19 @@ export function createDefaultPuzzleProgress(): PuzzleProgress {
 
 let _puzzleDB: Puzzle[] | null = null;
 
+function isValidPuzzle(p: unknown): p is Puzzle {
+  if (!p || typeof p !== 'object') return false;
+  const obj = p as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' && obj.id.length > 0 && obj.id.length < 20 &&
+    typeof obj.fen === 'string' && obj.fen.length > 10 && obj.fen.length < 200 &&
+    Array.isArray(obj.moves) && obj.moves.length >= 2 &&
+    obj.moves.every((m: unknown) => typeof m === 'string' && m.length >= 4 && m.length <= 5) &&
+    typeof obj.rating === 'number' && obj.rating >= 100 && obj.rating <= 4000 &&
+    Array.isArray(obj.themes)
+  );
+}
+
 export async function loadPuzzleDatabase(): Promise<Puzzle[]> {
   if (_puzzleDB) return _puzzleDB;
 
@@ -58,8 +71,33 @@ export async function loadPuzzleDatabase(): Promise<Puzzle[]> {
     const res = await fetch('/puzzles.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    _puzzleDB = data.puzzles as Puzzle[];
-    console.log(`[Puzzles] Loaded ${_puzzleDB.length} puzzles (${data.source})`);
+
+    if (!data || !Array.isArray(data.puzzles)) {
+      throw new Error('Missing or invalid puzzles array');
+    }
+
+    // Validate each puzzle and filter out any tampered/corrupt entries
+    const raw = data.puzzles;
+    const valid: Puzzle[] = [];
+    let rejected = 0;
+    for (const p of raw) {
+      if (isValidPuzzle(p)) {
+        valid.push(p);
+      } else {
+        rejected++;
+      }
+    }
+    if (rejected > 0) {
+      console.warn(`[Puzzles] Rejected ${rejected} invalid/tampered puzzle entries`);
+    }
+
+    // Integrity check: expect at least 2000 puzzles in a legit bundle
+    if (valid.length < 2000) {
+      console.warn(`[Puzzles] Suspiciously low puzzle count: ${valid.length} (expected 2500). Possible tampering.`);
+    }
+
+    _puzzleDB = valid;
+    console.log(`[Puzzles] Loaded ${_puzzleDB.length} validated puzzles (${data.source || 'unknown'})`);
     return _puzzleDB;
   } catch (err) {
     console.error('[Puzzles] Failed to load puzzle database:', err);

@@ -240,13 +240,12 @@ export async function loadProgress(): Promise<boolean> {
 
     // Check if there was a game in progress
     if (data.currentGameFEN && data.currentGameStarted) {
-      // Restore the game position
-      try {
-        engine.loadFEN(data.currentGameFEN);
+      const loaded = engine.loadFEN(data.currentGameFEN);
+      if (loaded) {
         state.gameStarted = true;
         console.log('[Game] Restored game in progress from FEN:', data.currentGameFEN);
-      } catch (e) {
-        console.warn('[Game] Failed to restore game position, starting fresh:', e);
+      } else {
+        console.warn('[Game] Failed to restore game position (invalid FEN), starting fresh');
         setupBoardWithPromotions();
         state.gameStarted = false;
       }

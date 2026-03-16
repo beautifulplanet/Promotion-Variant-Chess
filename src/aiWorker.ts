@@ -152,7 +152,11 @@ function getBestMove(fen: string, depth: number, maximizing: boolean): WorkerRes
   const startTime = performance.now();
   nodesSearched = 0;
   
-  chess.load(fen);
+  try {
+    chess.load(fen);
+  } catch {
+    return { type: 'bestMove', move: null, score: 0, nodesSearched: 0, timeMs: performance.now() - startTime };
+  }
   
   const moves = chess.moves({ verbose: true });
   if (moves.length === 0) {
