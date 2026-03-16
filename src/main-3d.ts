@@ -2389,6 +2389,34 @@ if (welcomeDashboard) {
   }
   syncQualityBtns();
 
+  // ── Era picker: highlight the era matching current ELO ──
+  function syncEraBtns(): void {
+    const currentElo = Game.getState().elo;
+    let bestMatch: HTMLButtonElement | null = null;
+    document.querySelectorAll<HTMLButtonElement>('#wd-era-row .wd-era-btn').forEach(btn => {
+      const elo = parseInt(btn.dataset.elo || '0', 10);
+      btn.classList.remove('selected');
+      if (elo <= currentElo) bestMatch = btn;
+    });
+    if (bestMatch) (bestMatch as HTMLButtonElement).classList.add('selected');
+  }
+  syncEraBtns();
+
+  // Era pill click: set ELO and update stats display
+  document.querySelectorAll<HTMLButtonElement>('#wd-era-row .wd-era-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const elo = parseInt(btn.dataset.elo || '400', 10);
+      Game.debugSetElo(elo);
+      syncRendererState();
+      // Update the welcome screen stats
+      const wdEloEl = document.getElementById('wd-elo');
+      const wdLevelEl = document.getElementById('wd-level');
+      if (wdEloEl) wdEloEl.textContent = String(elo);
+      if (wdLevelEl) wdLevelEl.textContent = String(getLevelForElo(elo).level);
+      syncEraBtns();
+    });
+  });
+
   // ── Dashboard button handlers ──
 
   // ▶ Play vs AI — dismiss and start the game

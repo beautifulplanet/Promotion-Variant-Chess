@@ -2724,6 +2724,51 @@
       margin-bottom: 3px;
     }
 
+    /* ── Era picker pills ── */
+    .wd-era-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+    .wd-era-btn {
+      padding: 8px 2px;
+      background: var(--surface-alt, #f0ebe0);
+      border: 1.5px solid var(--border-color, #c0b090);
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Old Standard TT', serif;
+      text-align: center;
+      color: var(--text-color, #2a2a2a);
+      transition: all 0.15s;
+      line-height: 1.2;
+    }
+    .wd-era-btn:hover {
+      border-color: var(--sidebar-accent, #8b4513);
+      background: var(--scrollbar-track, #e8dcc8);
+    }
+    .wd-era-btn.selected {
+      border-color: var(--btn-primary, #5a7a4a);
+      background: rgba(90, 122, 74, 0.1);
+      font-weight: 700;
+      color: var(--btn-primary, #5a7a4a);
+    }
+    .wd-era-name {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .wd-era-elo {
+      display: block;
+      font-size: 9px;
+      color: var(--sidebar-text-muted, #8a7e6e);
+      margin-top: 2px;
+    }
+    .wd-era-btn.selected .wd-era-elo {
+      color: var(--btn-primary, #5a7a4a);
+    }
+
     /* Mobile tweaks */
     @media (max-width: 500px) {
       .wd-masthead { padding: 18px 14px 10px; }
@@ -2733,6 +2778,9 @@
       .wd-btn-icon { font-size: 22px; }
       .wd-stats { gap: 14px; }
       .wd-quality-btn { min-width: 44px; font-size: 10px; }
+      .wd-era-row { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+      .wd-era-name { font-size: 9px; }
+      .wd-era-elo { font-size: 8px; }
     }
   </style>
 </head>
@@ -2809,6 +2857,51 @@
       </div>
       <div style="margin-top:8px;">
         <button class="wd-pref-btn" id="wd-theme-btn" style="width:100%;justify-content:center;">🎨 Theme</button>
+      </div>
+
+      <!-- Starting Era -->
+      <div class="wd-section-header">Starting Era</div>
+      <div class="wd-era-row" id="wd-era-row">
+        <button class="wd-era-btn" data-elo="400">
+          <span class="wd-era-name">🌿 Jurassic</span>
+          <span class="wd-era-elo">400</span>
+        </button>
+        <button class="wd-era-btn" data-elo="600">
+          <span class="wd-era-name">🪨 Stone Age</span>
+          <span class="wd-era-elo">600</span>
+        </button>
+        <button class="wd-era-btn" data-elo="800">
+          <span class="wd-era-name">⚱️ Bronze</span>
+          <span class="wd-era-elo">800</span>
+        </button>
+        <button class="wd-era-btn" data-elo="1000">
+          <span class="wd-era-name">🏛️ Classical</span>
+          <span class="wd-era-elo">1000</span>
+        </button>
+        <button class="wd-era-btn" data-elo="1200">
+          <span class="wd-era-name">🏰 Medieval</span>
+          <span class="wd-era-elo">1200</span>
+        </button>
+        <button class="wd-era-btn" data-elo="1400">
+          <span class="wd-era-name">🎨 Renaissance</span>
+          <span class="wd-era-elo">1400</span>
+        </button>
+        <button class="wd-era-btn" data-elo="1600">
+          <span class="wd-era-name">🏭 Industrial</span>
+          <span class="wd-era-elo">1600</span>
+        </button>
+        <button class="wd-era-btn" data-elo="1800">
+          <span class="wd-era-name">🌆 Modern</span>
+          <span class="wd-era-elo">1800</span>
+        </button>
+        <button class="wd-era-btn" data-elo="2000">
+          <span class="wd-era-name">💻 Digital</span>
+          <span class="wd-era-elo">2000</span>
+        </button>
+        <button class="wd-era-btn" data-elo="2200">
+          <span class="wd-era-name">🔮 Near Future</span>
+          <span class="wd-era-elo">2200</span>
+        </button>
       </div>
 
       <!-- Hero play button -->
