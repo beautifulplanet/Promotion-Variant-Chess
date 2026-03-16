@@ -2934,3 +2934,343 @@ const PIECE_UNICODE: Record<string, Record<string, string>> = {
     loadNextPuzzle();
   });
 })();
+
+// =============================================================================
+// POSITION EDITOR CONTROLLER
+// =============================================================================
+
+const PE_UNICODE: Record<string, string> = {
+  wK: '\u2654', wQ: '\u2655', wR: '\u2656', wB: '\u2657', wN: '\u2658', wP: '\u2659',
+  bK: '\u265A', bQ: '\u265B', bR: '\u265C', bB: '\u265D', bN: '\u265E', bP: '\u265F',
+};
+
+const STANDARD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+(function initPositionEditor() {
+  const overlay = document.getElementById('pos-editor-overlay');
+  const boardEl = document.getElementById('pos-board');
+  const openBtn = document.getElementById('wd-editor-btn');
+  const closeBtn = document.getElementById('pos-editor-close');
+  const fenInput = document.getElementById('pos-fen-input') as HTMLInputElement | null;
+  const fenLoadBtn = document.getElementById('pos-fen-load');
+  const fenCopyBtn = document.getElementById('pos-fen-copy');
+  const fenError = document.getElementById('pos-fen-error');
+  const turnW = document.getElementById('pos-turn-w');
+  const turnB = document.getElementById('pos-turn-b');
+  const castleK = document.getElementById('pos-castle-K') as HTMLInputElement | null;
+  const castleQ = document.getElementById('pos-castle-Q') as HTMLInputElement | null;
+  const castlek = document.getElementById('pos-castle-k') as HTMLInputElement | null;
+  const castleq = document.getElementById('pos-castle-q') as HTMLInputElement | null;
+  const clearBtn = document.getElementById('pos-clear-btn');
+  const standardBtn = document.getElementById('pos-standard-btn');
+  const savesSelect = document.getElementById('pos-saves-select') as HTMLSelectElement | null;
+  const saveBtn = document.getElementById('pos-save-btn');
+  const deleteBtn = document.getElementById('pos-delete-btn');
+  const playWhiteBtn = document.getElementById('pos-play-white');
+  const playBlackBtn = document.getElementById('pos-play-black');
+  const validationMsg = document.getElementById('pos-validation-msg');
+
+  if (!overlay || !boardEl || !openBtn) return;
+
+  // Editor state: 8x8 grid of piece codes (e.g. 'wK', 'bP', '' for empty)
+  const grid: string[][] = Array.from({ length: 8 }, () => Array(8).fill(''));
+  let selectedPalette = ''; // current palette piece or '' for eraser
+  let turn: 'w' | 'b' = 'w';
+
+  function setError(msg: string): void {
+    if (fenError) fenError.textContent = msg;
+  }
+
+  function setValidation(msg: string): void {
+    if (validationMsg) validationMsg.textContent = msg;
+  }
+
+  // ── Board ↔ FEN conversion ──
+
+  function gridToFEN(): string {
+    const rows: string[] = [];
+    for (let r = 0; r < 8; r++) {
+      let row = '';
+      let empty = 0;
+      for (let c = 0; c < 8; c++) {
+        const p = grid[r][c];
+        if (!p) { empty++; continue; }
+        if (empty > 0) { row += empty; empty = 0; }
+        const color = p[0]; // 'w' or 'b'
+        const type = p[1]; // K Q R B N P
+        row += color === 'w' ? type : type.toLowerCase();
+      }
+      if (empty > 0) row += empty;
+      rows.push(row);
+    }
+
+    let castling = '';
+    if (castleK?.checked) castling += 'K';
+    if (castleQ?.checked) castling += 'Q';
+    if (castlek?.checked) castling += 'k';
+    if (castleq?.checked) castling += 'q';
+    if (!castling) castling = '-';
+
+    return `${rows.join('/')} ${turn} ${castling} - 0 1`;
+  }
+
+  function fenToGrid(fen: string): boolean {
+    const parts = fen.trim().split(/\s+/);
+    if (parts.length < 2) return false;
+
+    const ranks = parts[0].split('/');
+    if (ranks.length !== 8) return false;
+
+    const newGrid: string[][] = [];
+    for (const rank of ranks) {
+      const row: string[] = [];
+      for (const ch of rank) {
+        if (ch >= '1' && ch <= '8') {
+          for (let i = 0; i < parseInt(ch); i++) row.push('');
+        } else {
+          const isWhite = ch === ch.toUpperCase();
+          const color = isWhite ? 'w' : 'b';
+          const type = ch.toUpperCase();
+          if (!'KQRBNP'.includes(type)) return false;
+          row.push(color + type);
+        }
+      }
+      if (row.length !== 8) return false;
+      newGrid.push(row);
+    }
+
+    // Apply to grid
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        grid[r][c] = newGrid[r][c];
+      }
+    }
+
+    // Turn
+    if (parts[1] === 'b') { turn = 'b'; } else { turn = 'w'; }
+    syncTurnButtons();
+
+    // Castling
+    const castleStr = parts.length > 2 ? parts[2] : 'KQkq';
+    if (castleK) castleK.checked = castleStr.includes('K');
+    if (castleQ) castleQ.checked = castleStr.includes('Q');
+    if (castlek) castlek.checked = castleStr.includes('k');
+    if (castleq) castleq.checked = castleStr.includes('q');
+
+    return true;
+  }
+
+  function syncTurnButtons(): void {
+    turnW?.classList.toggle('active', turn === 'w');
+    turnB?.classList.toggle('active', turn === 'b');
+  }
+
+  // ── Validation ──
+
+  function validate(): string | null {
+    let wK = 0, bK = 0;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (grid[r][c] === 'wK') wK++;
+        if (grid[r][c] === 'bK') bK++;
+        // Pawns on rank 1 or 8
+        const p = grid[r][c];
+        if ((p === 'wP' || p === 'bP') && (r === 0 || r === 7)) {
+          return 'Pawns cannot be on rank 1 or 8';
+        }
+      }
+    }
+    if (wK === 0) return 'Missing white king';
+    if (bK === 0) return 'Missing black king';
+    if (wK > 1) return 'Too many white kings';
+    if (bK > 1) return 'Too many black kings';
+    return null;
+  }
+
+  // ── Render ──
+
+  function render(): void {
+    if (!boardEl) return;
+    boardEl.innerHTML = '';
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const sq = document.createElement('div');
+        const isLight = (r + c) % 2 === 0;
+        sq.className = `pos-sq ${isLight ? 'light' : 'dark'}`;
+
+        const piece = grid[r][c];
+        if (piece) sq.textContent = PE_UNICODE[piece] || '';
+
+        sq.addEventListener('click', () => onSquareClick(r, c));
+        boardEl.appendChild(sq);
+      }
+    }
+
+    // Update FEN display
+    if (fenInput) fenInput.value = gridToFEN();
+
+    // Validate
+    const err = validate();
+    setValidation(err || '');
+  }
+
+  function onSquareClick(row: number, col: number): void {
+    if (selectedPalette === '') {
+      // Eraser mode: clear the square
+      grid[row][col] = '';
+    } else {
+      grid[row][col] = selectedPalette;
+    }
+    render();
+  }
+
+  // ── Palette ──
+
+  document.querySelectorAll('.pos-pal-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const piece = (btn as HTMLElement).dataset.piece || '';
+      selectedPalette = piece;
+      // Highlight active
+      document.querySelectorAll('.pos-pal-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // ── Turn toggle ──
+
+  turnW?.addEventListener('click', () => { turn = 'w'; syncTurnButtons(); render(); });
+  turnB?.addEventListener('click', () => { turn = 'b'; syncTurnButtons(); render(); });
+
+  // ── Quick actions ──
+
+  clearBtn?.addEventListener('click', () => {
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) grid[r][c] = '';
+    render();
+  });
+
+  standardBtn?.addEventListener('click', () => {
+    fenToGrid(STANDARD_FEN);
+    render();
+  });
+
+  // ── FEN I/O ──
+
+  fenLoadBtn?.addEventListener('click', () => {
+    const fen = fenInput?.value.trim();
+    if (!fen) { setError('Enter a FEN string'); return; }
+    if (fenToGrid(fen)) {
+      setError('');
+      render();
+    } else {
+      setError('Invalid FEN format');
+    }
+  });
+
+  fenCopyBtn?.addEventListener('click', () => {
+    const fen = gridToFEN();
+    navigator.clipboard.writeText(fen).then(() => {
+      setError('Copied!');
+      setTimeout(() => setError(''), 1500);
+    });
+  });
+
+  // ── Saved positions ──
+
+  function getSavedPositions(): Array<{ name: string; fen: string; createdAt: string }> {
+    const sd = Game.getCurrentSaveData();
+    return sd.savedPositions || [];
+  }
+
+  function refreshSavesDropdown(): void {
+    if (!savesSelect) return;
+    savesSelect.innerHTML = '<option value="">Saved Positions...</option>';
+    for (const pos of getSavedPositions()) {
+      const opt = document.createElement('option');
+      opt.value = pos.fen;
+      opt.textContent = pos.name;
+      savesSelect.appendChild(opt);
+    }
+  }
+
+  savesSelect?.addEventListener('change', () => {
+    const fen = savesSelect.value;
+    if (!fen) return;
+    fenToGrid(fen);
+    render();
+    savesSelect.value = '';
+  });
+
+  saveBtn?.addEventListener('click', () => {
+    const err = validate();
+    if (err) { setValidation(err); return; }
+
+    const name = prompt('Name this position:');
+    if (!name || !name.trim()) return;
+
+    const sd = Game.getCurrentSaveData();
+    const positions = sd.savedPositions || [];
+    const existing = positions.findIndex(p => p.name === name.trim());
+    const entry = { name: name.trim(), fen: gridToFEN(), createdAt: new Date().toISOString() };
+
+    if (existing >= 0) {
+      positions[existing] = entry;
+    } else {
+      if (positions.length >= 50) positions.shift();
+      positions.push(entry);
+    }
+
+    sd.savedPositions = positions;
+    refreshSavesDropdown();
+    setValidation('Position saved!');
+    setTimeout(() => setValidation(''), 1500);
+  });
+
+  deleteBtn?.addEventListener('click', () => {
+    const selected = savesSelect?.options[savesSelect.selectedIndex];
+    if (!selected || !selected.value) { setValidation('Select a position first'); return; }
+    const name = selected.textContent || '';
+    const sd = Game.getCurrentSaveData();
+    sd.savedPositions = (sd.savedPositions || []).filter(p => p.name !== name);
+    refreshSavesDropdown();
+    setValidation('Deleted');
+    setTimeout(() => setValidation(''), 1500);
+  });
+
+  // ── Play buttons ──
+
+  playWhiteBtn?.addEventListener('click', () => startFromEditor('white'));
+  playBlackBtn?.addEventListener('click', () => startFromEditor('black'));
+
+  function startFromEditor(color: 'white' | 'black'): void {
+    const err = validate();
+    if (err) { setValidation(err); return; }
+
+    const fen = gridToFEN();
+    const ok = Game.startAnalysisGame(fen, color);
+    if (!ok) {
+      setValidation('Invalid position — engine rejected the FEN');
+      return;
+    }
+
+    overlay!.style.display = 'none';
+    syncRendererState();
+    updateStartButton();
+  }
+
+  // ── Open/close ──
+
+  openBtn.addEventListener('click', () => {
+    dismissWelcomeDashboard();
+    fenToGrid(STANDARD_FEN);
+    render();
+    refreshSavesDropdown();
+    setError('');
+    setValidation('');
+    overlay!.style.display = 'flex';
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    overlay!.style.display = 'none';
+  });
+})();

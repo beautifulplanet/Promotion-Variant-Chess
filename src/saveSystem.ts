@@ -31,8 +31,16 @@ export interface SaveData {
   aiAggressionLevel?: number;
   // Puzzle progress (optional — absent in old saves)
   puzzleProgress?: PuzzleProgressData;
+  // Saved analysis positions (from Position Editor)
+  savedPositions?: SavedPosition[];
   saveVersion: number;  // For future compatibility
   savedAt: string;  // ISO timestamp
+}
+
+export interface SavedPosition {
+  name: string;
+  fen: string;
+  createdAt: string;
 }
 
 // Puzzle progress stored in save file
@@ -127,6 +135,20 @@ function isValidBoardProfile(profile: unknown): profile is BoardProfile {
   );
 }
 
+function sanitizeSavedPositions(raw: unknown): SavedPosition[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const MAX_SAVED = 50;
+  return (raw as unknown[])
+    .filter((item): item is SavedPosition => {
+      if (!item || typeof item !== 'object') return false;
+      const p = item as Record<string, unknown>;
+      return typeof p.name === 'string' && p.name.length > 0 && p.name.length <= 100
+        && typeof p.fen === 'string' && p.fen.length > 0 && p.fen.length <= 200
+        && typeof p.createdAt === 'string';
+    })
+    .slice(0, MAX_SAVED);
+}
+
 function sanitizePuzzleProgress(raw: unknown): PuzzleProgressData | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const p = raw as Record<string, unknown>;
@@ -214,6 +236,7 @@ function validateAndSanitizeSaveData(data: unknown): SaveData | null {
       ? Math.round(d.aiAggressionLevel as number)
       : 10,  // Default for old saves
     puzzleProgress: sanitizePuzzleProgress(d.puzzleProgress),
+    savedPositions: sanitizeSavedPositions(d.savedPositions),
     saveVersion: isPositiveInt(d.saveVersion) ? d.saveVersion : SAVE_VERSION,
     savedAt: typeof d.savedAt === 'string' ? d.savedAt : new Date().toISOString(),
   };

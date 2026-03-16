@@ -2847,6 +2847,124 @@
       font-family: 'Old Standard TT', serif; font-size: 13px;
     }
 
+    /* ── Position Editor ── */
+    #pos-editor-overlay {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #pos-editor-panel {
+      background: var(--paper-color, #f8f4ec);
+      border: 2px solid var(--border-color, #c0b090);
+      border-radius: 10px;
+      width: 95%; max-width: 540px;
+      max-height: 95vh; overflow-y: auto;
+      padding: 16px;
+      font-family: 'Old Standard TT', serif;
+      position: relative;
+    }
+    #pos-editor-header {
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 2px solid var(--border-color, #c0b090);
+      padding-bottom: 10px; margin-bottom: 12px;
+    }
+    #pos-editor-header h2 { margin: 0; font-family: 'Playfair Display', serif; font-size: 22px; }
+    #pos-editor-close {
+      background: none; border: none; font-size: 28px; cursor: pointer;
+      color: var(--text-color, #2a2a2a); line-height: 1; padding: 0 4px;
+    }
+    #pos-palette {
+      display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;
+    }
+    .pos-palette-row {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .pos-palette-label {
+      font-size: 11px; width: 38px; text-align: right; color: var(--sidebar-text-muted, #8a7e6e);
+    }
+    .pos-pal-btn {
+      width: 36px; height: 36px; font-size: 24px; line-height: 1;
+      border: 1.5px solid var(--border-color, #c0b090); border-radius: 5px;
+      background: var(--surface-alt, #f0ebe0); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.12s;
+    }
+    .pos-pal-btn:hover { border-color: var(--btn-primary, #5a7a4a); }
+    .pos-pal-btn.active { border-color: var(--btn-primary, #5a7a4a); background: #d4e8c4; box-shadow: 0 0 0 2px rgba(90,122,74,0.3); }
+    .pos-pal-erase { font-size: 16px; color: #c44; }
+    #pos-board-wrap { display: flex; justify-content: center; margin: 8px 0; }
+    #pos-board {
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      width: 100%; max-width: 440px; aspect-ratio: 1;
+      border: 2px solid var(--border-color, #c0b090);
+      border-radius: 4px; overflow: hidden;
+    }
+    .pos-sq {
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(20px, 5vw, 36px); cursor: pointer;
+      user-select: none; aspect-ratio: 1; position: relative;
+    }
+    .pos-sq.light { background: #f0d9b5; }
+    .pos-sq.dark { background: #b58863; }
+    .pos-sq:hover { box-shadow: inset 0 0 0 2px rgba(90,122,74,0.5); }
+    #pos-fen-row {
+      display: flex; gap: 6px; margin: 8px 0;
+    }
+    #pos-fen-input {
+      flex: 1; padding: 6px 10px; border-radius: 5px;
+      border: 1.5px solid var(--border-color, #c0b090);
+      font-family: monospace; font-size: 12px;
+    }
+    #pos-fen-row button {
+      padding: 6px 12px; border-radius: 5px;
+      border: 1.5px solid var(--border-color, #c0b090);
+      background: var(--surface-alt, #f0ebe0); cursor: pointer;
+      font-family: 'Old Standard TT', serif; font-size: 13px;
+    }
+    #pos-fen-row button:hover { border-color: var(--btn-primary, #5a7a4a); }
+    #pos-fen-error { color: #c44; font-size: 12px; min-height: 16px; text-align: center; }
+    #pos-options-row {
+      display: flex; gap: 16px; align-items: center; justify-content: center;
+      flex-wrap: wrap; margin: 8px 0; font-size: 13px;
+    }
+    #pos-turn-group, #pos-castle-group { display: flex; align-items: center; gap: 6px; }
+    .pos-turn-btn {
+      padding: 4px 12px; border-radius: 4px; cursor: pointer;
+      border: 1.5px solid var(--border-color, #c0b090);
+      background: var(--surface-alt, #f0ebe0);
+      font-family: 'Old Standard TT', serif; font-size: 13px;
+    }
+    .pos-turn-btn.active { background: var(--btn-primary, #5a7a4a); color: #fff; border-color: var(--btn-primary, #5a7a4a); }
+    .pos-cb { display: flex; align-items: center; gap: 2px; font-size: 12px; }
+    #pos-quick-row, #pos-saves-row {
+      display: flex; gap: 8px; justify-content: center; margin: 6px 0;
+    }
+    #pos-quick-row button, #pos-saves-row button {
+      padding: 6px 14px; border-radius: 5px;
+      border: 1.5px solid var(--border-color, #c0b090);
+      background: var(--surface-alt, #f0ebe0); cursor: pointer;
+      font-family: 'Old Standard TT', serif; font-size: 13px;
+    }
+    #pos-quick-row button:hover, #pos-saves-row button:hover { border-color: var(--btn-primary, #5a7a4a); }
+    #pos-saves-select {
+      flex: 1; padding: 4px 8px; border-radius: 4px;
+      border: 1px solid var(--border-color, #c0b090);
+      font-family: 'Old Standard TT', serif; font-size: 13px;
+      max-width: 200px;
+    }
+    #pos-play-row {
+      display: flex; gap: 10px; justify-content: center; margin: 10px 0 4px;
+    }
+    .pos-play-btn {
+      padding: 10px 24px; border-radius: 6px; cursor: pointer;
+      border: 2px solid var(--btn-primary, #5a7a4a);
+      background: var(--btn-primary, #5a7a4a); color: #fff;
+      font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700;
+      transition: all 0.15s;
+    }
+    .pos-play-btn:hover { opacity: 0.9; transform: scale(1.02); }
+    #pos-validation-msg { text-align: center; font-size: 13px; min-height: 18px; color: #c44; }
+
     /* Mobile tweaks */
     @media (max-width: 500px) {
       .wd-masthead { padding: 18px 14px 10px; }
@@ -3007,6 +3125,11 @@
           <span class="wd-btn-icon">🧩</span>
           <span class="wd-btn-label">Puzzles</span>
           <span class="wd-btn-desc">Tactical training from Lichess</span>
+        </button>
+        <button class="wd-btn" id="wd-editor-btn">
+          <span class="wd-btn-icon">📐</span>
+          <span class="wd-btn-label">Position Editor</span>
+          <span class="wd-btn-desc">Set up any board &amp; analyze</span>
         </button>
         <button class="wd-btn" id="wd-howto-btn">
           <span class="wd-btn-icon">❓</span>
@@ -3653,6 +3776,90 @@
         <select id="puzzle-theme-select">
           <option value="">All Themes</option>
         </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ POSITION EDITOR OVERLAY ═══════════ -->
+  <div id="pos-editor-overlay" style="display:none;">
+    <div id="pos-editor-panel">
+      <div id="pos-editor-header">
+        <h2>📐 Position Editor</h2>
+        <button id="pos-editor-close" title="Close">&times;</button>
+      </div>
+
+      <div id="pos-editor-body">
+        <!-- Piece palette -->
+        <div id="pos-palette">
+          <div class="pos-palette-row">
+            <span class="pos-palette-label">White</span>
+            <button class="pos-pal-btn" data-piece="wK">&#9812;</button>
+            <button class="pos-pal-btn" data-piece="wQ">&#9813;</button>
+            <button class="pos-pal-btn" data-piece="wR">&#9814;</button>
+            <button class="pos-pal-btn" data-piece="wB">&#9815;</button>
+            <button class="pos-pal-btn" data-piece="wN">&#9816;</button>
+            <button class="pos-pal-btn" data-piece="wP">&#9817;</button>
+            <button class="pos-pal-btn pos-pal-erase" data-piece="" title="Eraser">&#10060;</button>
+          </div>
+          <div class="pos-palette-row">
+            <span class="pos-palette-label">Black</span>
+            <button class="pos-pal-btn" data-piece="bK">&#9818;</button>
+            <button class="pos-pal-btn" data-piece="bQ">&#9819;</button>
+            <button class="pos-pal-btn" data-piece="bR">&#9820;</button>
+            <button class="pos-pal-btn" data-piece="bB">&#9821;</button>
+            <button class="pos-pal-btn" data-piece="bN">&#9822;</button>
+            <button class="pos-pal-btn" data-piece="bP">&#9823;</button>
+          </div>
+        </div>
+
+        <!-- Board -->
+        <div id="pos-board-wrap">
+          <div id="pos-board"></div>
+        </div>
+
+        <!-- FEN I/O -->
+        <div id="pos-fen-row">
+          <input type="text" id="pos-fen-input" placeholder="Paste FEN here..." spellcheck="false" autocomplete="off">
+          <button id="pos-fen-load" title="Load FEN">Load</button>
+          <button id="pos-fen-copy" title="Copy FEN">Copy</button>
+        </div>
+        <div id="pos-fen-error"></div>
+
+        <!-- Side to move + castling -->
+        <div id="pos-options-row">
+          <div id="pos-turn-group">
+            <label>Turn:</label>
+            <button id="pos-turn-w" class="pos-turn-btn active">White</button>
+            <button id="pos-turn-b" class="pos-turn-btn">Black</button>
+          </div>
+          <div id="pos-castle-group">
+            <label>Castling:</label>
+            <label class="pos-cb"><input type="checkbox" id="pos-castle-K" checked> K</label>
+            <label class="pos-cb"><input type="checkbox" id="pos-castle-Q" checked> Q</label>
+            <label class="pos-cb"><input type="checkbox" id="pos-castle-k" checked> k</label>
+            <label class="pos-cb"><input type="checkbox" id="pos-castle-q" checked> q</label>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div id="pos-quick-row">
+          <button id="pos-clear-btn">Clear Board</button>
+          <button id="pos-standard-btn">Standard Position</button>
+        </div>
+
+        <!-- Saved positions -->
+        <div id="pos-saves-row">
+          <select id="pos-saves-select"><option value="">Saved Positions...</option></select>
+          <button id="pos-save-btn">💾 Save</button>
+          <button id="pos-delete-btn">🗑️</button>
+        </div>
+
+        <!-- Play buttons -->
+        <div id="pos-play-row">
+          <button id="pos-play-white" class="pos-play-btn">▶ Play as White</button>
+          <button id="pos-play-black" class="pos-play-btn">▶ Play as Black</button>
+        </div>
+        <div id="pos-validation-msg"></div>
       </div>
     </div>
   </div>

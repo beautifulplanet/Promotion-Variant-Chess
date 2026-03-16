@@ -103,6 +103,9 @@ let aiVsAiMode = false;
 // Multiplayer online mode — when true, AI is disabled and moves go to/from server
 let multiplayerMode = false;
 
+// Analysis mode — custom position, no ELO changes
+let analysisMode = false;
+
 // AI move speed (multiplier, 1 = normal, 0.5 = fast, 2 = slow)
 let aiMoveSpeedMultiplier = 1;
 
@@ -725,6 +728,7 @@ export function newGame(): void {
   // Cancel any pending/in-flight AI moves from previous game
   cancelPendingAIMove();
 
+  analysisMode = false;
   state.gameOver = false;
   state.gameStarted = false;  // Wait for player to click Start
   state.selectedSquare = null;
@@ -2030,6 +2034,13 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
   const aiElo = getAIElo();
   const oldElo = state.elo;
 
+  // Analysis games: no stats or ELO changes
+  if (analysisMode) {
+    analysisMode = false;
+    notifyStateChange();
+    return;
+  }
+
   state.gamesPlayed++;
 
   let message: string;
@@ -2176,6 +2187,52 @@ export function startMultiplayerGame(color: 'w' | 'b', fen?: string): void {
 
   console.log('[Multiplayer] Game started as', state.playerColor);
   notifyStateChange();
+}
+
+/**
+ * Start an analysis game from an arbitrary FEN position.
+ * No ELO changes. Used by the Position Editor.
+ */
+export function startAnalysisGame(fen: string, playerColor: 'white' | 'black'): boolean {
+  cancelPendingAIMove();
+  multiplayerMode = false;
+  aiVsAiMode = false;
+  analysisMode = true;
+
+  if (!engine.loadFEN(fen)) {
+    console.error('[Game] Invalid FEN for analysis game:', fen);
+    return false;
+  }
+
+  state.playerColor = playerColor;
+  state.gameOver = false;
+  state.gameStarted = true;
+  state.selectedSquare = null;
+  state.legalMovesForSelected = [];
+  state.pendingPromotion = null;
+  currentGamePromotions = [];
+
+  resetOpeningTracking();
+  updateOpeningName(fen);
+  resetMoveQualityTracking();
+
+  // If player chose the color that's NOT to move, AI goes first
+  const fenTurn = fen.split(' ')[1];
+  const playerTurnChar = playerColor === 'white' ? 'w' : 'b';
+  if (fenTurn && fenTurn !== playerTurnChar) {
+    scheduleAIMove();
+  }
+
+  console.log('[Game] Analysis game started as', playerColor, 'from FEN:', fen.substring(0, 40));
+  notifyStateChange();
+  return true;
+}
+
+/**
+ * Check if current game is an analysis game (no ELO changes).
+ */
+export function isAnalysisGame(): boolean {
+  return analysisMode;
 }
 
 /**
