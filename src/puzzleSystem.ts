@@ -122,31 +122,41 @@ export function preparePuzzle(puzzle: Puzzle): {
   playerColor: 'white' | 'black';
   solutionMoves: string[];   // UCI moves the player must make
   opponentMoves: string[];   // UCI moves the opponent makes between player moves
-} {
-  const chess = new Chess(puzzle.fen);
-
-  // moves[0] is the opponent's setup move — play it to get the puzzle position
-  const setupMove = puzzle.moves[0];
-  const from = setupMove.slice(0, 2);
-  const to = setupMove.slice(2, 4);
-  const promotion = setupMove.length === 5 ? setupMove[4] : undefined;
-
-  chess.move({ from, to, promotion });
-
-  const displayFen = chess.fen();
-  const playerColor = chess.turn() === 'w' ? 'white' : 'black';
-
-  // Remaining moves alternate: player, opponent, player, opponent...
-  const remainingMoves = puzzle.moves.slice(1);
-  const solutionMoves: string[] = [];
-  const opponentMoves: string[] = [];
-
-  for (let i = 0; i < remainingMoves.length; i++) {
-    if (i % 2 === 0) solutionMoves.push(remainingMoves[i]);
-    else opponentMoves.push(remainingMoves[i]);
+} | null {
+  if (!puzzle.fen || !puzzle.moves || puzzle.moves.length < 2) {
+    console.warn('[Puzzles] Invalid puzzle data:', puzzle.id);
+    return null;
   }
 
-  return { displayFen, playerColor, solutionMoves, opponentMoves };
+  try {
+    const chess = new Chess(puzzle.fen);
+
+    // moves[0] is the opponent's setup move — play it to get the puzzle position
+    const setupMove = puzzle.moves[0];
+    const from = setupMove.slice(0, 2);
+    const to = setupMove.slice(2, 4);
+    const promotion = setupMove.length === 5 ? setupMove[4] : undefined;
+
+    chess.move({ from, to, promotion });
+
+    const displayFen = chess.fen();
+    const playerColor = chess.turn() === 'w' ? 'white' : 'black';
+
+    // Remaining moves alternate: player, opponent, player, opponent...
+    const remainingMoves = puzzle.moves.slice(1);
+    const solutionMoves: string[] = [];
+    const opponentMoves: string[] = [];
+
+    for (let i = 0; i < remainingMoves.length; i++) {
+      if (i % 2 === 0) solutionMoves.push(remainingMoves[i]);
+      else opponentMoves.push(remainingMoves[i]);
+    }
+
+    return { displayFen, playerColor, solutionMoves, opponentMoves };
+  } catch (err) {
+    console.warn('[Puzzles] Failed to prepare puzzle:', puzzle.id, err);
+    return null;
+  }
 }
 
 /**

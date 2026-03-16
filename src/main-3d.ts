@@ -2836,6 +2836,10 @@ const PIECE_UNICODE: Record<string, Record<string, string>> = {
   async function startPuzzle(puzzle: PuzzleSystem.Puzzle): Promise<void> {
     currentPuzzle = puzzle;
     prepared = PuzzleSystem.preparePuzzle(puzzle);
+    if (!prepared) {
+      setFeedback('Puzzle data error — skipping...', 'wrong');
+      return;
+    }
     moveIndex = 0;
     selectedSquare = null;
     puzzleDone = false;
