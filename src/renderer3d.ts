@@ -3,6 +3,10 @@
 // 2026 Studio Quality with procedural skybox, dynamic lighting, and wormhole transitions
 
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { Piece } from './types';
 import type { Move } from './engineProvider';
 import { TILE_SIZE, BOARD_SIZE } from './constants';
@@ -30,6 +34,9 @@ let camera: THREE.PerspectiveCamera;
 let orthoCamera: THREE.OrthographicCamera | null = null;
 let flatBoardMode = false;
 let renderer: THREE.WebGLRenderer;
+let composer: EffectComposer | null = null;
+let bloomPass: UnrealBloomPass | null = null;
+let bloomEnabled = false; // Enabled for Ultra/Extreme quality (animQuality >= 5)
 let canvas: HTMLCanvasElement;
 let basePixelRatio = 1;
 let renderScale = 1.0;  // Start at full quality
@@ -171,9 +178,9 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
     scene = new THREE.Scene();
     console.log('[Renderer3D] Scene created');
 
-    // Create camera
+    // Create camera — wider FOV to show era environment around the board
     camera = new THREE.PerspectiveCamera(
-        60,
+        68,
         canvas.width / canvas.height,
         0.1,
         1000
@@ -257,6 +264,10 @@ export function initRenderer(canvasElement: HTMLCanvasElement): void {
 
     // Create a procedural environment for PBR reflections
     createPBREnvironment();
+
+    // Post-processing: bloom for polished glow on emissive surfaces
+    // Initialized here but only used when bloomEnabled = true (Ultra/Extreme)
+    initBloomComposer();
 
     // Initialize procedural systems
     proceduralSkybox = new ProceduralSkybox();
@@ -406,6 +417,12 @@ function doResize(): void {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
+    // Resize bloom composer to match
+    if (composer) {
+        composer.setSize(width, height);
+        composer.setPixelRatio(dpr);
+    }
+
     // Also update ortho camera if flat mode is active
     if (flatBoardMode) updateOrthoCameraSize();
 
@@ -446,6 +463,28 @@ function detectMobileAndOptimize(): void {
  * Create procedural PBR environment map for realistic reflections
  * This gives materials something to reflect - critical for PBR to look realistic
  */
+// Post-processing bloom — subtle glow on emissive surfaces for a polished look
+function initBloomComposer(): void {
+    try {
+        const renderPass = new RenderPass(scene, camera);
+        bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(canvas.width, canvas.height),
+            0.2,   // strength — subtle, not overwhelming
+            0.4,   // radius — soft spread
+            0.85   // threshold — only bright emissive surfaces bloom
+        );
+        composer = new EffectComposer(renderer);
+        composer.addPass(renderPass);
+        composer.addPass(bloomPass);
+        composer.addPass(new OutputPass());
+        console.log('[Renderer3D] Bloom post-processing initialized');
+    } catch (err) {
+        console.warn('[Renderer3D] Bloom init failed, falling back to direct render:', err);
+        composer = null;
+        bloomPass = null;
+    }
+}
+
 function createPBREnvironment(): void {
     try {
         if (!pmremGenerator || !scene) {
@@ -752,7 +791,13 @@ function createBoard(): void {
     frame.receiveShadow = true;
     boardGroup.add(frame);
 
-    // Create board squares with ADVANCED PBR materials using board style
+    // Create board squares with enhanced PBR materials and edge definition
+    const edgeLineMat = new THREE.LineBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.12,
+    });
+
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const isLight = (row + col) % 2 === 0;
@@ -762,7 +807,16 @@ function createBoard(): void {
                 color: isLight ? style.lightSquareColor : style.darkSquareColor,
                 roughness: isLight ? style.lightRoughness : style.darkRoughness,
                 metalness: isLight ? style.lightMetalness : style.darkMetalness,
+                envMapIntensity: 0.8,
             };
+
+            // Light squares get a subtle emissive lift for better contrast
+            if (!style.emissiveIntensity || style.emissiveIntensity === 0) {
+                if (isLight) {
+                    materialProps.emissive = style.lightSquareColor;
+                    materialProps.emissiveIntensity = 0.04;
+                }
+            }
 
             // Add emissive properties for glowing boards
             if (style.emissiveIntensity && style.emissiveIntensity > 0) {
@@ -779,16 +833,28 @@ function createBoard(): void {
             const material = new THREE.MeshStandardMaterial(materialProps);
 
             const square = new THREE.Mesh(geometry, material);
-            square.position.set(
-                col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2,
-                0.07,
-                row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2
-            );
+            const x = col * BOARD_UNIT - BOARD_WIDTH / 2 + BOARD_UNIT / 2;
+            const z = row * BOARD_UNIT - BOARD_LENGTH / 2 + BOARD_UNIT / 2;
+            square.position.set(x, 0.07, z);
             square.receiveShadow = true;
             square.castShadow = false;
             square.userData = { row, col, type: 'square' };
 
             boardGroup.add(square);
+
+            // Subtle inset edge lines between squares for definition
+            const halfUnit = BOARD_UNIT * 0.49;
+            const edgeY = 0.125; // Slightly above the square surface
+            const edgePoints = [
+                new THREE.Vector3(x - halfUnit, edgeY, z - halfUnit),
+                new THREE.Vector3(x + halfUnit, edgeY, z - halfUnit),
+                new THREE.Vector3(x + halfUnit, edgeY, z + halfUnit),
+                new THREE.Vector3(x - halfUnit, edgeY, z + halfUnit),
+                new THREE.Vector3(x - halfUnit, edgeY, z - halfUnit),
+            ];
+            const edgeGeo = new THREE.BufferGeometry().setFromPoints(edgePoints);
+            const edgeLine = new THREE.Line(edgeGeo, edgeLineMat);
+            boardGroup.add(edgeLine);
         }
     }
 
@@ -1113,8 +1179,9 @@ function updateCameraPosition(): void {
         camera.position.z = orbitTarget.z + orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta);
         camera.lookAt(orbitTarget);
     } else {
-        camera.position.set(0, 14, 0.5);
-        camera.lookAt(0, 0, 0);
+        // Pulled back and angled to show era skybox/environment above the board
+        camera.position.set(0, 13, 2.5);
+        camera.lookAt(0, 0, -0.5);
     }
 
     // Check if we should switch to 2D newspaper mode (looking overhead)
@@ -1336,6 +1403,8 @@ export function setFixedFps(fps: number): void {
 
 export function setAnimQuality(quality: number): void {
     animQuality = Math.max(1, Math.min(6, quality));
+    // Enable bloom post-processing for Ultra (5) and Extreme (6) quality
+    bloomEnabled = animQuality >= 5 && composer !== null;
 }
 
 export function setTravelSpeedScale(scale: number): void {
@@ -4661,28 +4730,37 @@ function getPieceMaterials(piece: Piece): {
     const hasGlow = styleConfig.glowEffect || false;
 
     const materials = {
-        base: new THREE.MeshStandardMaterial({
+        base: new THREE.MeshPhysicalMaterial({
             color: baseColor,
-            roughness: roughness,
-            metalness: metalness,
+            roughness: roughness * 0.8,
+            metalness: Math.max(metalness, 0.05),
             emissive: emissiveColor,
-            emissiveIntensity: emissiveIntensity,
+            emissiveIntensity: emissiveIntensity * 1.5,
+            clearcoat: isWhite ? 0.3 : 0.15,
+            clearcoatRoughness: 0.2,
+            envMapIntensity: 1.2,
         }),
-        accent: new THREE.MeshStandardMaterial({
+        accent: new THREE.MeshPhysicalMaterial({
             // For black pieces: bright white/silver accents; for white pieces: gold accents
             color: hasGlow ? trimColor : (isWhite ? 0xc0a060 : 0xf0f0f0),
-            roughness: hasGlow ? 0.2 : 0.15,
-            metalness: hasGlow ? 0.3 : 0.9,
+            roughness: hasGlow ? 0.15 : 0.1,
+            metalness: hasGlow ? 0.4 : 0.95,
             emissive: hasGlow ? trimColor : (isWhite ? 0x604020 : 0x808080),
-            emissiveIntensity: hasGlow ? 0.5 : (isWhite ? 0.1 : 0.3),
+            emissiveIntensity: hasGlow ? 0.6 : (isWhite ? 0.15 : 0.35),
+            clearcoat: 0.4,
+            clearcoatRoughness: 0.15,
+            envMapIntensity: 1.5,
         }),
-        rim: new THREE.MeshStandardMaterial({
+        rim: new THREE.MeshPhysicalMaterial({
             // For black pieces: bright white rims
             color: isWhite ? trimColor : 0xffffff,
-            roughness: 0.2,
-            metalness: hasGlow ? 0.3 : 0.6,
+            roughness: 0.15,
+            metalness: hasGlow ? 0.4 : 0.7,
             emissive: hasGlow ? trimColor : (isWhite ? 0x202040 : 0x606060),
-            emissiveIntensity: hasGlow ? 0.3 : (isWhite ? 0.15 : 0.4),
+            emissiveIntensity: hasGlow ? 0.35 : (isWhite ? 0.2 : 0.45),
+            clearcoat: 0.3,
+            clearcoatRoughness: 0.2,
+            envMapIntensity: 1.3,
         }),
         team: new THREE.MeshBasicMaterial({
             color: isWhite ? 0x0088ff : 0xff0044,
@@ -5992,10 +6070,13 @@ function startRenderLoop(): void {
         camera.position.x += shake3D.x;
         camera.position.z += shake3D.y;
 
-        // Render scene — wrapped in try-catch to prevent uncaught Three.js
-        // errors from crashing the renderer process under stress
+        // Render scene — use bloom composer when enabled (Ultra/Extreme quality)
         try {
-            renderer.render(scene, camera);
+            if (bloomEnabled && composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         } catch (err) {
             console.error('[Renderer3D] Render error:', err);
         }
