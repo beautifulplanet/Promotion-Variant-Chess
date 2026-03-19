@@ -2104,6 +2104,40 @@ window.addEventListener('beforeunload', () => {
   Stats.endSession();
 });
 
+// ── Overflow menus (3D mode + Classic mode) ────────────────────────────────
+const boOverflowMenu = document.getElementById('bo-overflow-menu');
+const cabOverflowMenu = document.getElementById('cab-overflow-menu');
+
+// 3D mode "More" button toggles overflow menu
+document.getElementById('bo-more-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (boOverflowMenu) {
+    boOverflowMenu.style.display = boOverflowMenu.style.display === 'none' ? 'block' : 'none';
+  }
+});
+
+// Classic mode "More" button toggles overflow menu
+document.getElementById('cab-more-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (cabOverflowMenu) {
+    cabOverflowMenu.style.display = cabOverflowMenu.style.display === 'none' ? 'block' : 'none';
+  }
+});
+
+// Close overflow menus when clicking outside
+document.addEventListener('click', () => {
+  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
+  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
+});
+
+// Close overflow menus when any item inside is clicked
+boOverflowMenu?.addEventListener('click', () => {
+  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
+});
+cabOverflowMenu?.addEventListener('click', () => {
+  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
+});
+
 // ── Classic Mode + Graphics Quality toggle buttons ─────────────────────────
 const boClassicBtn = document.getElementById('bo-classic-btn');
 const classicModeBtn = document.getElementById('classic-mode-btn');
@@ -2459,6 +2493,7 @@ if (welcomeDashboard) {
 
   // ▶ Play vs AI — dismiss and start the game
   document.getElementById('wd-play-btn')?.addEventListener('click', () => {
+    Game.setLocal2PMode(false);
     dismissWelcomeDashboard();
     const st = Game.getState();
     if (st.gameOver) {
@@ -2474,7 +2509,63 @@ if (welcomeDashboard) {
     updateStartButton();
   });
 
-  // ⚙️ Setup Board
+  // 👥 Local 2P — dismiss and start with no AI
+  document.getElementById('wd-local2p-btn')?.addEventListener('click', () => {
+    Game.setLocal2PMode(true);
+    dismissWelcomeDashboard();
+    const st = Game.getState();
+    if (st.gameOver) {
+      Game.newGame();
+      MoveListUI.resetGameTimer();
+      loadRandomArticles();
+    }
+    if (!st.gameStarted || st.gameOver) {
+      Game.startGame();
+      MoveListUI.startGameTimer();
+    }
+    syncRendererState();
+    updateStartButton();
+    // Update player labels for 2P mode
+    const topName = document.getElementById('cpb-top-name');
+    const bottomName = document.getElementById('cpb-bottom-name');
+    if (topName) topName.textContent = 'Player 2';
+    if (bottomName) bottomName.textContent = 'Player 1';
+  });
+
+  // AI Difficulty +/- on welcome dashboard
+  const wdAiLevel = document.getElementById('wd-ai-level');
+  const wdAiDesc = document.getElementById('wd-ai-desc');
+  const aiDescriptions: Record<number, string> = {
+    1: 'Beginner', 2: 'Beginner', 3: 'Easy', 4: 'Easy',
+    5: 'Casual', 6: 'Casual', 7: 'Fair', 8: 'Fair',
+    9: 'Balanced', 10: 'Balanced', 11: 'Strong', 12: 'Strong',
+    13: 'Hard', 14: 'Hard', 15: 'Expert', 16: 'Expert',
+    17: 'Master', 18: 'Master', 19: 'Brutal', 20: 'Brutal',
+  };
+
+  function updateWdAiDisplay(): void {
+    const level = Game.getAiAggression();
+    if (wdAiLevel) wdAiLevel.textContent = String(level);
+    if (wdAiDesc) wdAiDesc.textContent = aiDescriptions[level] || 'Balanced';
+  }
+  updateWdAiDisplay();
+
+  document.getElementById('wd-ai-down')?.addEventListener('click', () => {
+    const current = Game.getAiAggression();
+    if (current > 1) {
+      Game.setAiAggression(current - 1);
+      updateWdAiDisplay();
+    }
+  });
+  document.getElementById('wd-ai-up')?.addEventListener('click', () => {
+    const current = Game.getAiAggression();
+    if (current < 20) {
+      Game.setAiAggression(current + 1);
+      updateWdAiDisplay();
+    }
+  });
+
+  // ⚔️ Battle Prep (was Setup Board)
   document.getElementById('wd-setup-btn')?.addEventListener('click', () => {
     dismissWelcomeDashboard();
     setTimeout(() => openSetupMode(), 100);

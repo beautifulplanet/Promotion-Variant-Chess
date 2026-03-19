@@ -103,6 +103,9 @@ let aiVsAiMode = false;
 // Multiplayer online mode — when true, AI is disabled and moves go to/from server
 let multiplayerMode = false;
 
+// Local 2-player mode — both sides human-controlled, no AI
+let local2PMode = false;
+
 // Analysis mode — custom position, no ELO changes
 let analysisMode = false;
 
@@ -577,13 +580,13 @@ function _handleSquareClickInner(row: number, col: number): boolean {
   const currentTurn = engine.turn();
 
   // T8: Explicit turn guard — reject all clicks when it's not the player's turn
-  if (currentTurn !== state.playerColor && !aiVsAiMode) return false;
+  if (currentTurn !== state.playerColor && !aiVsAiMode && !local2PMode) return false;
 
   const board = engine.getBoard();
   const clickedPiece = board[row][col];
 
   // Capture pre-move analysis when player first selects a piece (not already selected)
-  if (!state.selectedSquare && clickedPiece && clickedPiece.color === currentTurn && currentTurn === state.playerColor) {
+  if (!state.selectedSquare && clickedPiece && clickedPiece.color === currentTurn && (currentTurn === state.playerColor || local2PMode)) {
     capturePreMoveAnalysis(3);  // Shallow depth for performance
   }
 
@@ -655,7 +658,7 @@ function _handleSquareClickInner(row: number, col: number): boolean {
     }
   } else {
     // No selection - select a piece if it's the current player's turn
-    if (clickedPiece && clickedPiece.color === currentTurn && currentTurn === state.playerColor) {
+    if (clickedPiece && clickedPiece.color === currentTurn && (currentTurn === state.playerColor || local2PMode)) {
       selectSquare(row, col);
     }
   }
@@ -824,6 +827,18 @@ export function startAiVsAi(): void {
  */
 export function isAiVsAiMode(): boolean {
   return aiVsAiMode;
+}
+
+/**
+ * Enable/disable local 2-player mode (both sides human, no AI)
+ */
+export function setLocal2PMode(enabled: boolean): void {
+  local2PMode = enabled;
+  console.log('[Game] Local 2P mode:', enabled ? 'ON' : 'OFF');
+}
+
+export function isLocal2PMode(): boolean {
+  return local2PMode;
 }
 
 /**
@@ -1794,6 +1809,9 @@ let moveGeneration = 0;
 function scheduleAIMove(): void {
   // In multiplayer mode, opponent moves come from the server — don't use AI
   if (multiplayerMode) return;
+
+  // In local 2-player mode, both sides are human — no AI
+  if (local2PMode) return;
 
   DEBUG_LOG('[AI] scheduleAIMove called, gameOver:', state.gameOver, 'gameStarted:', state.gameStarted);
   if (onAIThinking) onAIThinking(true);

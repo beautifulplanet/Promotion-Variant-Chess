@@ -2527,6 +2527,116 @@
     .wd-hero-btn:active {
       transform: scale(0.98);
     }
+    .wd-hero-secondary {
+      background: var(--btn-secondary, #6a6a5a);
+    }
+
+    /* AI Difficulty row on welcome dashboard */
+    .wd-ai-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 8px 0;
+    }
+    .wd-ai-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 22px;
+      font-weight: 700;
+      border: 2px solid var(--border, #c0b8a0);
+      background: var(--card-bg, #f5f0e4);
+      color: var(--text, #2a2824);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: 'Playfair Display', serif;
+    }
+    .wd-ai-btn:hover { background: var(--hover-bg, #e8e0cc); }
+    .wd-ai-display {
+      text-align: center;
+      min-width: 80px;
+    }
+    .wd-ai-level {
+      display: block;
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--text, #2a2824);
+      line-height: 1;
+    }
+    .wd-ai-desc {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted, #8a8474);
+      margin-top: 2px;
+    }
+
+    /* Overflow menus (3D mode + classic mode) */
+    .bo-overflow-menu {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 35;
+      background: rgba(20,18,16,0.95);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 6px 0;
+      min-width: 180px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    .bo-overflow-item {
+      display: block;
+      width: 100%;
+      padding: 10px 18px;
+      background: none;
+      border: none;
+      font-family: 'Playfair Display', serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.88);
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.12s;
+      white-space: nowrap;
+    }
+    .bo-overflow-item:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .cab-overflow-menu {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: #3a3835;
+      border: 1px solid #555;
+      border-radius: 10px;
+      padding: 8px 0;
+      min-width: 200px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    .cab-overflow-item {
+      display: block;
+      width: 100%;
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      font-size: 15px;
+      color: #ddd;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.12s;
+      white-space: nowrap;
+    }
+    .cab-overflow-item:hover {
+      background: rgba(255,255,255,0.08);
+    }
 
     /* Section headers */
     .wd-section-header {
@@ -3121,8 +3231,22 @@
         </button>
       </div>
 
-      <!-- Hero play button -->
-      <button class="wd-hero-btn" id="wd-play-btn" style="margin-top:18px;">▶ &nbsp;Play vs AI</button>
+      <!-- AI Difficulty -->
+      <div class="wd-section-header">AI Difficulty</div>
+      <div class="wd-ai-row">
+        <button class="wd-ai-btn" id="wd-ai-down">−</button>
+        <div class="wd-ai-display">
+          <span class="wd-ai-level" id="wd-ai-level">10</span>
+          <span class="wd-ai-desc" id="wd-ai-desc">Balanced</span>
+        </div>
+        <button class="wd-ai-btn" id="wd-ai-up">+</button>
+      </div>
+
+      <!-- Hero play buttons -->
+      <div class="wd-play-row" style="margin-top:18px; display:flex; gap:10px;">
+        <button class="wd-hero-btn" id="wd-play-btn" style="flex:1;">▶ &nbsp;Play vs AI</button>
+        <button class="wd-hero-btn wd-hero-secondary" id="wd-local2p-btn" style="flex:1;">👥 &nbsp;Local 2P</button>
+      </div>
 
       <!-- Actions -->
       <div class="wd-section-header">Actions</div>
@@ -3133,9 +3257,9 @@
           <span class="wd-btn-desc">Resume from a .json save file</span>
         </button>
         <button class="wd-btn" id="wd-setup-btn">
-          <span class="wd-btn-icon">⚙️</span>
-          <span class="wd-btn-label">Setup Board</span>
-          <span class="wd-btn-desc">Arrange your army &amp; deploy bonus pieces</span>
+          <span class="wd-btn-icon">⚔️</span>
+          <span class="wd-btn-label">Battle Prep</span>
+          <span class="wd-btn-desc">Bank pieces, set your 3-row formation — not normal chess</span>
         </button>
         <button class="wd-btn" id="wd-online-btn">
           <span class="wd-btn-icon">🌐</span>
@@ -3275,59 +3399,60 @@
       <!-- CLASSIC MODE: compact inline move list -->
       <div id="classic-moves" class="classic-moves"></div>
 
-      <!-- EASY ACCESS BUTTONS (positioned over the board via center-section) -->
+      <!-- PRIMARY BUTTONS (positioned over the board — essentials only) -->
       <div class="board-overlay-btns">
         <button id="start-game-btn" class="bo-btn primary">▶ New</button>
         <button id="resign-btn" class="bo-btn danger" style="display:none;">⚐ Resign</button>
         <span class="bo-sep">·</span>
         <button id="undo-btn" class="bo-btn">↩ Undo</button>
         <span class="bo-sep">·</span>
-        <button id="save-btn" class="bo-btn">💾 Save</button>
-        <span class="bo-sep">·</span>
-        <button id="options-btn" class="bo-btn">⚙️ Opt</button>
-        <span class="bo-sep">·</span>
         <button id="bo-flip-btn" class="bo-btn">🔄 Flip</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-board-style-btn" class="bo-btn">🏁 Board</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-piece-2d-btn" class="bo-btn">🖼️ 2D</button>
-        <span class="bo-sep">·</span>
-        <button id="mp-quick-btn" class="bo-btn">🌐 MP</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-puzzle-btn" class="bo-btn">🧩 Puzzles</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-editor-btn" class="bo-btn">📐 Editor</button>
         <span class="bo-sep">·</span>
         <button id="bo-difficulty-btn" class="bo-btn">⚔️ AI: <span id="bo-ai-level">10</span></button>
         <span class="bo-sep">·</span>
-        <button id="how-to-play-btn" class="bo-btn">❓ How to Play</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-classic-btn" class="bo-btn">♟ Classic</button>
-        <span class="bo-sep">·</span>
-        <button id="bo-gfx-btn" class="bo-btn">🔥 GFX: High</button>
+        <button id="bo-more-btn" class="bo-btn">☰ More</button>
       </div>
 
-      <!-- CLASSIC MODE: bottom action bar (large touch-friendly buttons) -->
+      <!-- OVERFLOW MENU (shown when "More" is clicked) -->
+      <div id="bo-overflow-menu" class="bo-overflow-menu" style="display:none;">
+        <button id="save-btn" class="bo-overflow-item">💾 Save</button>
+        <button id="options-btn" class="bo-overflow-item">⚙️ Settings</button>
+        <button id="bo-board-style-btn" class="bo-overflow-item">🏁 Board Style</button>
+        <button id="bo-piece-2d-btn" class="bo-overflow-item">🖼️ Piece Style</button>
+        <button id="bo-gfx-btn" class="bo-overflow-item">🔥 GFX: High</button>
+        <button id="mp-quick-btn" class="bo-overflow-item">🌐 Multiplayer</button>
+        <button id="bo-puzzle-btn" class="bo-overflow-item">🧩 Puzzles</button>
+        <button id="bo-editor-btn" class="bo-overflow-item">📐 Editor</button>
+        <button id="how-to-play-btn" class="bo-overflow-item">❓ How to Play</button>
+        <button id="bo-classic-btn" class="bo-overflow-item">♟ Classic Mode</button>
+      </div>
+
+      <!-- CLASSIC MODE: bottom action bar (essentials + More menu) -->
       <div id="classic-action-bar" class="classic-action-bar">
         <button class="cab-btn cab-primary" id="cab-new-btn"><span class="cab-icon">▶</span><span class="cab-label">New</span></button>
         <button class="cab-btn cab-danger" id="cab-resign-btn" style="display:none;"><span class="cab-icon">⚑</span><span class="cab-label">Resign</span></button>
         <button class="cab-btn" id="cab-undo-btn"><span class="cab-icon">↩</span><span class="cab-label">Undo</span></button>
-        <button class="cab-btn" id="cab-save-btn"><span class="cab-icon">💾</span><span class="cab-label">Save</span></button>
-        <button class="cab-btn" id="cab-load-btn"><span class="cab-icon">📂</span><span class="cab-label">Load</span></button>
-        <button class="cab-btn" id="cab-setup-btn"><span class="cab-icon">🔧</span><span class="cab-label">Setup Board</span></button>
-        <button class="cab-btn" id="cab-puzzle-btn"><span class="cab-icon">🧩</span><span class="cab-label">Puzzles</span></button>
-        <button class="cab-btn" id="cab-editor-btn"><span class="cab-icon">📐</span><span class="cab-label">Editor</span></button>
-        <button class="cab-btn" id="cab-difficulty-btn"><span class="cab-icon">⚔️</span><span class="cab-label">AI: <span id="cab-ai-level">10</span></span></button>
         <button class="cab-btn" id="cab-flip-btn"><span class="cab-icon">🔄</span><span class="cab-label">Flip</span></button>
-        <button class="cab-btn" id="cab-3d-btn"><span class="cab-icon">🎨</span><span class="cab-label">3D</span></button>
-        <button class="cab-btn" id="cab-2d-btn"><span class="cab-icon">🖼️</span><span class="cab-label">2D</span></button>
-        <button class="cab-btn" id="cab-board-btn"><span class="cab-icon">🏁</span><span class="cab-label">Board</span></button>
-        <button class="cab-btn" id="cab-watch-btn"><span class="cab-icon">🤖</span><span class="cab-label">Watch</span></button>
-        <button class="cab-btn" id="cab-speed-btn" style="display:none;"><span class="cab-icon">⏱️</span><span class="cab-label">5s</span></button>
-        <button class="cab-btn" id="cab-stats-btn"><span class="cab-icon">📊</span><span class="cab-label">Stats</span></button>
-        <button class="cab-btn" id="cab-explore-btn"><span class="cab-icon">🌌</span><span class="cab-label">Explore</span></button>
-        <button class="cab-btn" id="cab-settings-btn"><span class="cab-icon">⚙</span><span class="cab-label">Settings</span></button>
-        <button class="cab-btn" id="cab-exit-btn"><span class="cab-icon">✕</span><span class="cab-label">Classic</span></button>
+        <button class="cab-btn" id="cab-difficulty-btn"><span class="cab-icon">⚔️</span><span class="cab-label">AI: <span id="cab-ai-level">10</span></span></button>
+        <button class="cab-btn" id="cab-more-btn"><span class="cab-icon">☰</span><span class="cab-label">More</span></button>
+      </div>
+
+      <!-- CLASSIC MODE: overflow menu (hidden by default) -->
+      <div id="cab-overflow-menu" class="cab-overflow-menu" style="display:none;">
+        <button class="cab-overflow-item" id="cab-save-btn">💾 Save</button>
+        <button class="cab-overflow-item" id="cab-load-btn">📂 Load</button>
+        <button class="cab-overflow-item" id="cab-setup-btn">🔧 Battle Prep</button>
+        <button class="cab-overflow-item" id="cab-puzzle-btn">🧩 Puzzles</button>
+        <button class="cab-overflow-item" id="cab-editor-btn">📐 Editor</button>
+        <button class="cab-overflow-item" id="cab-3d-btn">🎨 3D View</button>
+        <button class="cab-overflow-item" id="cab-2d-btn">🖼️ 2D Style</button>
+        <button class="cab-overflow-item" id="cab-board-btn">🏁 Board Style</button>
+        <button class="cab-overflow-item" id="cab-watch-btn">🤖 Watch AI</button>
+        <button class="cab-overflow-item" id="cab-speed-btn" style="display:none;">⏱️ 5s</button>
+        <button class="cab-overflow-item" id="cab-stats-btn">📊 Stats</button>
+        <button class="cab-overflow-item" id="cab-explore-btn">🌌 Explore</button>
+        <button class="cab-overflow-item" id="cab-settings-btn">⚙ Settings</button>
+        <button class="cab-overflow-item" id="cab-exit-btn">✕ Exit Classic</button>
       </div>
 
       <!-- OPEN TABLES -->
