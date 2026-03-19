@@ -1033,11 +1033,24 @@ function updateAggressionDisplay(): void {
   if (aggressionLevelDisplay) aggressionLevelDisplay.textContent = String(level);
   if (aggressionDescDisplay) aggressionDescDisplay.textContent = Game.getAggressionDescription(level);
   if (aggressionSlider) aggressionSlider.value = String(level);
-  // Sync quick-access labels in classic and full mode bars
+  // Sync quick-access labels in classic, full mode, and welcome dashboard
   const cabLvl = document.getElementById('cab-ai-level');
   const boLvl = document.getElementById('bo-ai-level');
+  const wdLvl = document.getElementById('wd-ai-level');
+  const wdDesc = document.getElementById('wd-ai-desc');
   if (cabLvl) cabLvl.textContent = String(level);
   if (boLvl) boLvl.textContent = String(level);
+  if (wdLvl) wdLvl.textContent = String(level);
+  if (wdDesc) {
+    const descs: Record<number, string> = {
+      1: 'Beginner', 2: 'Beginner', 3: 'Easy', 4: 'Easy',
+      5: 'Casual', 6: 'Casual', 7: 'Fair', 8: 'Fair',
+      9: 'Balanced', 10: 'Balanced', 11: 'Strong', 12: 'Strong',
+      13: 'Hard', 14: 'Hard', 15: 'Expert', 16: 'Expert',
+      17: 'Master', 18: 'Master', 19: 'Brutal', 20: 'Brutal',
+    };
+    wdDesc.textContent = descs[level] || 'Balanced';
+  }
 }
 
 if (aggressionSlider) {
@@ -2107,35 +2120,45 @@ window.addEventListener('beforeunload', () => {
 // ── Overflow menus (3D mode + Classic mode) ────────────────────────────────
 const boOverflowMenu = document.getElementById('bo-overflow-menu');
 const cabOverflowMenu = document.getElementById('cab-overflow-menu');
+const boMoreBtn = document.getElementById('bo-more-btn');
+const cabMoreBtn = document.getElementById('cab-more-btn');
+
+function closeAllOverflows(): void {
+  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
+  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
+}
 
 // 3D mode "More" button toggles overflow menu
-document.getElementById('bo-more-btn')?.addEventListener('click', (e) => {
+boMoreBtn?.addEventListener('click', (e) => {
   e.stopPropagation();
+  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
   if (boOverflowMenu) {
     boOverflowMenu.style.display = boOverflowMenu.style.display === 'none' ? 'block' : 'none';
   }
 });
 
 // Classic mode "More" button toggles overflow menu
-document.getElementById('cab-more-btn')?.addEventListener('click', (e) => {
+cabMoreBtn?.addEventListener('click', (e) => {
   e.stopPropagation();
+  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
   if (cabOverflowMenu) {
     cabOverflowMenu.style.display = cabOverflowMenu.style.display === 'none' ? 'block' : 'none';
   }
 });
 
-// Close overflow menus when clicking outside
-document.addEventListener('click', () => {
-  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
-  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
+// Close when clicking outside (skip if click is inside a menu)
+document.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (boOverflowMenu?.contains(target) || cabOverflowMenu?.contains(target)) return;
+  closeAllOverflows();
 });
 
-// Close overflow menus when any item inside is clicked
+// Close after any item inside is clicked (slight delay so the item handler fires first)
 boOverflowMenu?.addEventListener('click', () => {
-  if (boOverflowMenu) boOverflowMenu.style.display = 'none';
+  setTimeout(() => closeAllOverflows(), 50);
 });
 cabOverflowMenu?.addEventListener('click', () => {
-  if (cabOverflowMenu) cabOverflowMenu.style.display = 'none';
+  setTimeout(() => closeAllOverflows(), 50);
 });
 
 // ── Classic Mode + Graphics Quality toggle buttons ─────────────────────────
@@ -2532,36 +2555,21 @@ if (welcomeDashboard) {
     if (bottomName) bottomName.textContent = 'Player 1';
   });
 
-  // AI Difficulty +/- on welcome dashboard
-  const wdAiLevel = document.getElementById('wd-ai-level');
-  const wdAiDesc = document.getElementById('wd-ai-desc');
-  const aiDescriptions: Record<number, string> = {
-    1: 'Beginner', 2: 'Beginner', 3: 'Easy', 4: 'Easy',
-    5: 'Casual', 6: 'Casual', 7: 'Fair', 8: 'Fair',
-    9: 'Balanced', 10: 'Balanced', 11: 'Strong', 12: 'Strong',
-    13: 'Hard', 14: 'Hard', 15: 'Expert', 16: 'Expert',
-    17: 'Master', 18: 'Master', 19: 'Brutal', 20: 'Brutal',
-  };
-
-  function updateWdAiDisplay(): void {
-    const level = Game.getAiAggression();
-    if (wdAiLevel) wdAiLevel.textContent = String(level);
-    if (wdAiDesc) wdAiDesc.textContent = aiDescriptions[level] || 'Balanced';
-  }
-  updateWdAiDisplay();
+  // AI Difficulty +/- on welcome dashboard (uses centralized updateAggressionDisplay)
+  updateAggressionDisplay();
 
   document.getElementById('wd-ai-down')?.addEventListener('click', () => {
     const current = Game.getAiAggression();
     if (current > 1) {
       Game.setAiAggression(current - 1);
-      updateWdAiDisplay();
+      updateAggressionDisplay();
     }
   });
   document.getElementById('wd-ai-up')?.addEventListener('click', () => {
     const current = Game.getAiAggression();
     if (current < 20) {
       Game.setAiAggression(current + 1);
-      updateWdAiDisplay();
+      updateAggressionDisplay();
     }
   });
 
