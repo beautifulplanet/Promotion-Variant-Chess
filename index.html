@@ -3231,15 +3231,21 @@
         </button>
       </div>
 
-      <!-- AI Difficulty -->
-      <div class="wd-section-header">AI Difficulty</div>
-      <div class="wd-ai-row">
-        <button class="wd-ai-btn" id="wd-ai-down">−</button>
-        <div class="wd-ai-display">
-          <span class="wd-ai-level" id="wd-ai-level">10</span>
-          <span class="wd-ai-desc" id="wd-ai-desc">Balanced</span>
+      <!-- AI Cheat Bar -->
+      <div class="wd-section-header">AI Cheat Bar</div>
+      <div class="wd-ai-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:10px; color:var(--sidebar-text-muted,#8a7e6e);">0</span>
+          <input type="range" id="wd-ai-slider" min="0" max="20" value="0" step="1" style="flex:1; accent-color:var(--sidebar-accent, #8b4513);">
+          <span style="font-size:10px; color:var(--sidebar-text-muted,#8a7e6e);">20</span>
         </div>
-        <button class="wd-ai-btn" id="wd-ai-up">+</button>
+        <div style="text-align:center;">
+          <span class="wd-ai-level" id="wd-ai-level" style="font-size:20px; font-weight:700;">0</span>
+          <span class="wd-ai-desc" id="wd-ai-desc" style="font-size:11px; display:block; color:var(--sidebar-text-muted,#8a7e6e);">Off</span>
+        </div>
+        <div id="wd-ai-locked-msg" style="display:none; text-align:center; font-size:10px; color:#c44; font-style:italic;">
+          ⚠ Locked — AI Cheat level cannot be changed after starting a game. Return to Home to change it.
+        </div>
       </div>
 
       <!-- Hero play buttons -->
@@ -3248,18 +3254,18 @@
         <button class="wd-hero-btn wd-hero-secondary" id="wd-local2p-btn" style="flex:1;">👥 &nbsp;Local 2P</button>
       </div>
 
-      <!-- Actions -->
-      <div class="wd-section-header">Actions</div>
+      <!-- Piece Setup — promoted to hero level (the core Promotion Chess mechanic) -->
+      <div style="margin-top:10px;">
+        <button class="wd-hero-btn" id="wd-setup-btn" style="width:100%; background:var(--sidebar-accent, #8b4513); border-color:var(--sidebar-accent, #8b4513); font-size:16px; padding:14px 20px;">♟ &nbsp;Piece Setup <span style="font-size:12px; font-weight:400; opacity:0.85;">— set up your 3-row formation &amp; bank pieces</span></button>
+      </div>
+
+      <!-- Tools & Help -->
+      <div class="wd-section-header">Tools &amp; Help</div>
       <div class="wd-btn-grid">
         <button class="wd-btn" id="wd-load-btn">
           <span class="wd-btn-icon">📂</span>
           <span class="wd-btn-label">Load Game</span>
           <span class="wd-btn-desc">Resume from a .json save file</span>
-        </button>
-        <button class="wd-btn" id="wd-setup-btn">
-          <span class="wd-btn-icon">⚔️</span>
-          <span class="wd-btn-label">Battle Prep</span>
-          <span class="wd-btn-desc">Bank pieces, set your 3-row formation — not normal chess</span>
         </button>
         <button class="wd-btn" id="wd-online-btn">
           <span class="wd-btn-icon">🌐</span>
@@ -3408,7 +3414,7 @@
         <span class="bo-sep">·</span>
         <button id="bo-flip-btn" class="bo-btn">🔄 Flip</button>
         <span class="bo-sep">·</span>
-        <button id="bo-difficulty-btn" class="bo-btn">⚔️ AI: <span id="bo-ai-level">10</span></button>
+        <button id="bo-setup-bar-btn" class="bo-btn">♟ Setup</button>
         <span class="bo-sep">·</span>
         <button id="bo-more-btn" class="bo-btn">☰ More</button>
       </div>
@@ -3429,11 +3435,12 @@
 
       <!-- CLASSIC MODE: bottom action bar (essentials + More menu) -->
       <div id="classic-action-bar" class="classic-action-bar">
+        <button class="cab-btn" id="cab-home-btn"><span class="cab-icon">🏠</span><span class="cab-label">Home</span></button>
         <button class="cab-btn cab-primary" id="cab-new-btn"><span class="cab-icon">▶</span><span class="cab-label">New</span></button>
         <button class="cab-btn cab-danger" id="cab-resign-btn" style="display:none;"><span class="cab-icon">⚑</span><span class="cab-label">Resign</span></button>
         <button class="cab-btn" id="cab-undo-btn"><span class="cab-icon">↩</span><span class="cab-label">Undo</span></button>
         <button class="cab-btn" id="cab-flip-btn"><span class="cab-icon">🔄</span><span class="cab-label">Flip</span></button>
-        <button class="cab-btn" id="cab-difficulty-btn"><span class="cab-icon">⚔️</span><span class="cab-label">AI: <span id="cab-ai-level">10</span></span></button>
+        <button class="cab-btn" id="cab-setup-bar-btn"><span class="cab-icon">♟</span><span class="cab-label">Setup</span></button>
         <button class="cab-btn" id="cab-more-btn"><span class="cab-icon">☰</span><span class="cab-label">More</span></button>
       </div>
 
@@ -3441,7 +3448,7 @@
       <div id="cab-overflow-menu" class="cab-overflow-menu" style="display:none;">
         <button class="cab-overflow-item" id="cab-save-btn">💾 Save</button>
         <button class="cab-overflow-item" id="cab-load-btn">📂 Load</button>
-        <button class="cab-overflow-item" id="cab-setup-btn">🔧 Battle Prep</button>
+        <button class="cab-overflow-item" id="cab-setup-btn">🔧 Piece Setup</button>
         <button class="cab-overflow-item" id="cab-puzzle-btn">🧩 Puzzles</button>
         <button class="cab-overflow-item" id="cab-editor-btn">📐 Editor</button>
         <button class="cab-overflow-item" id="cab-3d-btn">🎨 3D View</button>
@@ -3719,7 +3726,7 @@
           <li><strong>3-Row Setup:</strong> Unlike normal chess, you get a third empty row to arrange pieces in. Combined with piece banking, this creates a whole new layer of strategy before the game even starts.</li>
           <li><strong>20 Historical Eras:</strong> From Cretaceous dinosaurs to Neon City to deep space. Each era has unique 3D scenery, lighting, and atmosphere.</li>
           <li><strong>AI Scales With You:</strong> The AI uses Stockfish calibrated to your ELO. At high levels, the AI also gets bonus pieces to keep things fair.</li>
-          <li><strong>AI Aggression Slider:</strong> Control how aggressively the AI compensates. Slide it down for a gentler experience, up for a brutal challenge.</li>
+          <li><strong>AI Cheat Bar (Locked at game start):</strong> Set the AI difficulty level from 0 (Off) to 20 (Brutal) on the main dashboard <strong>before</strong> you play. Once you start a game, this level is locked and cannot be changed until you return to the Home screen. This prevents mid-game difficulty switching and keeps your progression fair.</li>
           <li><strong>Board Profiles:</strong> Save and load your favorite piece arrangements.</li>
           <li><strong>Newspaper Theme:</strong> The entire UI is styled like a vintage newspaper. Headlines react to your games with humorous articles.</li>
           <li><strong>Dynamic 3D World:</strong> Procedural skyboxes, particle effects, animated environments, and dynamic lighting that change per era.</li>

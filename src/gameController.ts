@@ -857,13 +857,14 @@ export function getAiSpeed(): number {
 }
 
 /**
- * Set AI aggression level (1-20)
+ * Set AI aggression level (0-20)
+ * 0 = off — AI plays basic chess, no bonus pieces
  * 1 = vanilla chess, AI gets no bonus pieces
  * 10 = current balanced behavior (default)
  * 20 = brutal — AI gets 2x bonus, rearranges pieces, lower ELO threshold
  */
 export function setAiAggression(level: number): void {
-  aiAggressionLevel = Math.max(1, Math.min(20, Math.round(level)));
+  aiAggressionLevel = Math.max(0, Math.min(20, Math.round(level)));
   console.log('[Game] AI aggression set to:', aiAggressionLevel);
 }
 

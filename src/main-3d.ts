@@ -1043,7 +1043,7 @@ function updateAggressionDisplay(): void {
   if (wdLvl) wdLvl.textContent = String(level);
   if (wdDesc) {
     const descs: Record<number, string> = {
-      1: 'Beginner', 2: 'Beginner', 3: 'Easy', 4: 'Easy',
+      0: 'Off', 1: 'Beginner', 2: 'Beginner', 3: 'Easy', 4: 'Easy',
       5: 'Casual', 6: 'Casual', 7: 'Fair', 8: 'Fair',
       9: 'Balanced', 10: 'Balanced', 11: 'Strong', 12: 'Strong',
       13: 'Hard', 14: 'Hard', 15: 'Expert', 16: 'Expert',
@@ -1840,11 +1840,44 @@ const welcomeDashboard = document.getElementById('welcome-dashboard');
 function dismissWelcomeDashboard(): void {
   if (!welcomeDashboard) return;
   welcomeDashboard.classList.add('hidden');
-  welcomeDashboard.addEventListener('transitionend', () => welcomeDashboard.remove(), { once: true });
+  // Hide after transition instead of removing — allows "Home" button to re-show it
+  welcomeDashboard.addEventListener('transitionend', () => {
+    if (welcomeDashboard.classList.contains('hidden')) {
+      welcomeDashboard.style.display = 'none';
+    }
+  }, { once: true });
+}
+
+/** Lock the AI Cheat Bar slider — called when a game starts */
+function lockCheatBar(): void {
+  const slider = document.getElementById('wd-ai-slider') as HTMLInputElement | null;
+  const lockMsg = document.getElementById('wd-ai-locked-msg');
+  if (slider) slider.disabled = true;
+  if (lockMsg) lockMsg.style.display = 'block';
+}
+
+/** Unlock the AI Cheat Bar slider — called when returning to Home */
+function unlockCheatBar(): void {
+  const slider = document.getElementById('wd-ai-slider') as HTMLInputElement | null;
+  const lockMsg = document.getElementById('wd-ai-locked-msg');
+  if (slider) slider.disabled = false;
+  if (lockMsg) lockMsg.style.display = 'none';
+}
+
+/** Show the welcome dashboard again (for Home / Back navigation) */
+function showWelcomeDashboard(): void {
+  if (!welcomeDashboard) return;
+  welcomeDashboard.style.display = '';
+  // Force reflow so the transition plays
+  void welcomeDashboard.offsetHeight;
+  welcomeDashboard.classList.remove('hidden');
+  // Unlock AI Cheat Bar when returning to Home
+  unlockCheatBar();
 }
 
 // Expose for e2e tests
 (window as any).__dismissWelcome__ = dismissWelcomeDashboard;
+(window as any).__showWelcome__ = showWelcomeDashboard;
 
 // Dashboard wiring is deferred to initWelcomeDashboard() which runs at the
 // bottom of the file (after all other variables/functions are defined).
@@ -2281,6 +2314,16 @@ cabSettingsBtn?.addEventListener('click', () => {
 
 cabExitBtn?.addEventListener('click', handleClassicToggle);
 
+// 🏠 Home button — return to welcome dashboard
+document.getElementById('cab-home-btn')?.addEventListener('click', () => {
+  showWelcomeDashboard();
+});
+
+// ♟ Setup button in 3D overlay bar (replaces AI difficulty button)
+document.getElementById('bo-setup-bar-btn')?.addEventListener('click', () => {
+  if (setupBtn) setupBtn.click();
+});
+
 // ── New classic bar buttons: Load, Setup, Piece Styles, Watch AI, Speed, Stats ──
 
 document.getElementById('cab-load-btn')?.addEventListener('click', async () => {
@@ -2306,6 +2349,11 @@ document.getElementById('cab-load-btn')?.addEventListener('click', async () => {
 
 document.getElementById('cab-setup-btn')?.addEventListener('click', () => {
   // Reuse the existing setup overlay
+  if (setupBtn) setupBtn.click();
+});
+
+// ♟ Piece Setup button in classic action bar (replaces AI difficulty button)
+document.getElementById('cab-setup-bar-btn')?.addEventListener('click', () => {
   if (setupBtn) setupBtn.click();
 });
 
@@ -2385,7 +2433,7 @@ function openEditorOverlay(): void {
 }
 function cycleAiDifficulty(delta: number): void {
   const current = Game.getAiAggression();
-  const next = Math.max(1, Math.min(20, current + delta));
+  const next = Math.max(0, Math.min(20, current + delta));
   Game.setAiAggression(next);
   updateAggressionDisplay();
 }
@@ -2518,6 +2566,7 @@ if (welcomeDashboard) {
   document.getElementById('wd-play-btn')?.addEventListener('click', () => {
     Game.setLocal2PMode(false);
     dismissWelcomeDashboard();
+    lockCheatBar();
     const st = Game.getState();
     if (st.gameOver) {
       Game.newGame();
@@ -2536,6 +2585,7 @@ if (welcomeDashboard) {
   document.getElementById('wd-local2p-btn')?.addEventListener('click', () => {
     Game.setLocal2PMode(true);
     dismissWelcomeDashboard();
+    lockCheatBar();
     const st = Game.getState();
     if (st.gameOver) {
       Game.newGame();
@@ -2555,25 +2605,21 @@ if (welcomeDashboard) {
     if (bottomName) bottomName.textContent = 'Player 1';
   });
 
-  // AI Difficulty +/- on welcome dashboard (uses centralized updateAggressionDisplay)
+  // AI Cheat Bar — range slider, default to 0 (Off)
+  Game.setAiAggression(0);
   updateAggressionDisplay();
 
-  document.getElementById('wd-ai-down')?.addEventListener('click', () => {
-    const current = Game.getAiAggression();
-    if (current > 1) {
-      Game.setAiAggression(current - 1);
+  const wdAiSlider = document.getElementById('wd-ai-slider') as HTMLInputElement | null;
+  if (wdAiSlider) {
+    wdAiSlider.value = '0';
+    wdAiSlider.addEventListener('input', () => {
+      const level = parseInt(wdAiSlider.value, 10);
+      Game.setAiAggression(level);
       updateAggressionDisplay();
-    }
-  });
-  document.getElementById('wd-ai-up')?.addEventListener('click', () => {
-    const current = Game.getAiAggression();
-    if (current < 20) {
-      Game.setAiAggression(current + 1);
-      updateAggressionDisplay();
-    }
-  });
+    });
+  }
 
-  // ⚔️ Battle Prep (was Setup Board)
+  // ♟ Piece Setup (was Battle Prep / Setup Board)
   document.getElementById('wd-setup-btn')?.addEventListener('click', () => {
     dismissWelcomeDashboard();
     setTimeout(() => openSetupMode(), 100);

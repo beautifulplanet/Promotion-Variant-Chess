@@ -27,11 +27,11 @@ describe('AI Aggression Slider', () => {
       expect(Game.getAiAggression()).toBe(5);
     });
 
-    it('should clamp to minimum of 1', () => {
+    it('should clamp to minimum of 0', () => {
       Game.setAiAggression(0);
-      expect(Game.getAiAggression()).toBe(1);
+      expect(Game.getAiAggression()).toBe(0);
       Game.setAiAggression(-5);
-      expect(Game.getAiAggression()).toBe(1);
+      expect(Game.getAiAggression()).toBe(0);
     });
 
     it('should clamp to maximum of 20', () => {
