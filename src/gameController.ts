@@ -37,6 +37,144 @@ function isMovePromotion(move: string): boolean {
   return false;
 }
 
+function algebraicSquareToRowCol(square: string): { row: number; col: number } {
+  const col = square.charCodeAt(0) - 97;
+  const row = 8 - parseInt(square[1], 10);
+  return { row, col };
+}
+
+function bonusSquareKey(row: number, col: number): string {
+  return `${row},${col}`;
+}
+
+/** Which player promotions came from a pawn that started as a bank / "bonus" piece (setup isBonus). */
+let currentGamePromotionsFromBankPawn: boolean[] = [];
+
+/**
+ * Squares occupied by the player's pieces that exceed standard per-type counts.
+ * Matches setup-mode isBonus so we know when a promoted pawn should not also return as P from deployedFromInventory.
+ */
+let playerBonusSquares: Set<string> = new Set();
+
+/** Mirrors engine undo: one snapshot pushed before each successful makeMove. */
+let playerBonusSquaresUndoStack: Set<string>[] = [];
+
+function rebuildPlayerBonusSquaresFromBoard(): void {
+  const board = engine.getBoard();
+  const pc = state.playerColor;
+  const baseCounts: Record<string, number> = { K: 1, Q: 1, R: 2, B: 2, N: 2, P: 8 };
+  const found: Record<string, number> = { K: 0, Q: 0, R: 0, B: 0, N: 0, P: 0 };
+  const startRow = pc === 'white' ? 5 : 0;
+  const endRow = pc === 'white' ? 7 : 2;
+  const next = new Set<string>();
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col];
+      if (piece && piece.color === pc) {
+        const t = piece.type.toUpperCase();
+        found[t] = (found[t] || 0) + 1;
+        if (found[t] > (baseCounts[t] || 0)) {
+          next.add(bonusSquareKey(row, col));
+        }
+      }
+    }
+  }
+  playerBonusSquares = next;
+}
+
+function pushBonusSquaresUndoSnapshot(): void {
+  playerBonusSquaresUndoStack.push(new Set(playerBonusSquares));
+}
+
+function popBonusSquaresUndoSnapshot(): void {
+  const prev = playerBonusSquaresUndoStack.pop();
+  if (prev) playerBonusSquares = prev;
+}
+
+/** After a successful engine.makeMove — chess.js or Rust MoveResult shape. */
+function applyBonusTrackingAfterEngineMove(result: {
+  color: string;
+  from: string;
+  to: string;
+  piece: string;
+  captured?: string;
+  flags: string;
+}): void {
+  const movedColor = result.color === 'w' ? 'white' : 'black';
+  const from = algebraicSquareToRowCol(result.from);
+  const to = algebraicSquareToRowCol(result.to);
+
+  if (movedColor !== state.playerColor) {
+    if (result.flags === 'e') {
+      playerBonusSquares.delete(bonusSquareKey(from.row, to.col));
+      return;
+    }
+    if (result.captured) {
+      playerBonusSquares.delete(bonusSquareKey(to.row, to.col));
+    }
+    return;
+  }
+
+  if (result.piece === 'k' && (result.flags === 'k' || result.flags === 'q')) {
+    const pc = state.playerColor;
+    const wasKingBonus = playerBonusSquares.delete(bonusSquareKey(from.row, from.col));
+    let rookFrom: { row: number; col: number };
+    let rookTo: { row: number; col: number };
+    if (pc === 'white') {
+      if (result.flags === 'k') {
+        rookFrom = { row: 7, col: 7 };
+        rookTo = { row: 7, col: 5 };
+      } else {
+        rookFrom = { row: 7, col: 0 };
+        rookTo = { row: 7, col: 3 };
+      }
+    } else {
+      if (result.flags === 'k') {
+        rookFrom = { row: 0, col: 7 };
+        rookTo = { row: 0, col: 5 };
+      } else {
+        rookFrom = { row: 0, col: 0 };
+        rookTo = { row: 0, col: 3 };
+      }
+    }
+    const wasRookBonus = playerBonusSquares.delete(bonusSquareKey(rookFrom.row, rookFrom.col));
+    if (wasKingBonus) playerBonusSquares.add(bonusSquareKey(to.row, to.col));
+    if (wasRookBonus) playerBonusSquares.add(bonusSquareKey(rookTo.row, rookTo.col));
+    return;
+  }
+
+  const wasBonus = playerBonusSquares.delete(bonusSquareKey(from.row, from.col));
+  if (result.flags === 'e') {
+    playerBonusSquares.delete(bonusSquareKey(from.row, to.col));
+  }
+  if (wasBonus) playerBonusSquares.add(bonusSquareKey(to.row, to.col));
+}
+
+/**
+ * Return deployed-from-inventory pieces to the bank, but do not credit a pawn for each promotion
+ * that came from a bank pawn — that pawn no longer exists as P (it became Q/R/B/N).
+ */
+function addDeployedInventoryBackAdjustedForPromotions(): void {
+  const ret: PieceInventory = {
+    P: deployedFromInventory.P,
+    N: deployedFromInventory.N,
+    B: deployedFromInventory.B,
+    R: deployedFromInventory.R,
+    Q: deployedFromInventory.Q,
+  };
+  const n = Math.min(currentGamePromotions.length, currentGamePromotionsFromBankPawn.length);
+  for (let i = 0; i < n; i++) {
+    if (currentGamePromotionsFromBankPawn[i] && ret.P > 0) {
+      ret.P--;
+    }
+  }
+  pieceInventory.P += ret.P;
+  pieceInventory.N += ret.N;
+  pieceInventory.B += ret.B;
+  pieceInventory.R += ret.R;
+  pieceInventory.Q += ret.Q;
+}
+
 // Piece values for capture priority (used in AI move selection)
 function getPieceValueForCapture(type: PieceType): number {
   switch (type) {
@@ -173,6 +311,9 @@ export function initGame(): GameState {
   pieceInventory = currentSaveData.pieceInventory || { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
   currentGamePromotions = [];
+  currentGamePromotionsFromBankPawn = [];
+  playerBonusSquares = new Set();
+  playerBonusSquaresUndoStack = [];
 
   // Start with standard position
   setupBoardWithPromotions();
@@ -240,12 +381,16 @@ export async function loadProgress(): Promise<boolean> {
     state.selectedSquare = null;
     state.legalMovesForSelected = [];
     currentGamePromotions = [];
+    currentGamePromotionsFromBankPawn = [];
+    playerBonusSquares = new Set();
+    playerBonusSquaresUndoStack = [];
 
     // Check if there was a game in progress
     if (data.currentGameFEN && data.currentGameStarted) {
       const loaded = engine.loadFEN(data.currentGameFEN);
       if (loaded) {
         state.gameStarted = true;
+        rebuildPlayerBonusSquaresFromBoard();
         console.log('[Game] Restored game in progress from FEN:', data.currentGameFEN);
       } else {
         console.warn('[Game] Failed to restore game position (invalid FEN), starting fresh');
@@ -464,6 +609,7 @@ export function undoMove(): boolean {
   if (currentTurn === state.playerColor) {
     // Player's turn — AI already moved. Undo AI move first.
     if (engine.undo()) {
+      popBonusSquaresUndoSnapshot();
       console.log('[Game] Undid AI move');
     } else {
       console.warn('[Game] Failed to undo AI move (no move to undo)');
@@ -476,9 +622,11 @@ export function undoMove(): boolean {
       const lastMove = history[history.length - 1];
       if (lastMove && isMovePromotion(lastMove)) {
         currentGamePromotions.pop();
+        currentGamePromotionsFromBankPawn.pop();
         console.log('[Game] Rolled back promotion credit');
       }
       if (engine.undo()) {
+        popBonusSquaresUndoSnapshot();
         console.log('[Game] Also undid player move');
       }
     }
@@ -490,9 +638,11 @@ export function undoMove(): boolean {
     const lastMove1 = history1[history1.length - 1];
     if (lastMove1 && isMovePromotion(lastMove1)) {
       currentGamePromotions.pop();
+      currentGamePromotionsFromBankPawn.pop();
       console.log('[Game] Rolled back promotion credit');
     }
     if (engine.undo()) {
+      popBonusSquaresUndoSnapshot();
       console.log('[Game] Undid player move (AI was cancelled)');
     } else {
       console.warn('[Game] Failed to undo player move');
@@ -613,9 +763,11 @@ function _handleSquareClickInner(row: number, col: number): boolean {
         return false;  // Move not complete yet
       }
 
+      pushBonusSquaresUndoSnapshot();
       const result = engine.makeMove(state.selectedSquare, { row, col }, undefined);
 
       if (result) {
+        applyBonusTrackingAfterEngineMove(result);
         DEBUG_LOG('[Game] Move made:', result.san);
 
         // Fire move animation BEFORE state change
@@ -649,6 +801,7 @@ function _handleSquareClickInner(row: number, col: number): boolean {
         }
         return true;
       }
+      popBonusSquaresUndoSnapshot();
     } else if (clickedPiece && clickedPiece.color === currentTurn) {
       // Clicked on another piece of same color - select it
       selectSquare(row, col);
@@ -680,13 +833,22 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
   const { from, to } = state.pendingPromotion;
   state.pendingPromotion = null;
 
-  // Track this promotion (will be saved if player wins)
-  currentGamePromotions.push(pieceType);
-  DEBUG_LOG('[Game] Pawn promoted to', pieceType, '- will be saved if you win!');
+  const boardBefore = engine.getBoard();
+  const mover = boardBefore[from.row][from.col];
+  const isPlayerPromotion = mover?.color === state.playerColor;
+
+  const fromBankPawn = isPlayerPromotion && playerBonusSquares.has(bonusSquareKey(from.row, from.col));
+  pushBonusSquaresUndoSnapshot();
+  if (isPlayerPromotion) {
+    currentGamePromotions.push(pieceType);
+    currentGamePromotionsFromBankPawn.push(fromBankPawn);
+    DEBUG_LOG('[Game] Pawn promoted to', pieceType, '- will be saved if you win!', fromBankPawn ? '(bank pawn)' : '(standard pawn)');
+  }
 
   const result = engine.makeMove(from, to, pieceType);
 
   if (result) {
+    applyBonusTrackingAfterEngineMove(result);
     DEBUG_LOG('[Game] Promotion move made:', result.san);
 
     // Fire move animation BEFORE state change
@@ -707,6 +869,11 @@ export function completePromotion(pieceType: 'Q' | 'R' | 'B' | 'N'): boolean {
     }
     return true;
   } else {
+    if (isPlayerPromotion) {
+      currentGamePromotions.pop();
+      currentGamePromotionsFromBankPawn.pop();
+    }
+    popBonusSquaresUndoSnapshot();
     console.error('[Game] Promotion move rejected by engine!');
     return false;
   }
@@ -737,6 +904,9 @@ export function newGame(): void {
   state.legalMovesForSelected = [];
   state.pendingPromotion = null;
   currentGamePromotions = [];
+  currentGamePromotionsFromBankPawn = [];
+  playerBonusSquares = new Set();
+  playerBonusSquaresUndoStack = [];
 
   // Reset opening tracking for new game
   resetOpeningTracking();
@@ -781,10 +951,13 @@ export function startGame(): void {
   state.selectedSquare = null;
   state.legalMovesForSelected = [];
   currentGamePromotions = [];  // Reset promotions for new game
+  currentGamePromotionsFromBankPawn = [];
   aiVsAiMode = false;  // Normal player game
 
   // Re-setup board to apply any changes made in setup mode
   setupBoardWithPromotions();
+  rebuildPlayerBonusSquaresFromBoard();
+  playerBonusSquaresUndoStack = [];
 
   // Show opening name for starting position
   updateOpeningName(engine.getFEN());
@@ -812,7 +985,11 @@ export function startAiVsAi(): void {
   // Reset to standard board for AI vs AI
   currentArrangement = [];
   deployedFromInventory = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+  currentGamePromotions = [];
+  currentGamePromotionsFromBankPawn = [];
   setupBoardWithPromotions();
+  rebuildPlayerBonusSquaresFromBoard();
+  playerBonusSquaresUndoStack = [];
 
   console.log('[Game] AI vs AI mode started!');
 
@@ -1970,13 +2147,16 @@ async function makeAIMoveAsync(generation: number): Promise<void> {
   }
 
   if (move) {
+    pushBonusSquaresUndoSnapshot();
     const result = engine.makeMove(move.from, move.to, move.promotion);
     if (!result) {
+      popBonusSquaresUndoSnapshot();
       console.error('[AI] Move was rejected by engine!', move);
     }
 
     // Fire move animation for AI moves
     if (result) {
+      applyBonusTrackingAfterEngineMove(result);
       fireMoveAnimation(move.from, move.to, result.piece, result.captured, result.flags);
     }
 
@@ -2094,12 +2274,7 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
 
   // === NEW SIMPLER INVENTORY SYSTEM ===
   if (result === 'win') {
-    // Return deployed pieces to inventory (they're safe!)
-    pieceInventory.P += deployedFromInventory.P;
-    pieceInventory.N += deployedFromInventory.N;
-    pieceInventory.B += deployedFromInventory.B;
-    pieceInventory.R += deployedFromInventory.R;
-    pieceInventory.Q += deployedFromInventory.Q;
+    addDeployedInventoryBackAdjustedForPromotions();
 
     // Add any NEW promotions made this game to inventory
     const newPiecesEarned = currentGamePromotions.length;
@@ -2115,11 +2290,7 @@ function handleGameEnd(result: 'win' | 'loss' | 'draw', drawTypeMessage?: string
     console.log('[Game] Inventory after win:', pieceInventory);
   } else {
     // LOSS or DRAW: Return deployed pieces to inventory (no penalty for simplicity)
-    pieceInventory.P += deployedFromInventory.P;
-    pieceInventory.N += deployedFromInventory.N;
-    pieceInventory.B += deployedFromInventory.B;
-    pieceInventory.R += deployedFromInventory.R;
-    pieceInventory.Q += deployedFromInventory.Q;
+    addDeployedInventoryBackAdjustedForPromotions();
 
     // Promotions made during a lost game are lost
     if (currentGamePromotions.length > 0) {
@@ -2193,12 +2364,17 @@ export function startMultiplayerGame(color: 'w' | 'b', fen?: string): void {
   state.legalMovesForSelected = [];
   state.pendingPromotion = null;
   currentGamePromotions = [];
+  currentGamePromotionsFromBankPawn = [];
+  playerBonusSquares = new Set();
+  playerBonusSquaresUndoStack = [];
 
   // Reset to standard board (no custom setup in multiplayer)
   engine.reset();
   if (fen && fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
     engine.loadFEN(fen);
   }
+
+  rebuildPlayerBonusSquaresFromBoard();
 
   resetOpeningTracking();
   resetMoveQualityTracking();
@@ -2222,6 +2398,8 @@ export function startAnalysisGame(fen: string, playerColor: 'white' | 'black'): 
     return false;
   }
 
+  rebuildPlayerBonusSquaresFromBoard();
+
   state.playerColor = playerColor;
   state.gameOver = false;
   state.gameStarted = true;
@@ -2229,6 +2407,9 @@ export function startAnalysisGame(fen: string, playerColor: 'white' | 'black'): 
   state.legalMovesForSelected = [];
   state.pendingPromotion = null;
   currentGamePromotions = [];
+  currentGamePromotionsFromBankPawn = [];
+  playerBonusSquares = new Set();
+  playerBonusSquaresUndoStack = [];
 
   resetOpeningTracking();
   updateOpeningName(fen);
@@ -2278,14 +2459,17 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
 
     // Check if moveStr matches UCI
     if (moveStr === uci || moveStr === uci.toUpperCase()) {
+      pushBonusSquaresUndoSnapshot();
       const result = engine.makeMove(from, to, move.promotion);
       if (result) {
+        applyBonusTrackingAfterEngineMove(result);
         console.log('[Multiplayer] Applied opponent move (UCI match):', moveStr);
         fireMoveAnimation(from, to, result.piece, result.captured, result.flags);
         updateOpeningName(engine.getFEN());
         notifyStateChange();
         return true;
       }
+      popBonusSquaresUndoSnapshot();
     }
   }
 
@@ -2293,8 +2477,10 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
   // engine.makeMove works with {from, to} — we can try to parse SAN to find matching move
   // by matching piece type, destination, etc.
   for (const move of legalMoves) {
+    pushBonusSquaresUndoSnapshot();
     const result = engine.makeMove(move.from, move.to, move.promotion);
     if (result && result.san === moveStr) {
+      applyBonusTrackingAfterEngineMove(result);
       console.log('[Multiplayer] Applied opponent move (SAN match):', moveStr);
       fireMoveAnimation(move.from, move.to, result.piece, result.captured, result.flags);
       updateOpeningName(engine.getFEN());
@@ -2303,9 +2489,12 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
     }
     // If the move was applied but SAN didn't match, we need to reload from FEN
     if (result) {
+      popBonusSquaresUndoSnapshot();
       // This move was applied incorrectly — recover from server FEN
       if (serverFen) {
         engine.loadFEN(serverFen);
+        playerBonusSquares = new Set();
+        playerBonusSquaresUndoStack = [];
         console.log('[Multiplayer] Synced board from server FEN after mismatch');
         updateOpeningName(engine.getFEN());
         notifyStateChange();
@@ -2313,11 +2502,14 @@ export function applyRemoteMove(moveStr: string, serverFen?: string): boolean {
       }
       return false;
     }
+    popBonusSquaresUndoSnapshot();
   }
 
   // Last resort: sync from server FEN
   if (serverFen) {
     engine.loadFEN(serverFen);
+    playerBonusSquares = new Set();
+    playerBonusSquaresUndoStack = [];
     console.log('[Multiplayer] Synced board from server FEN (fallback)');
     updateOpeningName(engine.getFEN());
     notifyStateChange();
